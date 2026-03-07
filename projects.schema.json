@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Case Harness Project Manifest",
+  "description": "Manifest of WorkOS open source repositories managed by the case harness",
+  "type": "object",
+  "required": ["repos"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "remote", "description", "language", "packageManager", "commands"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Short identifier for the repo (used in task file prefixes)"
+          },
+          "path": {
+            "type": "string",
+            "description": "Relative path from case/ to the repo root"
+          },
+          "remote": {
+            "type": "string",
+            "description": "Git remote URL"
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line description of the repo's purpose"
+          },
+          "language": {
+            "type": "string",
+            "enum": ["typescript", "python", "go", "ruby", "php", "dotnet", "elixir", "kotlin"]
+          },
+          "packageManager": {
+            "type": "string",
+            "enum": ["pnpm", "npm", "yarn", "uv", "pip", "go", "bundler", "composer", "dotnet", "mix", "gradle"]
+          },
+          "commands": {
+            "type": "object",
+            "required": ["setup", "test"],
+            "properties": {
+              "setup": { "type": "string", "description": "Install dependencies" },
+              "build": { "type": "string", "description": "Build the project" },
+              "test": { "type": "string", "description": "Run tests" },
+              "lint": { "type": "string", "description": "Run linter" },
+              "typecheck": { "type": "string", "description": "Run type checker" },
+              "format": { "type": "string", "description": "Run formatter" }
+            },
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
