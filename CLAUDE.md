@@ -7,6 +7,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 - **Always use `AskUserQuestion` tool** when asking questions. Never ask questions in plain text.
 - **Always work in feature branches.** Never commit to main. Use `claude --worktree` for isolated work.
+- **Always open pull requests.** Never push to main. Use `gh pr create` to open PRs for review.
 
 ## Philosophy
 

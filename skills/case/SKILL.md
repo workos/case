@@ -16,6 +16,7 @@ All paths below are relative to the skill's cache directory. For scripts, tasks,
 
 - **Always use `AskUserQuestion` tool when asking the user questions.** Do not ask questions in plain text. The tool provides structured options and ensures the user can respond clearly.
 - **Always work in feature branches.** Never commit directly to main. Use `claude --worktree` or create a branch before starting work.
+- **Always open pull requests.** Never push directly to main. Use `gh pr create` to open a PR for review. The `gh` CLI is available and authenticated.
 
 ## Always Load
 
