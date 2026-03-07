@@ -1,0 +1,18 @@
+{
+  "name": "case",
+  "owner": {
+    "name": "WorkOS",
+    "email": "support@workos.com"
+  },
+  "metadata": {
+    "description": "WorkOS OSS harness for AI agent orchestration",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "case",
+      "source": "./",
+      "description": "WorkOS OSS harness — cross-repo orchestration, conventions, and task dispatch"
+    }
+  ]
+}
