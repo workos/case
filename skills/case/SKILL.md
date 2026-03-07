@@ -12,6 +12,36 @@ Humans steer. Agents execute. When agents struggle, fix the harness.
 
 All paths below are relative to the skill's cache directory. For scripts, tasks, and project manifest, use the case repo path above.
 
+## Arguments
+
+Parse the arguments passed to `/case`. The argument determines the workflow:
+
+**No argument** — `/case`
+Load harness context for the current task. Follow the Task Routing table below.
+
+**GitHub issue number** — `/case 34`
+1. Detect the current repo from the working directory (`git remote get-url origin`)
+2. Fetch the issue: `gh issue view 34 --json title,body,labels,comments`
+3. Read the issue title, body, and comments to understand the task
+4. Route to the appropriate playbook based on issue content (bug → fix-bug, feature → architecture doc + playbook)
+5. Create a feature branch named after the issue: `git checkout -b fix/issue-34`
+6. Execute the work, following all rules below
+7. Open a PR linking the issue: `gh pr create --body "Closes #34"`
+
+**Linear issue ID** — `/case DX-1234`
+1. Use the Linear MCP tools to fetch the issue: `get_issue` with ID `DX-1234`
+2. Read the issue title, description, and any comments for context
+3. Determine the target repo from the issue content or current working directory
+4. Route to the appropriate playbook based on issue content
+5. Create a feature branch: `git checkout -b fix/DX-1234`
+6. Execute the work, following all rules below
+7. Open a PR referencing the Linear issue in the body
+
+**How to detect argument type:**
+- Matches `/^\d+$/` → GitHub issue number (e.g., `34`, `142`)
+- Matches `/^[A-Z]+-\d+$/` → Linear issue ID (e.g., `DX-1234`, `AUTH-42`)
+- Anything else → treat as a free-form task description, use Task Routing
+
 ## Rules
 
 - **Always use `AskUserQuestion` tool when asking the user questions.** Do not ask questions in plain text. The tool provides structured options and ensures the user can respond clearly.
