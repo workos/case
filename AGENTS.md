@@ -37,7 +37,7 @@ Lifecycle: `tasks/active/` → `tasks/done/` (moved after PR merge)
 
 ## Working in a Target Repo
 
-1. Read the repo's `AGENTS.md` for project-specific instructions
+1. Read the repo's `CLAUDE.md` (or `CLAUDE.local.md`) for project-specific instructions
 2. Run `scripts/bootstrap.sh {repo-name}` to verify readiness
 3. Follow the repo's PR checklist before opening a PR
 4. Run `scripts/check.sh --repo {repo-name}` to verify conventions
