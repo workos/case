@@ -71,6 +71,44 @@ Before making changes in any target repo:
 4. Follow the repo's PR checklist before opening a PR
 5. Run `/Users/nicknisi/Developer/case/scripts/check.sh --repo {repo-name}` to verify conventions
 
+## Verification Tools
+
+Use these to verify your work beyond unit tests:
+
+**Playwright** (headless browser automation):
+```bash
+# Run a quick check — navigate and assert
+npx playwright test {test-file}
+
+# Or write inline scripts for one-off verification
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('http://localhost:3000');
+  console.log(await page.title());
+  await browser.close();
+})();
+"
+```
+
+**Chrome DevTools MCP** (live browser inspection):
+When available, use the Chrome DevTools MCP tools to:
+- Take screenshots of the running app
+- Inspect DOM elements and their state
+- Read console output and network requests
+- Verify UI changes visually
+
+**Example apps** — some repos include example apps for manual testing:
+- `../authkit-nextjs/examples/` — Next.js app wired to AuthKit
+
+**When to use which:**
+- Unit tests → always, for logic verification
+- Playwright → for auth flows, redirects, cookie behavior, UI assertions
+- Chrome DevTools MCP → for visual verification, debugging, interactive exploration
+- Example apps → for end-to-end testing in a real framework environment
+
 ## Improving the Harness
 
 When an agent struggles or produces poor output, the fix goes into case/, not the code:
