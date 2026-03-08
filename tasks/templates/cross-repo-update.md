@@ -56,3 +56,7 @@ Dependency order (if applicable): {e.g., authkit-session first, then framework p
 - [ ] {Repeat for each repo}
 - [ ] Cross-validate consistency across all PRs
 - [ ] Merge in dependency order (if applicable)
+
+## Progress Log
+
+<!-- Agents append entries below. Do not edit existing entries. -->

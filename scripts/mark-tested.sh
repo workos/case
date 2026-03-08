@@ -35,3 +35,13 @@ fail_indicators: ${FAIL_COUNT}
 EOF
 
 echo ".case-tested created (hash: ${OUTPUT_HASH:0:12}...)" >&2
+
+# Update task JSON if .case-active contains a task ID
+CASE_REPO="/Users/nicknisi/Developer/case"
+if [[ -f ".case-active" ]]; then
+  TASK_ID=$(cat .case-active | tr -d '[:space:]')
+  TASK_JSON="${CASE_REPO}/tasks/active/${TASK_ID}.task.json"
+  if [[ -n "$TASK_ID" && -f "$TASK_JSON" ]]; then
+    bash "${CASE_REPO}/scripts/task-status.sh" "$TASK_JSON" tested true --from-marker 2>/dev/null || true
+  fi
+fi

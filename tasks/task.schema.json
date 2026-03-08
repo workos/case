@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Case Task",
+  "description": "JSON companion file for case task files. Stores machine-touched metadata alongside the human-readable Markdown task file.",
+  "type": "object",
+  "required": ["id", "status", "created", "repo"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Task slug matching the .md filename, e.g. authkit-nextjs-1-issue-53"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "implementing", "verifying", "closing", "pr-opened", "merged"],
+      "description": "Current lifecycle status. Transitions enforced by task-status.sh, not this schema."
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of task creation"
+    },
+    "repo": {
+      "type": "string",
+      "description": "Target repo name from projects.json (e.g. authkit-nextjs)"
+    },
+    "issue": {
+      "type": "string",
+      "description": "Issue identifier (e.g. 53 for GitHub, DX-1234 for Linear)"
+    },
+    "issueType": {
+      "type": "string",
+      "enum": ["github", "linear", "freeform"],
+      "description": "How the task was created"
+    },
+    "branch": {
+      "type": "string",
+      "description": "Git branch name (e.g. fix/issue-53, fix/DX-1234)"
+    },
+    "agents": {
+      "type": "object",
+      "description": "Tracking for each agent phase in the multi-agent pipeline",
+      "properties": {
+        "orchestrator": { "$ref": "#/$defs/agentPhase" },
+        "implementer": { "$ref": "#/$defs/agentPhase" },
+        "verifier": { "$ref": "#/$defs/agentPhase" },
+        "closer": { "$ref": "#/$defs/agentPhase" }
+      },
+      "additionalProperties": false
+    },
+    "tested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set by mark-tested.sh only (via --from-marker flag). Do not set directly."
+    },
+    "manualTested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set by mark-manual-tested.sh only (via --from-marker flag). Do not set directly."
+    },
+    "prUrl": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Pull request URL after PR creation"
+    },
+    "prNumber": {
+      "type": ["integer", "null"],
+      "default": null,
+      "description": "Pull request number"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "agentPhase": {
+      "type": "object",
+      "properties": {
+        "started": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when agent started"
+        },
+        "completed": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when agent completed"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "completed", "failed"],
+          "description": "Current agent phase status"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

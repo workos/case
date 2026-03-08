@@ -28,10 +28,61 @@ Optional: `## Context` for background info, issue links, API specs, etc.
 
 ## Lifecycle
 
-1. Human (or agent) creates task file in `tasks/active/`
-2. Agent reads the task, follows the checklist, does the work
-3. Agent opens a PR in the target repo
-4. After PR merge, task file moves to `tasks/done/`
+1. Orchestrator creates task file (`.md` + `.task.json`) in `tasks/active/`
+2. Agents read the task, execute their phase, update the progress log
+3. Closer agent opens a PR in the target repo
+4. Post-PR hook updates `.task.json` status to `pr-opened`
+5. After PR merge, status updated to `merged` (manual or automation)
+
+Legacy tasks without a `.task.json` companion still use the old file-move behavior (`active/` → `done/`).
+
+## JSON Companion File
+
+Every new task has a `.task.json` companion alongside the `.md` file. Same filename stem:
+
+```
+tasks/active/authkit-nextjs-1-issue-53.md         # human-readable
+tasks/active/authkit-nextjs-1-issue-53.task.json   # machine-touched
+```
+
+The JSON file stores structured metadata that agents and scripts update programmatically. Schema: `tasks/task.schema.json`.
+
+Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`.
+
+Read/write via: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> <field> [value]`
+
+**Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`mark-tested.sh`, `mark-manual-tested.sh`) — not by agents directly.
+
+## Status Lifecycle
+
+```
+active → implementing → verifying → closing → pr-opened → merged
+
+Recovery transitions:
+  implementing → active       (restart after failure)
+  verifying    → implementing (fix-and-retry)
+  closing      → verifying    (hook failure, re-verify)
+  pr-opened    → pr-opened    (idempotent, hook re-fire)
+```
+
+Transitions are enforced by `task-status.sh`. Invalid transitions are rejected with an error.
+
+## Progress Log
+
+Every task file has a `## Progress Log` section at the end. Agents append entries — never edit existing ones. Each entry includes the agent name, timestamp, and what was done.
+
+```markdown
+## Progress Log
+
+### Orchestrator — 2026-03-08T10:30:00Z
+- Created task from GitHub issue #53
+- Baseline smoke test: PASS
+
+### Implementer — 2026-03-08T10:35:00Z
+- Root cause: hardcoded cookie name
+- Fix: use WORKOS_COOKIE_NAME env var
+- Tests: 4 passing, committed abc123
+```
 
 ## Example
 
@@ -66,4 +117,8 @@ See: https://workos.com/docs/reference/organization/list
 - [ ] Update src/utils/help-json.ts
 - [ ] Run pnpm test && pnpm typecheck
 - [ ] Open PR with conventional commit message
+
+## Progress Log
+
+<!-- Agents append entries below. Do not edit existing entries. -->
 ```

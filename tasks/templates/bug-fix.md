@@ -39,3 +39,7 @@ docs/playbooks/fix-bug.md
 - [ ] Verify fix (failing test now passes)
 - [ ] Run full check suite: {pnpm test && pnpm typecheck && ...}
 - [ ] Open PR with conventional commit: `fix: {description}`
+
+## Progress Log
+
+<!-- Agents append entries below. Do not edit existing entries. -->

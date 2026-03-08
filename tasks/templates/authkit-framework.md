@@ -55,3 +55,7 @@ Router: {describe the framework's client-side router for navigation}
 - [ ] Add AGENTS.md
 - [ ] Run `pnpm test && pnpm typecheck && pnpm build && pnpm format`
 - [ ] Open PR with conventional commit: `feat: initial authkit-{framework-name} integration`
+
+## Progress Log
+
+<!-- Agents append entries below. Do not edit existing entries. -->

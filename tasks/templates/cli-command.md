@@ -39,3 +39,7 @@ API endpoint: {e.g., GET /resources, POST /resources, GET /resources/:id}
 - [ ] Add command to `src/utils/help-json.ts` registry
 - [ ] Run `pnpm test && pnpm typecheck && pnpm lint && pnpm format && pnpm build`
 - [ ] Open PR with conventional commit: `feat: add {command-name} command`
+
+## Progress Log
+
+<!-- Agents append entries below. Do not edit existing entries. -->
