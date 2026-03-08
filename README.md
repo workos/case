@@ -8,56 +8,54 @@ Inspired by [harness engineering](https://openai.com/index/harness-engineering/)
 
 ```mermaid
 graph TD
-    A[Engineer] -->|"/case 34" or "/case DX-1234"| B[/case skill]
+    A["Engineer: /case 34"] --> B["Case skill"]
     B --> C{Parse argument}
-    C -->|GitHub issue| D[Fetch issue via gh CLI]
-    C -->|Linear issue| E[Fetch issue via Linear MCP]
-    C -->|No args| F[Load harness context]
+    C -->|GitHub issue| D["Fetch issue via gh CLI"]
+    C -->|Linear issue| E["Fetch issue via Linear MCP"]
+    C -->|No args| F["Load harness context"]
 
-    D --> G[Create task file in tasks/active/]
+    D --> G["Create task file"]
     E --> G
-    G --> H[Activate enforcement: touch .case-active]
-    H --> I[Route to playbook + architecture docs]
-    I --> J[Create feature branch]
-    J --> K[Execute the work]
+    G --> H["touch .case-active"]
+    H --> I["Route to playbook + arch docs"]
+    I --> J["Create feature branch"]
+    J --> K["Execute the work"]
 
-    K --> L{Pre-PR Checklist}
-    L -->|tests pass| L1[touch .case-tested]
-    L -->|manual testing done| L2[touch .case-manual-tested]
-    L -->|security audit if auth change| L3[Run security-auditor skill]
+    K --> L{"Pre-PR Checklist"}
+    L -->|tests pass| L1["touch .case-tested"]
+    L -->|manual test| L2["touch .case-manual-tested"]
+    L -->|auth change| L3["Run security-auditor"]
 
-    L1 --> M[gh pr create]
+    L1 --> M["gh pr create"]
     L2 --> M
     L3 --> M
 
-    M -->|PreToolUse hook| N{Hooks gate}
-    N -->|markers missing| O[BLOCKED - remediation instructions]
+    M -->|PreToolUse hook| N{"Hooks gate"}
+    N -->|markers missing| O["BLOCKED + remediation"]
     O -->|agent fixes gaps| L
-    N -->|all checks pass| P[PR opened]
+    N -->|all pass| P["PR opened"]
 
-    P -->|PostToolUse hook| Q[Cleanup: move task to done/, remove markers]
-    Q --> R[Engineer reviews PR]
-    R -->|agent struggled?| S[Fix the harness, not the code]
-    S --> T[Update docs/playbooks/hooks in case/]
+    P -->|PostToolUse hook| Q["Cleanup markers + move task"]
+    Q --> R["Engineer reviews PR"]
+    R -->|agent struggled?| S["Fix the harness, not the code"]
 ```
 
 ## Feedback Loop
 
 ```mermaid
 graph LR
-    A[Agent produces bad output] --> B[Don't fix the code]
-    B --> C[Fix the harness]
-    C --> D{What's missing?}
-    D -->|Missing pattern| E[Add to docs/architecture/]
-    D -->|Unclear convention| F[Update docs/conventions/]
-    D -->|Recurring task| G[Add playbook + template]
-    D -->|Agent skips steps| H[Add a hook to enforce]
-    D -->|Wrong approach| I[Update CLAUDE.md in target repo]
-    E --> J[Next agent succeeds]
-    F --> J
-    G --> J
-    H --> J
-    I --> J
+    A["Agent produces bad output"] --> B["Fix the harness"]
+    B --> C{"What's missing?"}
+    C -->|pattern| D["docs/architecture/"]
+    C -->|convention| E["docs/conventions/"]
+    C -->|recurring task| F["Add playbook + template"]
+    C -->|skips steps| G["Add a hook"]
+    C -->|wrong approach| H["Update repo CLAUDE.md"]
+    D --> I["Next agent succeeds"]
+    E --> I
+    F --> I
+    G --> I
+    H --> I
 ```
 
 ## Quick Start
