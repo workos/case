@@ -4,6 +4,62 @@ A harness for orchestrating AI agent work across WorkOS open source projects.
 
 Inspired by [harness engineering](https://openai.com/index/harness-engineering/) — the discipline of designing environments that let AI agents operate reliably at scale. Humans steer. Agents execute. When agents struggle, fix the harness.
 
+## How It Works
+
+```mermaid
+graph TD
+    A[Engineer] -->|"/case 34" or "/case DX-1234"| B[/case skill]
+    B --> C{Parse argument}
+    C -->|GitHub issue| D[Fetch issue via gh CLI]
+    C -->|Linear issue| E[Fetch issue via Linear MCP]
+    C -->|No args| F[Load harness context]
+
+    D --> G[Create task file in tasks/active/]
+    E --> G
+    G --> H[Activate enforcement: touch .case-active]
+    H --> I[Route to playbook + architecture docs]
+    I --> J[Create feature branch]
+    J --> K[Execute the work]
+
+    K --> L{Pre-PR Checklist}
+    L -->|tests pass| L1[touch .case-tested]
+    L -->|manual testing done| L2[touch .case-manual-tested]
+    L -->|security audit if auth change| L3[Run security-auditor skill]
+
+    L1 --> M[gh pr create]
+    L2 --> M
+    L3 --> M
+
+    M -->|PreToolUse hook| N{Hooks gate}
+    N -->|markers missing| O[BLOCKED - remediation instructions]
+    O -->|agent fixes gaps| L
+    N -->|all checks pass| P[PR opened]
+
+    P -->|PostToolUse hook| Q[Cleanup: move task to done/, remove markers]
+    Q --> R[Engineer reviews PR]
+    R -->|agent struggled?| S[Fix the harness, not the code]
+    S --> T[Update docs/playbooks/hooks in case/]
+```
+
+## Feedback Loop
+
+```mermaid
+graph LR
+    A[Agent produces bad output] --> B[Don't fix the code]
+    B --> C[Fix the harness]
+    C --> D{What's missing?}
+    D -->|Missing pattern| E[Add to docs/architecture/]
+    D -->|Unclear convention| F[Update docs/conventions/]
+    D -->|Recurring task| G[Add playbook + template]
+    D -->|Agent skips steps| H[Add a hook to enforce]
+    D -->|Wrong approach| I[Update CLAUDE.md in target repo]
+    E --> J[Next agent succeeds]
+    F --> J
+    G --> J
+    H --> J
+    I --> J
+```
+
 ## Quick Start
 
 ### Install the plugin
@@ -19,36 +75,31 @@ Restart Claude Code after installing. The `/case` skill will be available in all
 
 To update after changes to the harness:
 ```bash
-claude plugin update case
+claude plugin marketplace update case
+claude plugin uninstall case && claude plugin install case
 ```
+
+### Use with an issue
+
+From any target repo, hand an issue to case:
+
+```bash
+# GitHub issue
+/case 34
+
+# Linear issue
+/case DX-1234
+```
+
+The agent fetches the issue, creates a task file, routes to the right playbook, does the work, and opens a PR. Hooks enforce the pre-PR checklist mechanically.
 
 ### Use interactively
 
-Open Claude Code in the case directory and describe what you want:
-
 ```bash
-cd case/
-claude
-
-> Add a "workos widgets list" command to the CLI
-> Fix the session refresh bug in authkit-nextjs (issue #42)
-> Update all repos to use the latest TypeScript config
+/case fix a bug where session cookies aren't being set correctly
 ```
 
-The agent reads `AGENTS.md` for the project landscape, routes to the right architecture doc and playbook, then goes to the target repo and does the work.
-
-### Use the /case skill
-
-From any of the target repos, invoke the skill:
-
-```bash
-cd ../authkit-nextjs/
-claude
-
-> /case fix a bug where session cookies aren't being set correctly
-```
-
-The skill loads harness context (landscape, conventions, playbooks) so the agent has cross-repo awareness even when working in a single repo.
+Loads harness context (landscape, conventions, playbooks) for the current task without the full issue workflow.
 
 ## Dispatching Tasks
 
@@ -79,13 +130,6 @@ Use `--worktree` so the agent works in an isolated branch:
 claude --worktree -p "Execute the task in tasks/active/authkit-nextjs-1-fix-cookie-bug.md"
 ```
 
-Or open Claude Code interactively with a worktree:
-
-```bash
-claude --worktree
-> Read and execute tasks/active/authkit-nextjs-1-fix-cookie-bug.md
-```
-
 ### 4. Run multiple in parallel
 
 Each agent gets its own worktree — no conflicts:
@@ -103,79 +147,91 @@ claude --worktree -p "Execute tasks/active/x-1-update-readme-badges.md"
 
 ### 5. Review PRs
 
-Each agent opens a PR in the target repo. Review and merge as usual. After merge, move the task file:
+Each agent opens a PR in the target repo. Review and merge as usual. Task files are automatically moved to `tasks/done/` by the post-PR hook.
 
-```bash
-mv tasks/active/authkit-nextjs-1-fix-cookie-bug.md tasks/done/
+## Enforcement
+
+Case uses Claude Code hooks to mechanically enforce the pre-PR checklist. Hooks only activate during `/case` workflows (when `.case-active` marker exists).
+
+| Hook | Trigger | What it enforces |
+| --- | --- | --- |
+| `pre-pr-check.sh` | `gh pr create` | Tests ran, manual testing done, verification notes in PR body, on feature branch |
+| `pre-push-check.sh` | `git push` | Not pushing to main/master |
+| `pre-commit-check.sh` | `git commit` | Conventional commit format |
+| `post-pr-cleanup.sh` | `gh pr create` (after) | Moves task file to `done/`, cleans up markers |
+
+When a hook blocks, it tells the agent exactly what's wrong and how to fix it:
+
 ```
+CASE PRE-PR CHECK FAILED
+
+[FAIL] Tests not verified — .case-tested marker missing
+  FIX: Run tests (pnpm test, pnpm typecheck, pnpm build), then: touch .case-tested
+
+[FAIL] Manual testing not done — .case-manual-tested marker missing
+  FIX: Test the specific fix in the example app with playwright-cli, then: touch .case-manual-tested
+```
+
+## Verification Tools
+
+Agents verify their work using:
+
+- **Playwright CLI** — primary tool for front-end testing. Headless, scriptable, produces screenshots/video.
+- **Screenshot uploads** — `scripts/upload-screenshot.sh` pushes images to a GitHub release and returns markdown for PR bodies.
+- **Test credentials** — `~/.config/case/credentials` for sign-in flow testing.
+- **Chrome DevTools MCP** — secondary, for interactive debugging only.
+- **Security auditor** — runs automatically for auth/session changes via the pre-PR checklist.
 
 ## Verifying Repos
 
-### Check conventions across all repos
-
 ```bash
+# Check conventions across all repos
 bash scripts/check.sh
-```
 
-Checks each repo against golden principles (CLAUDE.md exists, required commands, conventional commits, file size limits, package.json fields). Outputs PASS/FAIL with remediation instructions.
-
-### Check a single repo
-
-```bash
+# Check a single repo
 bash scripts/check.sh --repo cli
-```
 
-### Bootstrap a repo for agent work
-
-```bash
+# Bootstrap a repo for agent work (install deps, run tests, build)
 bash scripts/bootstrap.sh cli
-```
 
-Installs deps, runs tests, runs build. Confirms the repo is ready.
-
-### Run checks with tests
-
-```bash
+# Run checks including test execution
 bash scripts/check.sh --run-tests
 ```
 
 ## What's in the Harness
 
 ```
-AGENTS.md                         → Entry point for agents (project landscape, navigation)
-CLAUDE.md                         → How to improve case itself
-projects.json                     → Manifest of target repos (paths, commands, remotes)
+.claude-plugin/                     Plugin + marketplace manifests
+skills/
+  case/SKILL.md                     /case skill (router + workflow + checklist)
+  security-auditor/SKILL.md         Security audit (auto-invoked, not user-facing)
+hooks/
+  hooks.json                        Hook configuration
+  pre-pr-check.sh                   Block PR without test/verification markers
+  pre-push-check.sh                 Block push to main/master
+  pre-commit-check.sh               Enforce conventional commits
+  post-pr-cleanup.sh                Move task files, clean markers
+
+AGENTS.md                           Entry point for agents (project landscape)
+CLAUDE.md                           How to improve case itself
+projects.json                       Manifest of target repos
 
 docs/
-  architecture/
-    cli.md                        → CLI adapter pattern, command structure
-    authkit-framework.md          → Canonical AuthKit integration pattern
-    authkit-session.md            → Session management architecture
-    skills-plugin.md              → Skills plugin structure
-  conventions/
-    commits.md                    → Conventional commits, release-please
-    testing.md                    → Test frameworks, coverage, naming
-    pull-requests.md              → PR structure, required checks
-    code-style.md                 → Formatters, linters, file size limits
-  golden-principles.md            → 15 invariants (9 enforced, 6 advisory)
-  playbooks/
-    add-cli-command.md            → Step-by-step: add a CLI command
-    add-authkit-framework.md      → Step-by-step: new AuthKit framework
-    fix-bug.md                    → Step-by-step: triage and fix a bug
-    cross-repo-update.md          → Step-by-step: coordinated cross-repo change
+  architecture/                     Canonical patterns per repo type
+  conventions/                      Shared rules (commits, testing, PRs, style)
+  playbooks/                        Step-by-step guides for recurring operations
+  golden-principles.md              Enforced invariants across all repos
+  philosophy.md                     Design principles guiding case
 
 tasks/
-  active/                         → Current tasks for agent execution
-  done/                           → Completed tasks
-  templates/                      → Fill-in-the-blank task templates
-  README.md                       → Task file format spec
+  active/                           Current tasks for agent execution
+  done/                             Completed tasks
+  templates/                        Fill-in-the-blank task templates
 
 scripts/
-  check.sh                        → Convention enforcement across repos
-  bootstrap.sh                    → Per-repo readiness verification
-
-skills/case/SKILL.md              → /case Claude Code skill
-.claude-plugin/plugin.json        → Claude Code plugin manifest
+  check.sh                          Convention enforcement across repos
+  bootstrap.sh                      Per-repo readiness verification
+  upload-screenshot.sh              Upload images to GitHub for PR descriptions
 ```
 
 ## Target Repos (v1)
@@ -192,10 +248,13 @@ The manifest (`projects.json`) and all tooling are designed to scale to 25+ repo
 
 ## Philosophy
 
-- **Never write code directly.** Only improve the harness. All code changes flow through agents.
-- **When agents struggle, fix the harness.** Missing pattern? Add to `docs/architecture/`. Unclear convention? Update `docs/conventions/`. Recurring task? Add a playbook + template.
-- **Give a map, not a manual.** `AGENTS.md` is 47 lines. Agents drill into deeper docs only when needed.
-- **Enforce mechanically.** `scripts/check.sh` catches violations automatically. Error messages tell agents how to fix them.
+See [docs/philosophy.md](docs/philosophy.md) for the full set of principles. The highlights:
+
+- **Humans steer. Agents execute.** Engineers define goals. Agents implement.
+- **Never write code directly.** Only improve the harness. All code flows through agents.
+- **When agents struggle, fix the harness.** The fix is never "try harder."
+- **Enforce mechanically, not rhetorically.** Instructions decay over long sessions. Hooks don't.
+- **The harness is the product. The code is the output.**
 
 ## Relationship to Skills Plugin
 
