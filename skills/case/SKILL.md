@@ -122,14 +122,14 @@ Before making changes in any target repo:
 
 ## Verification Tools
 
-Use these to verify your work beyond unit tests:
+Use these to verify your work beyond unit tests.
 
-**Playwright** (headless browser automation):
+**Preference order for front-end testing: Playwright first.** It runs headless, is scriptable, and produces artifacts (screenshots, video). Only use Chrome DevTools MCP for interactive debugging when Playwright isn't sufficient.
+
+### Playwright (primary for front-end)
+
 ```bash
-# Run a quick check — navigate and assert
-npx playwright test {test-file}
-
-# Or write inline scripts for one-off verification
+# Inline script for one-off verification
 node -e "
 const { chromium } = require('playwright');
 (async () => {
@@ -137,26 +137,91 @@ const { chromium } = require('playwright');
   const page = await browser.newPage();
   await page.goto('http://localhost:3000');
   console.log(await page.title());
+  await page.screenshot({ path: '/tmp/screenshot.png' });
   await browser.close();
 })();
 "
 ```
 
-**Chrome DevTools MCP** (live browser inspection):
-When available, use the Chrome DevTools MCP tools to:
-- Take screenshots of the running app
-- Inspect DOM elements and their state
-- Read console output and network requests
-- Verify UI changes visually
+**Capture screenshots and video for PRs:**
+```javascript
+// Screenshot
+await page.screenshot({ path: '/tmp/after.png', fullPage: true });
 
-**Example apps** — some repos include example apps for manual testing:
+// Video — start recording at context creation
+const context = await browser.newContext({
+  recordVideo: { dir: '/tmp/videos/' }
+});
+const page = await context.newPage();
+// ... do the work ...
+await context.close(); // video saved to /tmp/videos/
+```
+
+### Test credentials
+
+Credentials for testing sign-in flows are at `~/.config/case/credentials`. Read this file to get test values.
+
+Expected keys:
+```
+WORKOS_API_KEY=sk_test_...
+WORKOS_CLIENT_ID=client_...
+TEST_USER_EMAIL=test@example.com
+TEST_USER_PASSWORD=...
+WORKOS_COOKIE_PASSWORD=... (32+ chars for session encryption)
+```
+
+Use these when testing auth flows with Playwright:
+1. Start the example app (e.g., `cd ../authkit-nextjs/examples/... && pnpm dev`)
+2. Navigate to the sign-in page
+3. Fill in test credentials from `~/.config/case/credentials`
+4. Verify the redirect, session cookie, and authenticated state
+5. Capture before/after screenshots
+
+**NEVER commit credentials. NEVER include credential values in PR descriptions, logs, or task files.**
+
+### PR verification artifacts
+
+When making front-end changes, **attach visual proof to the PR description**:
+
+- **Screenshot**: Capture before (on main) and after (on your branch) for comparison
+- **Video**: Record the flow for interactive changes (sign-in, navigation, animations)
+
+Upload artifacts to the PR:
+```bash
+# Upload image and get markdown for PR body
+gh pr edit {pr-number} --body "$(cat <<'BODY'
+## Summary
+{description}
+
+## Visual verification
+### Before
+![before](/tmp/before.png)
+
+### After
+![after](/tmp/after.png)
+BODY
+)"
+
+# Or attach files directly if the repo supports it
+# Take screenshot, encode as base64, embed in PR comment
+```
+
+Note: GitHub PR descriptions support image URLs but not direct file uploads from CLI. For local screenshots, upload to a GitHub issue comment first (`gh issue comment` with drag-drop) or use a gist, then reference the URL in the PR body.
+
+### Chrome DevTools MCP (secondary — interactive debugging only)
+
+Use when Playwright isn't sufficient — e.g., inspecting live state, debugging network requests, or exploring an unfamiliar UI. Not for automated verification.
+
+### Example apps
+
+Some repos include example apps for end-to-end testing:
 - `../authkit-nextjs/examples/` — Next.js app wired to AuthKit
 
-**When to use which:**
+### When to use which
 - Unit tests → always, for logic verification
-- Playwright → for auth flows, redirects, cookie behavior, UI assertions
-- Chrome DevTools MCP → for visual verification, debugging, interactive exploration
-- Example apps → for end-to-end testing in a real framework environment
+- **Playwright → front-end changes, auth flows, redirects, cookie behavior, visual verification (preferred)**
+- Chrome DevTools MCP → interactive debugging only, when Playwright can't answer the question
+- Example apps → for end-to-end auth flow testing with real credentials
 
 ## Improving the Harness
 
