@@ -161,7 +161,7 @@ _(Already done in the Arguments section above)_
    ```bash
    bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
    ```
-   - If FAIL: **stop**. Report broken baseline to user via `AskUserQuestion`. Do not spawn implementer.
+   - If FAIL: Report broken baseline to user via `AskUserQuestion`. Do not spawn implementer. **Go to step 8 (Retrospective)** with outcome "failed" and failed agent "orchestrator/baseline".
    - If PASS: continue
 4. Append to task file progress log:
    ```markdown
@@ -188,7 +188,7 @@ _(Already done in the Arguments section above)_
    - **subagent_type**: `general-purpose`
 3. Wait for completion
 4. Parse `AGENT_RESULT` from response
-5. If `status == "failed"`: **stop**, report error to user via `AskUserQuestion`
+5. If `status == "failed"`: report error to user via `AskUserQuestion`. **Go to step 8 (Retrospective)** with outcome "failed" and failed agent "implementer".
 6. If `status == "completed"`: continue to step 5
 
 ### Step 5: Spawn Verifier
@@ -204,9 +204,11 @@ _(Already done in the Arguments section above)_
    - **If src/ changed** (verification mandatory — hook will block):
      Use `AskUserQuestion`: "Verification failed: `<summary>`"
      Options: "Fix and re-verify" | "Abort"
+     If "Abort": **go to step 8 (Retrospective)** with outcome "failed" and failed agent "verifier".
    - **If NO src/ changed** (verification optional):
      Use `AskUserQuestion`: "Verification failed: `<summary>`"
      Options: "Fix and re-verify" | "Skip verification" | "Abort"
+     If "Abort": **go to step 8 (Retrospective)** with outcome "failed" and failed agent "verifier".
 6. If `status == "completed"`: continue to step 6
 
 ### Step 6: Spawn Closer
@@ -221,7 +223,7 @@ _(Already done in the Arguments section above)_
    - **subagent_type**: `general-purpose`
 4. Wait for completion
 5. Parse `AGENT_RESULT` from response
-6. If `status == "failed"`: report to user, suggest which steps to re-run
+6. If `status == "failed"`: report to user, suggest which steps to re-run. **Go to step 8 (Retrospective)** with outcome "failed" and failed agent "closer".
 7. If `status == "completed"`: continue to step 7
 
 ### Step 7: Complete
@@ -232,7 +234,7 @@ Report to user:
 
 ### Step 8: Spawn Retrospective
 
-**Always runs** — after both successful and failed pipelines. This is how the harness improves itself.
+**Always runs** — after both successful and failed pipelines, at every failure class (baseline, implementer, verifier, closer). Every failure branch in steps 3-7 routes here explicitly. This is how the harness improves itself.
 
 1. Read `/Users/nicknisi/Developer/case/agents/retrospective.md`
 2. Use the `Agent` tool:
