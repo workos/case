@@ -86,18 +86,31 @@ After parsing and fetching the issue, execute this pipeline:
 
 ### Step 0: Check for Existing Task (Re-entry)
 
-1. Read `.case-active` — if it contains a task ID, look up `/Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json` directly
-2. If `.case-active` missing or empty, scan by argument type:
-   - GitHub issue → scan `/Users/nicknisi/Developer/case/tasks/active/*.task.json` for matching `repo` + `issueType: "github"` + `issue` number
-   - Linear ID → scan for matching `issueType: "linear"` + `issue` ID
-   - Free text → no automatic re-entry. Proceed to step 1.
-3. If found, read its `status` and resume:
+**Explicit arguments always win over `.case-active`.** The `.case-active` shortcut is only used for no-arg `/case`. When an explicit issue number or Linear ID is provided, re-entry is matched by issue content, not by `.case-active`.
+
+1. **If an explicit argument was provided** (issue number or Linear ID):
+   - Scan `/Users/nicknisi/Developer/case/tasks/active/*.task.json` for a match:
+     - GitHub issue → matching `repo` + `issueType: "github"` + `issue` number
+     - Linear ID → matching `issueType: "linear"` + `issue` ID
+   - Ignore `.case-active` — it may be stale or from a different issue
+   - If found and matches the argument → resume (see status table below)
+   - If not found → proceed to step 1 (new task)
+
+2. **If no argument** (`/case` with no args):
+   - Read `.case-active` — if it contains a task ID, look up `/Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json` directly
+   - If found → resume
+   - If not found → load harness context (no orchestrator flow)
+
+3. **Free text argument**: no automatic re-entry. Proceed to step 1.
+
+**Resume status table** (when an existing task is found):
    - `active` → go to step 3 (Branch & Baseline)
    - `implementing` → step 4 (Implementer) if implementer failed, step 5 (Verifier) if implementer completed
    - `verifying` → step 5 (Verifier) if verifier failed, step 6 (Closer) if verifier completed
    - `closing` → step 6 (Closer)
    - `pr-opened` → report "PR already exists" and done
-4. If not found → proceed to step 1
+
+If not found → proceed to step 1
 
 ### Step 1: Parse & Fetch
 
@@ -220,9 +233,9 @@ Report to user:
 
 If `/case` is invoked and a `.task.json` already exists for the issue, the orchestrator resumes from the last completed agent phase instead of recreating everything. This handles crashed or interrupted runs.
 
-**Primary re-entry path**: `.case-active` contains the task ID → look up the specific `.task.json` directly.
+**Explicit arguments win.** When `/case 53` or `/case DX-1234` is invoked, re-entry is matched by scanning `.task.json` files for the specific issue — `.case-active` is ignored (it may be stale or from a different issue).
 
-**Fallback**: Scan `tasks/active/*.task.json` matching the repo + issue type + issue number.
+**No-arg `/case`** uses `.case-active` as a convenience shortcut to resume the most recent task.
 
 **Free-form tasks**: No automatic re-entry (ambiguous). User can resume by running `/case` with no arguments from the same branch — the `.case-active` marker routes them.
 
