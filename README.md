@@ -1,5 +1,8 @@
 # Case
 
+![Uploading Untitled design.png…]()
+
+
 A harness for orchestrating AI agent work across WorkOS open source projects.
 
 Inspired by [harness engineering](https://openai.com/index/harness-engineering/) — the discipline of designing environments that let AI agents operate reliably at scale. Humans steer. Agents execute. When agents struggle, fix the harness.
