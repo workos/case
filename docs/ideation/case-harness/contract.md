@@ -9,15 +9,15 @@
 
 WorkOS maintains ~25 open source repositories (SDKs across 8 languages, AuthKit integrations for 6+ frameworks, CLI, skills plugin) that share conventions, patterns, and architectural decisions — but no single repo captures the cross-cutting knowledge. An agent working in `authkit-nextjs` doesn't know how the CLI is structured, what patterns `authkit-session` uses, or what conventions are shared across the ecosystem.
 
-Every agent session starts cold. There's no onboarding material for agent "teammates," no playbooks for recurring cross-repo operations, and no way to dispatch agent work in parallel across repos. The human (Nick) ends up as the bottleneck — steering every session manually, repeating context, and catching inconsistencies by hand.
+Every agent session starts cold. There's no onboarding material for agent "teammates," no playbooks for recurring cross-repo operations, and no way to dispatch agent work in parallel across repos. The human engineer ends up as the bottleneck — steering every session manually, repeating context, and catching inconsistencies by hand.
 
 The goal is to adopt harness engineering: build the environment so that agents can operate reliably across the WorkOS OSS ecosystem with minimal human steering. "Humans steer. Agents execute." When an agent struggles, the fix is never "try harder" — it's "what's missing from the harness?"
 
 ## Goals
 
 1. **Cross-repo agent effectiveness** — An agent given a task file can navigate to the target repo(s) and produce a correct, test-passing PR using harness docs alone, without additional human guidance.
-2. **Task-file dispatch** — Nick writes a task file in `tasks/active/`, an agent picks it up and executes. Multiple task files = multiple agents in parallel. No custom runtime needed.
-3. **Never write code directly** — Nick only improves the harness (docs, playbooks, conventions, enforcement, task templates). All code changes flow through agents.
+2. **Task-file dispatch** — An engineer writes a task file in `tasks/active/`, an agent picks it up and executes. Multiple task files = multiple agents in parallel. No custom runtime needed.
+3. **Never write code directly** — Engineers only improve the harness (docs, playbooks, conventions, enforcement, task templates). All code changes flow through agents.
 4. **Pattern consistency** — Shared conventions are documented once in `case/` and enforced mechanically via linters and check scripts. Agents replicate good patterns, not bad ones.
 5. **Plugin-based context injection** — `case` is a Claude Code plugin providing a `/case` skill, so any agent in any target repo gets harness context automatically.
 6. **Scalable to 25 repos** — v1 targets 5 repos, but all artifacts (manifest schema, playbook format, task routing, AGENTS.md structure) are designed to scale to the full WorkOS OSS ecosystem.
@@ -26,7 +26,7 @@ The goal is to adopt harness engineering: build the environment so that agents c
 
 **Quantitative (tracked over time):**
 - **First-pass PR success rate** — % of agent PRs that pass CI and are mergeable without human code edits. Target: >70% within 4 weeks.
-- **Human interventions per task** — average number of times Nick has to course-correct an agent mid-task. Target: <2 per task.
+- **Human interventions per task** — average number of times the engineer has to course-correct an agent mid-task. Target: <2 per task.
 - **Task-to-PR time** — elapsed time from task file creation to PR opened. Baseline TBD after first 10 tasks.
 
 **Qualitative (pass/fail):**

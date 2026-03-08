@@ -4,8 +4,8 @@ Principles that guide how case is built and used. These come from experience, fr
 
 ## Core
 
-- **Humans steer. Agents execute.** Nick defines goals and acceptance criteria. Agents implement.
-- **Never write code directly.** All code changes flow through agents. Nick only improves the harness.
+- **Humans steer. Agents execute.** Engineers define goals and acceptance criteria. Agents implement.
+- **Never write code directly.** All code changes flow through agents. Engineers only improve the harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.
 - **The harness is the product. The code is the output.**
 

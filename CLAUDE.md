@@ -14,8 +14,8 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 ## Philosophy
 
-- **Humans steer, agents execute.** Nick defines goals and acceptance criteria. Agents implement.
-- **Never write code directly.** All code changes in target repos flow through agents. Nick only improves this harness.
+- **Humans steer, agents execute.** Engineers define goals and acceptance criteria. Agents implement.
+- **Never write code directly.** All code changes in target repos flow through agents. Engineers only improve this harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.
 - **Give a map, not a manual.** AGENTS.md is ~100 lines. Deeper docs live in docs/. Progressive disclosure.
 
