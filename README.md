@@ -22,23 +22,23 @@ graph TD
     E --> G
     G --> H["echo task-id > .case-active"]
     H --> I["Baseline smoke test"]
-    I -->|FAIL| R8a["Retrospective"]
+    I -->|FAIL| RETRO["Retrospective"]
     I -->|PASS| J["Spawn Implementer"]
 
     J --> K{"Implementer result"}
-    K -->|failed| R8b["Retrospective"]
+    K -->|failed| RETRO
     K -->|completed| L["Spawn Verifier"]
 
     L --> M{"Verifier result"}
-    M -->|failed| R8c["Retrospective"]
+    M -->|failed| RETRO
     M -->|completed| N["Spawn Closer"]
 
     N --> O{"Closer result"}
-    O -->|failed| R8d["Retrospective"]
+    O -->|failed| RETRO
     O -->|completed| P["PR opened"]
 
-    P --> Q["Spawn Retrospective"]
-    Q --> R["Suggest harness improvements"]
+    P --> RETRO
+    RETRO --> R["Suggest harness improvements"]
 ```
 
 ### The Five Agents
