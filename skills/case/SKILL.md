@@ -174,7 +174,7 @@ Use these when testing auth flows with Playwright:
 4. Verify the redirect, session cookie, and authenticated state
 5. Capture before/after screenshots
 
-**NEVER commit credentials. NEVER include credential values in PR descriptions, logs, or task files.**
+**NEVER commit credentials. NEVER include credential values in PR descriptions, logs, or task files. NEVER use credentials in raw curl/API calls — only pass them through example app .env files.**
 
 ### PR verification artifacts
 
@@ -230,14 +230,25 @@ If you are about to open a PR, stop and verify each item:
 - [ ] **Types check** — run typecheck if the repo has one
 - [ ] **Lint passes** — run lint if the repo has one
 - [ ] **Build succeeds** — run build if the repo has one
-- [ ] **Mark tests complete**: `touch .case-tested` (the pre-PR hook checks for this)
+- [ ] **Mark tests complete**: pipe test output through the marker script. Do NOT use `touch` — the hook will reject it.
+  ```bash
+  pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+  ```
 - [ ] **Example app tested — the SPECIFIC fix, not just the happy path.** If the repo has an example app AND the change touches any `src/` file: start the example app, load the `playwright-cli` skill, and reproduce the exact scenario the issue describes. For a bug fix, trigger the bug conditions and confirm the fix works. For a feature, exercise the new feature specifically. Do NOT just sign in and sign out — that's the happy path, not your fix. Ask yourself: "if I reverted my change, would this test fail?" If the answer is no, you're testing the wrong thing. Use credentials from `~/.config/case/credentials`. Skip ONLY for purely docs/config/CI changes.
-- [ ] **Mark manual testing complete**: `touch .case-manual-tested` (the pre-PR hook checks for this — skip only if no src/ files changed)
+- [ ] **Mark manual testing complete**: run the marker script AFTER using playwright-cli. Do NOT use `touch` — the hook will reject it. The script checks for evidence of playwright usage (recent screenshots).
+  ```bash
+  bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh
+  ```
+  Skip only if no `src/` files changed.
 - [ ] **Capture screenshots/video of the SPECIFIC fix.** For front-end changes: take a screenshot before (on main) and after (on your branch) with Playwright. Upload using the case upload script and include the markdown in your PR body:
   ```bash
-  playwright-cli screenshot --path /tmp/before.png
-  # ... switch to your branch ...
-  playwright-cli screenshot --path /tmp/after.png
+  # playwright-cli screenshot saves to .playwright-cli/ by default
+  # then copy to /tmp for uploading
+  playwright-cli screenshot
+  cp .playwright-cli/page-*.png /tmp/before.png
+  # ... switch to your branch, test again ...
+  playwright-cli screenshot
+  cp .playwright-cli/page-*.png /tmp/after.png
   BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/before.png)
   AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
   ```

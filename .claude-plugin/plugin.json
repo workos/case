@@ -1,7 +1,7 @@
 {
   "name": "case",
   "description": "WorkOS OSS harness — cross-repo orchestration, conventions, and task dispatch",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "WorkOS",
     "email": "support@workos.com"
