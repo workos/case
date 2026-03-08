@@ -227,8 +227,8 @@ If you are about to open a PR, stop and verify each item:
 - [ ] **Types check** — run typecheck if the repo has one
 - [ ] **Lint passes** — run lint if the repo has one
 - [ ] **Build succeeds** — run build if the repo has one
-- [ ] **Example app tested** — if the repo has an example app AND the change affects runtime behavior: start the example app, load the `playwright-cli` skill, test the affected flow end-to-end using credentials from `~/.config/case/credentials`. If unsure whether this applies, do it anyway.
-- [ ] **Screenshots/video captured** — if the change affects front-end behavior: capture before (on main) and after (on your branch) with Playwright. Attach to PR description.
+- [ ] **Example app tested** — if the repo has an example app AND the change touches any `src/` file: start the example app, load the `playwright-cli` skill, test the affected flow end-to-end using credentials from `~/.config/case/credentials`. Skip ONLY for changes that are purely docs, config, or CI.
+- [ ] **Screenshots/video captured** — if the change touches any `src/` file in an authkit-* or front-end repo: capture a screenshot of the affected flow with Playwright and attach to the PR description. This includes error handling changes, UI changes, redirect changes, session changes — anything a user could experience. Skip ONLY for pure backend/CLI/types-only changes.
 - [ ] **Task file updated** — all checklist items in the task file are checked off
 - [ ] **Conventional commit** — commit messages follow `type(scope): description`
 - [ ] **PR description drafted** — includes: summary, what was tested, screenshots/video (if applicable), issue link, follow-ups
