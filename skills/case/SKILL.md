@@ -32,9 +32,10 @@ Load harness context for the current task. Follow the Task Routing table below.
 5. Route to the appropriate playbook based on issue content (bug → fix-bug, feature → architecture doc + playbook)
 6. Create a feature branch named after the issue: `git checkout -b fix/issue-34`
 7. **Update the task file** checklist as you work — check items off as they're completed
-8. Execute the work, following all rules below
-9. Open a PR linking the issue: `gh pr create --body "Closes #34"`
-10. **Move the task file** to `/Users/nicknisi/Developer/case/tasks/done/` after PR is opened
+8. Execute the work
+9. **Run the pre-PR checklist** (see below) — do NOT open a PR until every item passes
+10. Open a PR linking the issue: `gh pr create --body "Closes #34"`
+11. **Move the task file** to `/Users/nicknisi/Developer/case/tasks/done/` after PR is opened
 
 **Linear issue ID** — `/case DX-1234`
 1. Try the Linear MCP tools first (available via claude.ai integration):
@@ -51,15 +52,35 @@ Load harness context for the current task. Follow the Task Routing table below.
 5. Route to the appropriate playbook based on issue content
 6. Create a feature branch: `git checkout -b fix/DX-1234`
 7. **Update the task file** checklist as you work — check items off as they're completed
-8. Execute the work, following all rules below
-9. Open a PR referencing the Linear issue in the body
-10. Update the Linear issue status if MCP tools are available: `mcp__claude_ai_Linear__save_issue`
-11. **Move the task file** to `/Users/nicknisi/Developer/case/tasks/done/` after PR is opened
+8. Execute the work
+9. **Run the pre-PR checklist** (see below) — do NOT open a PR until every item passes
+10. Open a PR referencing the Linear issue in the body
+11. Update the Linear issue status if MCP tools are available: `mcp__claude_ai_Linear__save_issue`
+12. **Move the task file** to `/Users/nicknisi/Developer/case/tasks/done/` after PR is opened
 
 **How to detect argument type:**
 - Matches `/^\d+$/` → GitHub issue number (e.g., `34`, `142`)
 - Matches `/^[A-Z]+-\d+$/` → Linear issue ID (e.g., `DX-1234`, `AUTH-42`)
 - Anything else → treat as a free-form task description, use Task Routing
+
+## Pre-PR Checklist (mandatory)
+
+**Do NOT open a PR until every applicable item is done.** This is a gate, not a suggestion.
+
+- [ ] **Unit tests pass** — run the repo's test command from `projects.json`
+- [ ] **Types check** — run typecheck if the repo has one
+- [ ] **Lint passes** — run lint if the repo has one
+- [ ] **Build succeeds** — run build if the repo has one
+- [ ] **Example app tested** — if the repo has an example app (e.g., `examples/` directory) AND the change affects runtime behavior (not just types/docs), start the example app, test the affected flow with Playwright, verify it works end-to-end using credentials from `~/.config/case/credentials`
+- [ ] **Screenshots/video captured** — if the change affects front-end behavior, capture before (on main) and after (on your branch) screenshots or video with Playwright. These go in the PR description.
+- [ ] **Task file updated** — all checklist items in the task file are checked off
+- [ ] **Conventional commit** — commit messages follow `type(scope): description`
+- [ ] **PR description drafted** — includes: summary, what was tested, screenshots/video (if applicable), issue link, follow-ups
+
+**How to determine if example app testing applies:**
+- Change touches `src/` files that affect runtime behavior → YES, test in example app
+- Change is types-only, docs-only, test-only, or config-only → NO, skip example app
+- Unsure → test it. False positives are cheap; missed bugs in production are not.
 
 ## Rules
 
