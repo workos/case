@@ -99,3 +99,4 @@ If changes are independent (e.g., README updates), merge order doesn't matter.
 - **Wrong merge order**. If `authkit-session` has a breaking change, merging a consumer first will break its CI.
 - **Inconsistent changes**. If updating a convention, the exact same rule must apply everywhere.
 - **Bundling unrelated changes**. Each PR should contain only the cross-repo update, nothing else.
+- **Assuming encryption compatibility**. When swapping crypto libraries (e.g. `iron-session` → `iron-webcrypto`), existing sealed data may NOT be decryptable by the new library even when both claim the same format. Always: (1) wrap decryption in try-catch for graceful fallback, (2) test with a cookie created by the OLD library in the example app, (3) unit tests with freshly-sealed data will NOT catch this — they use the same library for both seal and unseal.

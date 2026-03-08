@@ -117,7 +117,7 @@ Abstract base class implementing common cookie logic. Framework adapters extend 
 - Algorithm: AES-256-CBC with SHA-256 HMAC (via `iron-webcrypto`)
 - Password: `WORKOS_COOKIE_PASSWORD` (minimum 32 characters)
 - TTL: 0 (no time-based expiry at encryption level; cookie maxAge handles it)
-- Backward compatible with `iron-session`
+- **NOT fully backward-compatible with `iron-session` v8 sealed data.** While both use `iron-webcrypto` under the hood, `iron-session`'s `sealData`/`unsealData` wrappers add their own envelope that differs from raw `iron-webcrypto`. Cookies sealed by `iron-session` will fail HMAC validation when decrypted by `iron-webcrypto` directly. Framework adapters MUST catch decryption errors gracefully (return `undefined`) so users with stale cookies are silently logged out rather than seeing errors.
 
 ## Configuration
 

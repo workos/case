@@ -66,3 +66,11 @@ Check: `grep -rn "from '\./.*[^s]'" src/ | grep -v "\.js'" | grep -v "\.json'" |
 **[enforced]** No implicit peer deps. If code imports a package, it must appear in `dependencies` or `peerDependencies` in `package.json`.
 
 Check: Compare import statements against package.json dependencies.
+
+## 16. Session decryption must be fault-tolerant
+**[enforced]** Any code that decrypts session cookies or headers must catch decryption errors and return `undefined`/`null` (graceful "no session") rather than throwing. This ensures that library upgrades that change encryption backends (e.g. `iron-session` → `iron-webcrypto`) don't crash for users with existing cookies — they get silently logged out and re-authenticate instead.
+
+Check: Every call to `unsealData` / `decryptSession` must be wrapped in try-catch.
+
+## 17. Manual verification after encryption changes
+**[advisory]** When changing session encryption/decryption libraries, agents must test with existing cookies from the previous library version. The sealed formats may differ in HMAC, padding, or key derivation even when both claim "iron" compatibility. A production build test with a pre-existing session cookie is required — unit tests with freshly sealed data will NOT catch this class of bug.
