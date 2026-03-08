@@ -37,9 +37,9 @@ You receive from the orchestrator:
 
 ### 2. Determine Scope
 
-Check if `src/` files changed:
+Check if `src/` files changed (use both HEAD~1 and main to match the pre-PR hook's broader check):
 ```bash
-git diff --name-only HEAD~1 | grep "^src/"
+git diff --name-only HEAD~1 | grep "^src/" || git diff --name-only main | grep "^src/"
 ```
 
 - **If `src/` files changed**: Manual testing is required. Continue to step 3.

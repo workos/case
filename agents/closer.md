@@ -105,14 +105,12 @@ The body must contain verification keywords that the pre-PR hook checks for (any
 
 ### 5. Record
 
-1. **Update task JSON**:
+1. **Update task JSON** — agent phase only. The `status → pr-opened` transition is owned by the post-PR hook (fires automatically after `gh pr create` succeeds). Do NOT set status here — it creates duplicate ownership.
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status pr-opened
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> prUrl "<pr-url>"
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent closer status completed
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent closer completed now
    ```
-   Note: The `status pr-opened` transition requires current status to be `closing` (the orchestrator sets this before spawning you).
+   The hook will handle: `status → pr-opened` and `prUrl`.
 
 2. **Append to the task file's Progress Log**:
    ```markdown
