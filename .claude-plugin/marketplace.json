@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "WorkOS OSS harness for AI agent orchestration",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "plugins": [
     {
