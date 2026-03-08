@@ -65,7 +65,10 @@ Load harness context for the current task. Follow the Task Routing table below.
 
 - **Always use `AskUserQuestion` tool when asking the user questions.** Do not ask questions in plain text. The tool provides structured options and ensures the user can respond clearly.
 - **Always work in feature branches.** Never commit directly to main. Use `claude --worktree` or create a branch before starting work.
+- **Always use conventional commits.** Format: `type(scope): description`. Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`. Use `!` for breaking changes (e.g., `feat!:`). See `../../docs/conventions/commits.md` for details.
 - **Always open pull requests.** Never push directly to main. Use `gh pr create` to open a PR for review. The `gh` CLI is available and authenticated.
+- **PR titles must use conventional commit format.** e.g., `fix(session): handle expired cookies gracefully` or `feat(cli): add widgets list command`.
+- **PR descriptions must be thorough.** Include: summary of the change and why, what was tested (unit tests, Playwright, manual), screenshots/video for front-end changes, link to the issue (GitHub or Linear), and any follow-up items or known limitations.
 
 ## Always Load
 
