@@ -183,27 +183,27 @@ When making front-end changes, **attach visual proof to the PR description**:
 - **Screenshot**: Capture before (on main) and after (on your branch) for comparison
 - **Video**: Record the flow for interactive changes (sign-in, navigation, animations)
 
-Upload artifacts to the PR:
+Upload screenshots to the case-assets repo and get markdown for PR bodies:
+
 ```bash
-# Upload image and get markdown for PR body
-gh pr edit {pr-number} --body "$(cat <<'BODY'
-## Summary
-{description}
+# Take screenshots
+playwright-cli screenshot --path /tmp/before.png
+# ... make your changes ...
+playwright-cli screenshot --path /tmp/after.png
 
-## Visual verification
-### Before
-![before](/tmp/before.png)
+# Upload and get markdown
+BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/before.png)
+AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
 
-### After
-![after](/tmp/after.png)
-BODY
-)"
-
-# Or attach files directly if the repo supports it
-# Take screenshot, encode as base64, embed in PR comment
+# Use in PR body
+echo "## Visual verification"
+echo "### Before"
+echo "$BEFORE"
+echo "### After"
+echo "$AFTER"
 ```
 
-Note: GitHub PR descriptions support image URLs but not direct file uploads from CLI. For local screenshots, upload to a GitHub issue comment first (`gh issue comment` with drag-drop) or use a gist, then reference the URL in the PR body.
+The upload script pushes images to `workos/case-assets` as release assets and returns a markdown image tag with the download URL.
 
 ### Chrome DevTools MCP (secondary — interactive debugging only)
 
@@ -233,7 +233,16 @@ If you are about to open a PR, stop and verify each item:
 - [ ] **Mark tests complete**: `touch .case-tested` (the pre-PR hook checks for this)
 - [ ] **Example app tested — the SPECIFIC fix, not just the happy path.** If the repo has an example app AND the change touches any `src/` file: start the example app, load the `playwright-cli` skill, and reproduce the exact scenario the issue describes. For a bug fix, trigger the bug conditions and confirm the fix works. For a feature, exercise the new feature specifically. Do NOT just sign in and sign out — that's the happy path, not your fix. Ask yourself: "if I reverted my change, would this test fail?" If the answer is no, you're testing the wrong thing. Use credentials from `~/.config/case/credentials`. Skip ONLY for purely docs/config/CI changes.
 - [ ] **Mark manual testing complete**: `touch .case-manual-tested` (the pre-PR hook checks for this — skip only if no src/ files changed)
-- [ ] **Document verification of the SPECIFIC fix.** In the PR description, write what you tested, how you triggered the bug/feature, and what you observed. For a bug fix: describe the behavior BEFORE and AFTER. Be specific — "I triggered a token refresh error by letting the session expire, and confirmed the error no longer throws a 500."
+- [ ] **Capture screenshots/video of the SPECIFIC fix.** For front-end changes: take a screenshot before (on main) and after (on your branch) with Playwright. Upload using the case upload script and include the markdown in your PR body:
+  ```bash
+  playwright-cli screenshot --path /tmp/before.png
+  # ... switch to your branch ...
+  playwright-cli screenshot --path /tmp/after.png
+  BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/before.png)
+  AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
+  ```
+  Use the returned markdown (`![filename](url)`) in the PR body. Skip ONLY for pure backend/CLI/types-only changes.
+- [ ] **Document verification of the SPECIFIC fix.** In the PR description, write what you tested, how you triggered the bug/feature, and what you observed. For a bug fix: describe the behavior BEFORE and AFTER. Be specific — "I triggered a token refresh error by letting the session expire, and confirmed the error no longer throws a 500." Include the uploaded screenshots.
 - [ ] **Security audit** — if the change touches authentication, session management, token handling, cookie logic, middleware, or any code that enforces access control: load the `security-auditor` skill via the Skill tool and run it against the changed files. Address any critical or high findings before proceeding. Skip for changes that don't touch auth/security boundaries.
 - [ ] **Task file updated** — all checklist items in the task file are checked off
 - [ ] **Conventional commit** — commit messages follow `type(scope): description`
