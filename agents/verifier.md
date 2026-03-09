@@ -109,15 +109,21 @@ If the implementer added a new export, alias, or API:
 
 3. **Upload video and screenshots** for PR inclusion:
    ```bash
-   # Upload video (returns <video> tag for GitHub markdown)
-   VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
-   echo "$VIDEO"
+   # Upload video — the script auto-converts to GIF (inline) + mp4 (download)
+   VIDEO_MARKDOWN=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   echo "$VIDEO_MARKDOWN"
 
    # Upload screenshot
    cp .playwright-cli/page-*.png /tmp/after.png
    SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
    echo "$SCREENSHOT"
    ```
+
+   The upload script handles videos by producing **two outputs**:
+   - An animated GIF that renders inline in GitHub markdown (auto-converted via ffmpeg)
+   - A download link to the full-quality mp4
+
+   Include both in your progress log so the closer can embed them in the PR description.
 
 4. Create the manual testing evidence marker:
    ```bash

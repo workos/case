@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# Upload a screenshot/video to the case-assets repo as a release asset
-# Returns a markdown image/video tag ready to paste into a PR body
+# Upload a screenshot/video to the case-assets repo as a release asset.
+# Returns markdown ready to paste into a PR body.
+#
+# For videos: also converts to animated GIF for inline rendering, since GitHub
+# only renders inline video from user-attachments URLs (web UI uploads).
+# Returns both a GIF image tag (renders inline) and an mp4 download link.
 #
 # Usage:
 #   bash scripts/upload-screenshot.sh /path/to/screenshot.png
 #   bash scripts/upload-screenshot.sh /path/to/video.mp4
+#   bash scripts/upload-screenshot.sh /path/to/video.webm
 #
 # Requires:
 #   - gh CLI authenticated
-#   - workos/case-assets repo exists with a release named "assets"
+#   - case-assets repo exists with a release named "assets"
+#   - ffmpeg (for video → GIF conversion)
 
 set -euo pipefail
 
@@ -29,8 +35,6 @@ fi
 
 FILENAME=$(basename "$FILE_PATH")
 EXTENSION="${FILENAME##*.}"
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-ASSET_NAME="${TIMESTAMP}-${FILENAME}"
 
 # Ensure the release exists (create if not)
 if ! gh release view "$RELEASE_TAG" --repo "$ASSETS_REPO" > /dev/null 2>&1; then
@@ -38,27 +42,75 @@ if ! gh release view "$RELEASE_TAG" --repo "$ASSETS_REPO" > /dev/null 2>&1; then
   gh release create "$RELEASE_TAG" --repo "$ASSETS_REPO" --title "PR Assets" --notes "Screenshots and videos for PR descriptions. Uploaded by case harness." 2>&1 >&2
 fi
 
-# Upload the asset
-echo "Uploading $FILENAME..." >&2
-gh release upload "$RELEASE_TAG" "$FILE_PATH" --repo "$ASSETS_REPO" --clobber 2>&1 >&2
+upload_asset() {
+  local file="$1"
+  local name
+  name=$(basename "$file")
+  gh release upload "$RELEASE_TAG" "$file" --repo "$ASSETS_REPO" --clobber 2>&1 >&2
+  gh release view "$RELEASE_TAG" --repo "$ASSETS_REPO" --json assets --jq ".assets[] | select(.name == \"$name\") | .url"
+}
 
-# Get the download URL
-DOWNLOAD_URL=$(gh release view "$RELEASE_TAG" --repo "$ASSETS_REPO" --json assets --jq ".assets[] | select(.name == \"$FILENAME\") | .url")
-
-if [[ -z "$DOWNLOAD_URL" ]]; then
-  echo "Failed to get download URL for $FILENAME" >&2
-  exit 1
-fi
-
-# Output markdown based on file type
 case "$EXTENSION" in
   png|jpg|jpeg|gif|webp)
-    echo "![${FILENAME}](${DOWNLOAD_URL})"
+    echo "Uploading $FILENAME..." >&2
+    URL=$(upload_asset "$FILE_PATH")
+    if [[ -z "$URL" ]]; then
+      echo "Failed to get download URL for $FILENAME" >&2
+      exit 1
+    fi
+    echo "![${FILENAME}](${URL})"
     ;;
+
   mp4|mov|webm)
-    echo "<video src=\"${DOWNLOAD_URL}\" controls></video>"
+    # Video workflow: convert to GIF (renders inline) + upload mp4 (download link)
+    STEM="${FILENAME%.*}"
+    GIF_PATH="/tmp/${STEM}.gif"
+    MP4_PATH="$FILE_PATH"
+
+    # Convert to mp4 first if webm
+    if [[ "$EXTENSION" == "webm" ]]; then
+      echo "Converting webm to mp4..." >&2
+      MP4_PATH="/tmp/${STEM}.mp4"
+      ffmpeg -y -i "$FILE_PATH" -c:v libx264 -pix_fmt yuv420p -movflags +faststart "$MP4_PATH" 2>/dev/null
+    fi
+
+    # Convert to GIF for inline rendering
+    echo "Converting to animated GIF for inline rendering..." >&2
+    if command -v ffmpeg &>/dev/null; then
+      ffmpeg -y -i "$FILE_PATH" -vf "fps=10,scale=800:-1:flags=lanczos" -loop 0 "$GIF_PATH" 2>/dev/null
+    else
+      echo "WARNING: ffmpeg not found — cannot create GIF. Only mp4 download link will be available." >&2
+      echo "Uploading $FILENAME..." >&2
+      URL=$(upload_asset "$MP4_PATH")
+      echo "[$FILENAME]($URL)"
+      exit 0
+    fi
+
+    # Upload both
+    echo "Uploading GIF (inline preview)..." >&2
+    GIF_URL=$(upload_asset "$GIF_PATH")
+    echo "Uploading mp4 (full quality download)..." >&2
+    MP4_URL=$(upload_asset "$MP4_PATH")
+
+    if [[ -z "$GIF_URL" || -z "$MP4_URL" ]]; then
+      echo "Failed to get download URLs" >&2
+      exit 1
+    fi
+
+    # Output both: GIF for inline, mp4 as download link
+    # The GIF renders inline in GitHub markdown. The mp4 link is for full quality.
+    echo "![${STEM}.gif](${GIF_URL})"
+    echo ""
+    echo "[Download full quality video](${MP4_URL})"
     ;;
+
   *)
-    echo "[${FILENAME}](${DOWNLOAD_URL})"
+    echo "Uploading $FILENAME..." >&2
+    URL=$(upload_asset "$FILE_PATH")
+    if [[ -z "$URL" ]]; then
+      echo "Failed to get download URL for $FILENAME" >&2
+      exit 1
+    fi
+    echo "[${FILENAME}](${URL})"
     ;;
 esac

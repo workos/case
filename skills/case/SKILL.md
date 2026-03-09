@@ -415,16 +415,19 @@ playwright-cli screenshot
 cp .playwright-cli/page-*.png /tmp/after.png
 
 # Upload and get markdown
+# For video: the script auto-converts to GIF (inline) + mp4 (download link)
 VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
 SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
 
-# Use in PR body
+# Use in PR body — VIDEO contains both GIF embed and mp4 download link
 echo "## Verification"
 echo "### Video"
 echo "$VIDEO"
 echo "### Screenshot"
 echo "$SCREENSHOT"
 ```
+
+**Why GIF?** GitHub only renders inline videos from `user-attachments` URLs (uploaded via the web UI). There's no API for that. The upload script converts video to animated GIF (renders inline from release assets) and also uploads the mp4 as a full-quality download link.
 
 The upload script returns `<video src="url" controls></video>` for video files and `![filename](url)` for images. Both render inline in GitHub PR descriptions.
 
