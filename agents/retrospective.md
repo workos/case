@@ -19,6 +19,16 @@ You receive from the orchestrator:
 
 ## Workflow
 
+### 0. Session Context
+
+Run the session-start script to orient yourself:
+```bash
+SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+echo "$SESSION"
+```
+
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+
 ### 1. Read the Full Record
 
 1. Read the task file — focus on the `## Progress Log` section

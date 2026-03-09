@@ -20,6 +20,16 @@ You receive from the orchestrator:
 
 ## Workflow
 
+### 0. Session Context
+
+Run the session-start script to orient yourself:
+```bash
+SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+echo "$SESSION"
+```
+
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+
 ### 1. Setup
 
 1. Update task JSON: set status to `implementing` and agent phase to running
@@ -60,8 +70,12 @@ All checks must pass before proceeding. If any fail, fix the issue and re-run.
 
 ### 4. Record
 
-1. **Pipe test output through the marker script** to create evidence:
+1. **Pipe test output through the marker script** to create evidence.
+   Prefer the JSON reporter for structured evidence (pass/fail counts, duration, per-file breakdown):
    ```bash
+   # Preferred — structured evidence via vitest JSON reporter
+   pnpm test --reporter=json 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   # Fallback — if JSON reporter is unavailable or the repo doesn't use vitest
    pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
    ```
    This creates `.case-tested` with a hash of test output AND updates the task JSON `tested` field. You do NOT set `tested` directly.

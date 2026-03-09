@@ -133,7 +133,8 @@ import json, os, sys
 TRANSITIONS = {
     'active': ['implementing'],
     'implementing': ['verifying', 'active'],
-    'verifying': ['closing', 'implementing'],
+    'verifying': ['reviewing', 'implementing'],
+    'reviewing': ['closing', 'verifying'],
     'closing': ['pr-opened', 'verifying'],
     'pr-opened': ['pr-opened', 'merged'],
     'merged': [],

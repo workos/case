@@ -19,6 +19,16 @@ You receive from the orchestrator:
 
 ## Workflow
 
+### 0. Session Context
+
+Run the session-start script to orient yourself:
+```bash
+SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+echo "$SESSION"
+```
+
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+
 ### 1. Gather Context
 
 1. Read the task file (`.md`) — full content including progress log entries from all agents
@@ -26,6 +36,7 @@ You receive from the orchestrator:
 3. Read verification evidence markers:
    - `.case-tested` — should have `output_hash` field
    - `.case-manual-tested` — should have `evidence` field (if src/ files changed)
+   - `.case-reviewed` — should have `critical: 0` (review findings summary)
 4. Extract video and screenshot tags from the verifier's progress log entry or AGENT_RESULT (look for `<video` tags and `![` image tags)
 5. Read `/Users/nicknisi/Developer/case/docs/conventions/pull-requests.md` for PR format rules
 
@@ -92,6 +103,11 @@ Before running `gh pr create`, verify every requirement the hook will check:
    fi
    ```
 
+4. **Review evidence**: Read `.case-reviewed` — must exist with `critical: 0`
+   ```bash
+   test -f .case-reviewed && grep -q "critical: 0" .case-reviewed
+   ```
+
 If any required check fails:
 - Report exactly what's missing
 - Do NOT attempt `gh pr create`
@@ -107,6 +123,29 @@ EOF
 ```
 
 The body must contain verification keywords that the pre-PR hook checks for (any of: "verif", "tested", "test plan", "what was tested", "how it works").
+
+### 4.5 Post Review Comments (if findings exist)
+
+If the reviewer produced warnings or info findings (check `.case-reviewed` for `warnings` and `info` counts), post them as a PR review comment:
+
+```bash
+# Read findings from the reviewer's progress log entry in the task file
+# Format as a comment
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews \
+  --method POST \
+  -f body="## Code Review Findings
+
+### Warnings
+{list of warning findings}
+
+### Info
+{list of info findings}
+
+_Automated review by case/reviewer agent_" \
+  -f event="COMMENT"
+```
+
+Only post if there are actual findings to share. Skip this step if the reviewer had 0 warnings and 0 info.
 
 ### 5. Record
 

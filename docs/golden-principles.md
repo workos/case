@@ -74,3 +74,8 @@ Check: Every call to `unsealData` / `decryptSession` must be wrapped in try-catc
 
 ## 17. Manual verification after encryption changes
 **[advisory]** When changing session encryption/decryption libraries, agents must test with existing cookies from the previous library version. The sealed formats may differ in HMAC, padding, or key derivation even when both claim "iron" compatibility. A production build test with a pre-existing session cookie is required — unit tests with freshly sealed data will NOT catch this class of bug.
+
+## 18. Every PR must pass code review
+**[enforced]** The reviewer agent must produce a `.case-reviewed` marker with `critical: 0` before the closer can create a PR. Critical findings (enforced principle violations, failing tests, missing test coverage for public API changes) block PR creation. Advisory findings are posted as PR comments.
+
+Check: `test -f .case-reviewed && grep -q "critical: 0" .case-reviewed`

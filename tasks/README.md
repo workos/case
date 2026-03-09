@@ -29,10 +29,12 @@ Optional: `## Context` for background info, issue links, API specs, etc.
 ## Lifecycle
 
 1. Orchestrator creates task file (`.md` + `.task.json`) in `tasks/active/`
-2. Agents read the task, execute their phase, update the progress log
-3. Closer agent opens a PR in the target repo
-4. Post-PR hook updates `.task.json` status to `pr-opened`
-5. After PR merge, status updated to `merged` (manual or automation)
+2. Implementer writes the fix/feature, runs tests, commits
+3. Verifier tests the specific scenario with fresh context
+4. Reviewer checks the diff against golden principles and conventions
+5. Closer agent opens a PR in the target repo (requires `.case-reviewed` with critical: 0)
+6. Post-PR hook updates `.task.json` status to `pr-opened`
+7. After PR merge, status updated to `merged` (manual or automation)
 
 Legacy tasks without a `.task.json` companion still use the old file-move behavior (`active/` → `done/`).
 
@@ -53,17 +55,47 @@ Read/write via: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <fil
 
 **Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`mark-tested.sh`, `mark-manual-tested.sh`) — not by agents directly.
 
+### Evidence Markers
+
+| Marker | Created by | Purpose |
+| --- | --- | --- |
+| `.case-tested` | `scripts/mark-tested.sh` | Proves automated tests ran (hash of test output) |
+| `.case-manual-tested` | `scripts/mark-manual-tested.sh` | Proves manual/browser testing was performed |
+| `.case-reviewed` | `scripts/mark-reviewed.sh` | Proves code review passed (critical: 0) |
+
+#### `.case-tested` structured format
+
+When piped JSON output from `vitest --reporter=json`, the marker contains structured fields parsed by `scripts/parse-test-output.sh`:
+
+```
+timestamp: ...
+output_hash: ...
+pass_indicators: N
+fail_indicators: N
+passed: N
+failed: N
+total: N
+duration_ms: N
+suites: N
+files: [...]
+```
+
+Plain-text fallback uses grep heuristics for pass/fail indicators only.
+
 ## Status Lifecycle
 
 ```
-active → implementing → verifying → closing → pr-opened → merged
+active → implementing → verifying → reviewing → closing → pr-opened → merged
 
 Recovery transitions:
   implementing → active       (restart after failure)
   verifying    → implementing (fix-and-retry)
+  reviewing    → verifying    (critical findings, re-verify after fix)
   closing      → verifying    (hook failure, re-verify)
   pr-opened    → pr-opened    (idempotent, hook re-fire)
 ```
+
+Pipeline agents: implementer → verifier → reviewer → closer → (retrospective)
 
 Transitions are enforced by `task-status.sh`. Invalid transitions are rejected with an error.
 

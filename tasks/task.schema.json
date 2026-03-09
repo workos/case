@@ -11,7 +11,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["active", "implementing", "verifying", "closing", "pr-opened", "merged"],
+      "enum": ["active", "implementing", "verifying", "reviewing", "closing", "pr-opened", "merged"],
       "description": "Current lifecycle status. Transitions enforced by task-status.sh, not this schema."
     },
     "created": {
@@ -43,6 +43,7 @@
         "orchestrator": { "$ref": "#/$defs/agentPhase" },
         "implementer": { "$ref": "#/$defs/agentPhase" },
         "verifier": { "$ref": "#/$defs/agentPhase" },
+        "reviewer": { "$ref": "#/$defs/agentPhase" },
         "closer": { "$ref": "#/$defs/agentPhase" }
       },
       "additionalProperties": false

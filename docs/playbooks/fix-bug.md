@@ -76,7 +76,19 @@ pnpm format              # formatter passes
 
 Confirm no regressions by running the full test suite, not just your new test.
 
-## Step 7: Open PR
+## Step 7: Code Review
+
+Before opening a PR, the reviewer agent checks the diff against golden principles and conventions:
+
+- All enforced invariants (TypeScript strict, tests pass, conventional commits, no secrets, etc.)
+- Advisory checks (file size, test coverage, one concern per PR)
+- Structured test output from `.case-tested` (fail count must be 0)
+
+Critical findings block PR creation. Warnings and info are posted as PR comments.
+
+Evidence: `.case-reviewed` marker (created by `scripts/mark-reviewed.sh` only if critical: 0).
+
+## Step 8: Open PR
 
 - Branch: `fix/{brief-slug}`
 - Commit: `fix: {description}` (conventional commit)

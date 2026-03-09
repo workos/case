@@ -95,6 +95,15 @@ if [[ -n "$PR_BODY" ]]; then
   fi
 fi
 
+# Check 5: Code review evidence (.case-reviewed marker)
+if [[ ! -f ".case-reviewed" ]]; then
+  FAILURES+=("[FAIL] Code review not done — .case-reviewed marker missing")
+  FIXES+=("  FIX: Run the reviewer agent, then: bash /Users/nicknisi/Developer/case/scripts/mark-reviewed.sh --critical 0 --warnings N --info N")
+elif ! grep -q "critical: 0" ".case-reviewed" 2>/dev/null; then
+  FAILURES+=("[FAIL] Code review has unresolved critical findings")
+  FIXES+=("  FIX: Address critical findings from the reviewer, then re-run the reviewer agent")
+fi
+
 # Report results
 if [[ ${#FAILURES[@]} -gt 0 ]]; then
   {

@@ -78,7 +78,19 @@ pnpm format              # formatter passes
 
 If the repo has a separate `pnpm typecheck` command, run that too.
 
-## Step 8: Open PR
+## Step 8: Code Review
+
+Before opening a PR, the reviewer agent checks the diff against golden principles and conventions:
+
+- All enforced invariants (TypeScript strict, tests pass, conventional commits, no secrets, etc.)
+- Advisory checks (file size, test coverage, one concern per PR)
+- Structured test output from `.case-tested` (fail count must be 0)
+
+Critical findings block PR creation. Warnings and info are posted as PR comments.
+
+Evidence: `.case-reviewed` marker (created by `scripts/mark-reviewed.sh` only if critical: 0).
+
+## Step 9: Open PR
 
 - Branch: `feat/{brief-slug}` or `feat/issue-{N}`
 - Commit: `feat(scope): {description}` (conventional commit)
