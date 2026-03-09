@@ -79,9 +79,10 @@ If the implementer added a new export, alias, or API:
 
 6. Read test credentials from `~/.config/case/credentials` (use for .env files only — **never log credentials**)
 7. Load the `playwright-cli` skill for browser testing
-8. Navigate to the relevant page/flow:
+8. Open browser and **start video recording** before navigating:
    ```bash
    playwright-cli open
+   playwright-cli video-start
    playwright-cli goto http://localhost:3000
    ```
 9. Reproduce the exact scenario from the issue:
@@ -95,21 +96,30 @@ If the implementer added a new export, alias, or API:
 
 ### 4. Capture Evidence
 
-1. Take screenshots of the fix working:
+1. **Stop video recording** and save:
+   ```bash
+   playwright-cli video-stop /tmp/verification.webm
+   ```
+
+2. **Take a final screenshot** of the verified state:
    ```bash
    playwright-cli screenshot
    ```
    Screenshots are saved to `.playwright-cli/` by default.
 
-2. Upload screenshots for PR inclusion:
+3. **Upload video and screenshots** for PR inclusion:
    ```bash
+   # Upload video (returns <video> tag for GitHub markdown)
+   VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   echo "$VIDEO"
+
+   # Upload screenshot
    cp .playwright-cli/page-*.png /tmp/after.png
    SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
    echo "$SCREENSHOT"
    ```
-   The upload script returns a markdown image tag: `![filename](url)`
 
-3. Create the manual testing evidence marker:
+4. Create the manual testing evidence marker:
    ```bash
    bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh
    ```
@@ -123,6 +133,7 @@ If the implementer added a new export, alias, or API:
    - Tested: <what specific scenario was tested>
    - How: <steps taken — e.g., "started example app, signed in with test creds, triggered org switch with custom cookie name">
    - Result: PASS/FAIL
+   - Video: <video tag from upload>
    - Screenshots: <markdown image tags from upload>
    - Evidence: .case-tested (from implementer), .case-manual-tested (created)
    ```

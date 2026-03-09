@@ -26,7 +26,7 @@ You receive from the orchestrator:
 3. Read verification evidence markers:
    - `.case-tested` — should have `output_hash` field
    - `.case-manual-tested` — should have `evidence` field (if src/ files changed)
-4. Extract screenshot markdown tags from the verifier's progress log entry or AGENT_RESULT
+4. Extract video and screenshot tags from the verifier's progress log entry or AGENT_RESULT (look for `<video` tags and `![` image tags)
 5. Read `/Users/nicknisi/Developer/case/docs/conventions/pull-requests.md` for PR format rules
 
 ### 2. Draft PR
@@ -52,7 +52,12 @@ or `feat(scope): ...` for features. Keep under 72 characters.
 <From verifier's progress log: what was tested, how, what was observed>
 
 ## Verification
-<Screenshot markdown tags from verifier>
+
+### Video
+<video tag from verifier's progress log — shows the full test interaction>
+
+### Screenshots
+<screenshot markdown tags from verifier>
 
 ## Issue
 Closes #<number>

@@ -364,11 +364,13 @@ The skill provides `playwright-cli` commands: `open`, `goto`, `click`, `type`, `
 Quick reference:
 ```bash
 playwright-cli open                          # open browser
+playwright-cli video-start                   # start recording (before navigating)
 playwright-cli goto https://localhost:3000   # navigate
 playwright-cli snapshot                      # get page snapshot with refs
 playwright-cli click e15                     # click element by ref
 playwright-cli type "user@example.com"       # type text
-playwright-cli screenshot                    # capture (saves to .playwright-cli/)
+playwright-cli screenshot                    # capture screenshot (saves to .playwright-cli/)
+playwright-cli video-stop /tmp/verify.webm   # stop recording and save video
 ```
 
 ### Test credentials
@@ -400,27 +402,31 @@ When making front-end changes, **attach visual proof to the PR description**:
 - **Screenshot**: Capture before (on main) and after (on your branch) for comparison
 - **Video**: Record the flow for interactive changes (sign-in, navigation, animations)
 
-Upload screenshots to the case-assets repo and get markdown for PR bodies:
+Upload screenshots and video to the case-assets repo and get markdown for PR bodies:
 
 ```bash
-# Capture before (on main) and after (on your branch)
-playwright-cli screenshot
-cp .playwright-cli/page-*.png /tmp/before.png
-# ... switch to your branch, test again ...
+# Record the full verification flow as video
+playwright-cli video-start
+# ... run the test flow (goto, click, fill, verify) ...
+playwright-cli video-stop /tmp/verification.webm
+
+# Capture a final screenshot
 playwright-cli screenshot
 cp .playwright-cli/page-*.png /tmp/after.png
 
 # Upload and get markdown
-BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/before.png)
-AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
+VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
 
 # Use in PR body
-echo "## Visual verification"
-echo "### Before"
-echo "$BEFORE"
-echo "### After"
-echo "$AFTER"
+echo "## Verification"
+echo "### Video"
+echo "$VIDEO"
+echo "### Screenshot"
+echo "$SCREENSHOT"
 ```
+
+The upload script returns `<video src="url" controls></video>` for video files and `![filename](url)` for images. Both render inline in GitHub PR descriptions.
 
 The verifier agent handles screenshot capture. The closer agent uses the uploaded markdown in the PR description.
 
