@@ -3,7 +3,6 @@
 <img width="500" height="500" alt="Gemini_Generated_Image_osdc2vosdc2vosdc-removebg-preview" src="https://github.com/user-attachments/assets/d00ab668-d26b-41d2-905b-751d3c0ff236" />
 
 
-
 A harness for orchestrating AI agent work across WorkOS open source projects.
 
 Inspired by [harness engineering](https://openai.com/index/harness-engineering/) and [effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — the discipline of designing environments that let AI agents operate reliably at scale. Humans steer. Agents execute. When agents struggle, fix the harness.
