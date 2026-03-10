@@ -50,7 +50,9 @@ tasks/active/authkit-nextjs-1-issue-53.task.json   # machine-touched
 
 The JSON file stores structured metadata that agents and scripts update programmatically. Schema: `tasks/task.schema.json`.
 
-Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`.
+Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`, `contractPath`.
+
+Issue types: `github`, `linear`, `freeform`, `ideation`. Ideation tasks include `contractPath` pointing to the ideation contract.md.
 
 Read/write via: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> <field> [value]`
 

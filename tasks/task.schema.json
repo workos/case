@@ -29,8 +29,13 @@
     },
     "issueType": {
       "type": "string",
-      "enum": ["github", "linear", "freeform"],
+      "enum": ["github", "linear", "freeform", "ideation"],
       "description": "How the task was created"
+    },
+    "contractPath": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Path to ideation contract.md (only for issueType: ideation)"
     },
     "branch": {
       "type": "string",

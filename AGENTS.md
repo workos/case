@@ -46,6 +46,10 @@ Pipeline: implementer → verifier → reviewer → closer → (retrospective)
 
 Lifecycle: `tasks/active/` → `tasks/done/` (moved after PR merge)
 
+### From Ideation
+
+Use `/case:from-ideation <folder>` to execute an ideation contract. Reads `contract.md` + spec files from the folder, creates a task, runs each phase's implementer sequentially, then verifier → reviewer → closer for one PR. See `skills/from-ideation/SKILL.md`.
+
 ## Working in a Target Repo
 
 0. Run `scripts/session-start.sh {repo-path}` to gather context

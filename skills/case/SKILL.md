@@ -330,6 +330,7 @@ Based on the user's request, load the relevant context:
 | Bug fix in any repo | `../../docs/playbooks/fix-bug.md` |
 | Feature request in any repo | `../../docs/playbooks/add-feature.md` |
 | Cross-repo change | `../../docs/playbooks/cross-repo-update.md` |
+| Ideation contract | Use `/case:from-ideation <folder>` instead — separate skill for ideation-sourced work |
 | Commit conventions | `../../docs/conventions/commits.md` |
 | Testing standards | `../../docs/conventions/testing.md` |
 | PR structure / review | `../../docs/conventions/pull-requests.md` |
@@ -354,6 +355,7 @@ Available templates:
 - `/Users/nicknisi/Developer/case/tasks/templates/authkit-framework.md` — new AuthKit framework integration
 - `/Users/nicknisi/Developer/case/tasks/templates/bug-fix.md` — fix a bug in any repo
 - `/Users/nicknisi/Developer/case/tasks/templates/cross-repo-update.md` — coordinated cross-repo change
+- `/Users/nicknisi/Developer/case/tasks/templates/ideation-project.md` — implement an ideation contract (used by `/case:from-ideation`)
 
 Format spec: `/Users/nicknisi/Developer/case/tasks/README.md`
 
