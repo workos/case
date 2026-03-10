@@ -100,7 +100,9 @@ After parsing and fetching the issue, execute this pipeline:
 
 2. **If no argument** (`/case` with no args):
    - Read `.case-active` — if it contains a task ID, look up `/Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json` directly
-   - If found → resume
+   - If found → check `issueType`:
+     - **If `"ideation"`**: Do NOT resume here. Report to user: "This task was created by `/case:from-ideation`. Resume with: `/case:from-ideation {contractPath}`" and stop.
+     - **Otherwise**: resume (see status table below)
    - If not found → load harness context (no orchestrator flow)
 
 3. **Free text argument**: no automatic re-entry. Proceed to step 1.

@@ -401,12 +401,24 @@ The retrospective runs even on failure — this is how the harness improves itse
 
 If `/case:from-ideation` is invoked and a task already exists for this project:
 
-1. Scan `/Users/nicknisi/Developer/case/tasks/active/*.task.json` for `issueType: "ideation"` matching the project name
-2. If found, read the task's progress log to determine which phases completed
-3. Resume from the next unimplemented phase:
+1. Derive the project name from the folder argument (last directory segment)
+2. Scan `/Users/nicknisi/Developer/case/tasks/active/*.task.json` for tasks where:
+   - `issueType` is `"ideation"`, AND
+   - `contractPath` matches the argument's `contract.md` path (exact match)
+3. If found, read the task's progress log to determine which phases completed (look for `#### Phase {N}` entries)
+4. Resume from the next unimplemented phase:
    - **Some phases done**: Checkout the existing branch, skip completed phases, continue phase loop
-   - **All phases done, pipeline incomplete**: Resume at the post-implementation pipeline step (verifier/reviewer/closer based on task status)
+   - **All phases done, pipeline incomplete**: Resume at the post-implementation pipeline step (verifier/reviewer/closer based on task JSON status)
    - **PR already opened**: Report "PR already exists" and done
+
+### Cross-skill re-entry
+
+If the main `/case` skill (no args) encounters a `.case-active` marker pointing to an ideation task (`issueType: "ideation"`), it should **not** attempt to resume. Instead, report to the user:
+
+```
+This task was created by /case:from-ideation. Resume with:
+  /case:from-ideation {contractPath from task JSON}
+```
 
 ## Rules
 
@@ -416,6 +428,15 @@ Same rules as the main `/case` skill:
 - **Always use conventional commits** — `type(scope): description`
 - **Always open PRs** via `gh pr create`
 - **PR descriptions must be thorough** — summary, phases, testing, contract reference
+
+## When to Use This vs `/ideation:execute-spec`
+
+| Use... | When... |
+|---|---|
+| `/case:from-ideation` | Working on a WorkOS OSS repo managed by case. Gets evidence-gated pipeline (verifier, reviewer, closer), PR creation, retrospective, per-repo learnings. |
+| `/ideation:execute-spec` | Working on any repo outside case's manifest. Gets Scout codebase exploration, per-component feedback loops, Reviewer agent, but no PR automation or evidence markers. |
+
+Both consume the same ideation spec format. The difference is the execution pipeline around it.
 
 ## Always Load
 
