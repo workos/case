@@ -1,0 +1,38 @@
+{
+  "id": "authkit-nextjs-2-issue-385",
+  "status": "pr-opened",
+  "created": "2026-03-10T00:00:00Z",
+  "repo": "authkit-nextjs",
+  "issue": "385",
+  "issueType": "github",
+  "branch": "fix/issue-385",
+  "agents": {
+    "orchestrator": {
+      "status": "completed",
+      "started": "2026-03-10T00:00:00Z",
+      "completed": "2026-03-10T13:40:34.637980+00:00"
+    },
+    "implementer": {
+      "status": "completed",
+      "started": "2026-03-10T13:58:13.762476+00:00",
+      "completed": "2026-03-10T14:20:24.739023+00:00"
+    },
+    "verifier": {
+      "status": "completed",
+      "started": "2026-03-10T14:21:18.575490+00:00",
+      "completed": "2026-03-10T14:26:29.807273+00:00"
+    },
+    "closer": {
+      "status": "completed",
+      "completed": "2026-03-10T14:28:16.673388+00:00"
+    },
+    "reviewer": {
+      "status": "completed",
+      "started": "2026-03-10T14:33:50.834169+00:00",
+      "completed": "2026-03-10T14:35:34.449788+00:00"
+    }
+  },
+  "tested": true,
+  "manualTested": true,
+  "prUrl": null
+}

@@ -1,0 +1,32 @@
+{
+  "id": "cli-1-auto-env-after-login",
+  "status": "pr-opened",
+  "created": "2026-03-09T00:00:00Z",
+  "repo": "cli",
+  "issue": "auto-env-after-login",
+  "issueType": "freeform",
+  "branch": "feat/auto-env-after-login",
+  "agents": {
+    "orchestrator": {
+      "status": "running",
+      "started": "2026-03-09T00:00:00Z"
+    },
+    "implementer": {
+      "status": "completed",
+      "started": "2026-03-09T20:20:34.438583+00:00",
+      "completed": "2026-03-09T20:35:55.124891+00:00"
+    },
+    "verifier": {
+      "status": "completed",
+      "started": "2026-03-09T20:37:09.464998+00:00",
+      "completed": "2026-03-09T20:39:32.674203+00:00"
+    },
+    "closer": {
+      "status": "completed",
+      "completed": "2026-03-09T21:04:10.626409+00:00"
+    }
+  },
+  "tested": true,
+  "manualTested": true,
+  "prUrl": "https://github.com/workos/cli/pull/89"
+}
