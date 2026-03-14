@@ -112,3 +112,5 @@ When implementing one phase of a multi-phase contract:
 - **Running the global test suite instead of scoped check command.** Use the fast inner loop during development. Save the full suite for Step 4.
 - **Not reading existing files before modifying them.** Always read before edit.
 - **Improvising beyond the spec.** If the spec doesn't mention it, don't add it.
+- **Duplicating existing utilities.** Before creating a helper function (e.g., `generatePassword`, `formatDate`), search the codebase for existing implementations. Extracting a shared utility is better than having two copies diverge.
+- **Missing test coverage for modified files.** If you add functionality to a file that has a companion `.spec.ts`, add tests for your changes there too — not just in the new spec files for new modules.

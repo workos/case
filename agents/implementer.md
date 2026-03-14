@@ -65,6 +65,7 @@ Run all available automated checks from the repo's `projects.json` commands:
 pnpm test          # always
 pnpm typecheck     # if available
 pnpm lint          # if available
+pnpm format        # if available — MUST run before committing
 pnpm build         # if available
 ```
 
@@ -75,13 +76,15 @@ All checks must pass before proceeding. If any fail, fix the issue and re-run.
 After each meaningful implementation step (e.g., test written, root cause fixed, validation passing), create a WIP commit:
 
 ```bash
-git add -A && git commit -m "wip: {what this step accomplished}"
+git add -A -- ':!.case-*' && git commit -m "wip: {what this step accomplished}"
 ```
+
+**IMPORTANT**: Always exclude `.case-*` files from commits using the pathspec exclusion `':!.case-*'`. These are harness evidence markers managed by other agents — committing them pollutes the PR and requires manual cleanup.
 
 WIP commits provide rollback points if a later step goes wrong. Before your final commit (step 4), squash all WIP commits into one clean conventional commit:
 
 ```bash
-git reset --soft $(git merge-base HEAD main) && git add -A
+git reset --soft $(git merge-base HEAD main) && git add -A -- ':!.case-*'
 ```
 
 Then create the final commit as usual.
