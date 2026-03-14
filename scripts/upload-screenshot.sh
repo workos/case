@@ -2,9 +2,8 @@
 # Upload a screenshot/video to the case-assets repo as a release asset.
 # Returns markdown ready to paste into a PR body.
 #
-# For videos: also converts to animated GIF for inline rendering, since GitHub
-# only renders inline video from user-attachments URLs (web UI uploads).
-# Returns both a GIF image tag (renders inline) and an mp4 download link.
+# For videos: converts to mp4 if needed and returns a download link.
+# Screenshots are the primary inline evidence; videos are supplementary.
 #
 # Usage:
 #   bash scripts/upload-screenshot.sh /path/to/screenshot.png
@@ -14,7 +13,7 @@
 # Requires:
 #   - gh CLI authenticated
 #   - case-assets repo exists with a release named "assets"
-#   - ffmpeg (for video → GIF conversion)
+#   - ffmpeg (for webm → mp4 conversion, optional)
 
 set -euo pipefail
 
@@ -62,46 +61,27 @@ case "$EXTENSION" in
     ;;
 
   mp4|mov|webm)
-    # Video workflow: convert to GIF (renders inline) + upload mp4 (download link)
-    STEM="${FILENAME%.*}"
-    GIF_PATH="/tmp/${STEM}.gif"
+    # Video workflow: upload mp4 as download link.
+    # No GIF conversion — screenshots are the primary inline evidence.
     MP4_PATH="$FILE_PATH"
 
     # Convert to mp4 first if webm
-    if [[ "$EXTENSION" == "webm" ]]; then
+    if [[ "$EXTENSION" == "webm" ]] && command -v ffmpeg &>/dev/null; then
+      STEM="${FILENAME%.*}"
       echo "Converting webm to mp4..." >&2
       MP4_PATH="/tmp/${STEM}.mp4"
       ffmpeg -y -i "$FILE_PATH" -c:v libx264 -pix_fmt yuv420p -movflags +faststart "$MP4_PATH" 2>/dev/null
     fi
 
-    # Convert to GIF for inline rendering
-    echo "Converting to animated GIF for inline rendering..." >&2
-    if command -v ffmpeg &>/dev/null; then
-      ffmpeg -y -i "$FILE_PATH" -vf "fps=10,scale=800:-1:flags=lanczos" -loop 0 "$GIF_PATH" 2>/dev/null
-    else
-      echo "WARNING: ffmpeg not found — cannot create GIF. Only mp4 download link will be available." >&2
-      echo "Uploading $FILENAME..." >&2
-      URL=$(upload_asset "$MP4_PATH")
-      echo "[$FILENAME]($URL)"
-      exit 0
-    fi
-
-    # Upload both
-    echo "Uploading GIF (inline preview)..." >&2
-    GIF_URL=$(upload_asset "$GIF_PATH")
-    echo "Uploading mp4 (full quality download)..." >&2
+    echo "Uploading video..." >&2
     MP4_URL=$(upload_asset "$MP4_PATH")
 
-    if [[ -z "$GIF_URL" || -z "$MP4_URL" ]]; then
-      echo "Failed to get download URLs" >&2
+    if [[ -z "$MP4_URL" ]]; then
+      echo "Failed to get download URL" >&2
       exit 1
     fi
 
-    # Output both: GIF for inline, mp4 as download link
-    # The GIF renders inline in GitHub markdown. The mp4 link is for full quality.
-    echo "![${STEM}.gif](${GIF_URL})"
-    echo ""
-    echo "[Download full quality video](${MP4_URL})"
+    echo "[▶ Download verification video](${MP4_URL})"
     ;;
 
   *)

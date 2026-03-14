@@ -89,53 +89,90 @@ If the implementer added a new export, alias, or API:
 
 6. Read test credentials from `~/.config/case/credentials` (use for .env files only — **never log credentials**)
 7. Load the `playwright-cli` skill for browser testing
-8. Open browser and **start video recording** before navigating:
+8. Open browser and navigate:
    ```bash
    playwright-cli open
-   playwright-cli video-start
    playwright-cli goto http://localhost:3000
    ```
-9. Reproduce the exact scenario from the issue:
-   - For a bug fix: trigger the conditions that caused the bug
-   - For a feature: exercise the new capability specifically
-10. Verify the fix works — the specific behavior, not just "the app loads"
+9. **Take a BEFORE screenshot** — capture the initial state before interacting:
+   ```bash
+   playwright-cli screenshot --filename=before.png
+   ```
+10. **If the app requires authentication**, follow the AuthKit login flow (see 3c below)
+11. **Reproduce the exact scenario from the issue.** You MUST interact with specific elements — click buttons, fill forms, trigger the behavior described in the issue. Taking a screenshot of a landing page is NOT verification.
+    - For a bug fix: trigger the conditions that caused the bug, verify the error no longer occurs
+    - For a feature: exercise the new capability — navigate to the relevant page, interact with the new UI, confirm the expected behavior
+12. **Take an AFTER screenshot** at each meaningful state transition:
+    ```bash
+    playwright-cli screenshot --filename=after.png
+    ```
+    If the flow has multiple steps, screenshot each one (e.g., `step1.png`, `step2.png`, `after.png`).
 
-**Ask yourself: "If I reverted the implementer's commit, would this test fail?"** If the answer is no, you're testing the wrong thing.
+**Evidence quality gate — ask yourself these three questions:**
 
-**Second check: "Is the app I'm looking at actually using the new code?"** If the imports haven't changed, the answer is no.
+1. **"If I reverted the implementer's commit, would my AFTER screenshot look different?"** If no, you're testing the wrong thing.
+2. **"Is the app I'm looking at actually using the new code?"** If the imports haven't changed, the answer is no.
+3. **"Do my screenshots show a state change?"** If BEFORE and AFTER are identical, you haven't demonstrated the fix works.
+
+If you can't answer "yes" to all three, **stop and report the task needs clarification** rather than producing fake evidence.
+
+**3c. AuthKit Login Flow — when the app requires authentication:**
+
+Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this concrete procedure:
+
+1. Navigate to the app — it will likely show a "Sign in" button or redirect to login
+   ```bash
+   playwright-cli snapshot  # find the sign-in button/link ref
+   ```
+2. Click the sign-in element (use the ref from the snapshot):
+   ```bash
+   playwright-cli click <sign-in-ref>
+   ```
+3. You'll be redirected to the AuthKit hosted login page (URL contains `authkit.app` or similar). Take a snapshot to find the email input:
+   ```bash
+   playwright-cli snapshot  # find the email input ref
+   ```
+4. Enter the test email from credentials:
+   ```bash
+   playwright-cli fill <email-ref> "<TEST_USER_EMAIL from credentials>"
+   playwright-cli snapshot  # find the continue/submit button
+   playwright-cli click <submit-ref>
+   ```
+5. Enter the password on the next screen:
+   ```bash
+   playwright-cli snapshot  # find the password input ref
+   playwright-cli fill <password-ref> "<TEST_USER_PASSWORD from credentials>"
+   playwright-cli snapshot  # find the sign-in button
+   playwright-cli click <sign-in-ref>
+   ```
+6. Wait for redirect back to the app. Take a screenshot to confirm authenticated state:
+   ```bash
+   playwright-cli screenshot --filename=authenticated.png
+   ```
+
+**Note:** The exact element refs will vary — always `snapshot` first to find the correct refs. If the login page layout differs from this flow, adapt accordingly. The key requirement is that you **actually complete the login** rather than stopping at the sign-in page.
 
 ### 4. Capture Evidence
 
-1. **Stop video recording** and save:
+**Screenshots are the primary evidence.** They render inline on GitHub and are instantly reviewable. Video is optional supplementary evidence for complex multi-step flows.
+
+1. **Upload before/after screenshots** for PR inclusion:
    ```bash
-   playwright-cli video-stop /tmp/verification.webm
+   BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh .playwright-cli/before.png)
+   echo "$BEFORE"
+   AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh .playwright-cli/after.png)
+   echo "$AFTER"
    ```
+   Upload ALL screenshots you took during testing (before, intermediate steps, after). Each screenshot should show a distinct state — if two screenshots look identical, one is redundant.
 
-2. **Take a final screenshot** of the verified state:
+2. **(Optional) Upload video** if you recorded one for a complex flow:
    ```bash
-   playwright-cli screenshot
+   VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   echo "$VIDEO"
    ```
-   Screenshots are saved to `.playwright-cli/` by default.
+   Only record video when the flow involves multiple interactions that screenshots can't fully capture (e.g., drag-and-drop, animations, real-time updates). Do NOT record video of a static page load.
 
-3. **Upload video and screenshots** for PR inclusion:
-   ```bash
-   # Upload video — the script auto-converts to GIF (inline) + mp4 (download)
-   VIDEO_MARKDOWN=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
-   echo "$VIDEO_MARKDOWN"
-
-   # Upload screenshot
-   cp .playwright-cli/page-*.png /tmp/after.png
-   SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
-   echo "$SCREENSHOT"
-   ```
-
-   The upload script handles videos by producing **two outputs**:
-   - An animated GIF that renders inline in GitHub markdown (auto-converted via ffmpeg)
-   - A download link to the full-quality mp4
-
-   Include both in your progress log so the closer can embed them in the PR description.
-
-4. Create the manual testing evidence marker:
+3. **Create the manual testing evidence marker:**
    ```bash
    bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh
    ```
@@ -148,9 +185,11 @@ If the implementer added a new export, alias, or API:
    ### Verifier — <ISO timestamp>
    - Tested: <what specific scenario was tested>
    - How: <steps taken — e.g., "started example app, signed in with test creds, triggered org switch with custom cookie name">
+   - Interactions: <list of specific elements clicked/filled — e.g., "clicked Sign In, filled email, filled password, clicked submit, clicked org switcher">
    - Result: PASS/FAIL
-   - Video: <video tag from upload>
-   - Screenshots: <markdown image tags from upload>
+   - Before: <before screenshot markdown>
+   - After: <after screenshot markdown>
+   - Video: <video link if recorded, otherwise "N/A — screenshots sufficient">
    - Evidence: .case-tested (from implementer), .case-manual-tested (created)
    ```
 
@@ -186,7 +225,9 @@ If verification failed (the fix doesn't work), set `"status":"failed"` and descr
 - **Never commit.** The implementer already committed.
 - **Never create PRs.** That's the closer's job.
 - **Never set `tested` or `manualTested` directly in task JSON.** Marker scripts handle this.
-- **Always test the specific fix scenario.** "It loads" is not verification. "The org switch works with a custom cookie name" is verification.
+- **Always test the specific fix scenario.** "It loads" is not verification. "The org switch works with a custom cookie name" is verification. Your before/after screenshots must show a visible difference.
+- **Always complete the login flow when testing authenticated features.** Use the credentials from `~/.config/case/credentials` and follow the AuthKit login procedure in step 3c. Never screenshot an unauthenticated landing page as "evidence" for an auth feature.
+- **Never record video of a page doing nothing.** If you use video, the recording must capture real interactions. If you're only loading a page and taking a screenshot, skip video entirely.
 - **Always create evidence markers via scripts** — never `touch .case-manual-tested`.
 - **Always end with `<<<AGENT_RESULT` / `AGENT_RESULT>>>`.** The orchestrator depends on this.
 - **If src/ files didn't change, skip Playwright.** Just mark as verified and explain why manual testing was not needed.

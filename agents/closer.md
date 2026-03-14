@@ -45,7 +45,7 @@ bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent clo
    - `.case-tested` — should have `output_hash` field
    - `.case-manual-tested` — should have `evidence` field (if src/ files changed)
    - `.case-reviewed` — should have `critical: 0` (review findings summary)
-4. Extract video and screenshot tags from the verifier's progress log entry or AGENT_RESULT (look for `<video` tags and `![` image tags)
+4. Extract before/after screenshot tags from the verifier's progress log entry or AGENT_RESULT (look for `![` image tags). Also look for optional video download links (look for `[▶` links).
 5. Read `/Users/nicknisi/Developer/case/docs/conventions/pull-requests.md` for PR format rules
 
 ### 2. Draft PR
@@ -72,11 +72,14 @@ or `feat(scope): ...` for features. Keep under 72 characters.
 
 ## Verification
 
-### Video
-<video tag from verifier's progress log — shows the full test interaction>
+### Before
+<before screenshot from verifier — initial state before testing the fix>
 
-### Screenshots
-<screenshot markdown tags from verifier>
+### After
+<after screenshot(s) from verifier — state after exercising the fix>
+
+### Video
+<video download link if verifier recorded one, otherwise omit this section>
 
 ## Issue
 Closes #<number>
