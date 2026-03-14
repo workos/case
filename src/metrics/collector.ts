@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { AgentName, PhaseMetrics, PipelinePhase, ReviewFindings, RunMetrics } from '../types.js';
 
 /**
@@ -15,7 +14,7 @@ export class MetricsCollector {
   private promptVersions: Record<string, string> = {};
 
   constructor() {
-    this.runId = randomUUID();
+    this.runId = crypto.randomUUID();
     this.startedAt = new Date().toISOString();
   }
 

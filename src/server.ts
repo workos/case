@@ -1,4 +1,3 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { ProjectEntry, ServerConfig, TaskCreateRequest } from './types.js';
 import { loadProjects } from './config.js';
 import { createTask } from './entry/task-factory.js';
@@ -11,7 +10,7 @@ import { createLogger } from './util/logger.js';
 const log = createLogger();
 
 /**
- * Start the Case orchestrator as an HTTP service.
+ * Start the Case orchestrator as an HTTP service using Bun.serve.
  *
  * Endpoints:
  *   POST /webhook/github    — Receive GitHub webhook events
@@ -32,25 +31,27 @@ export async function startServer(caseRoot: string, config: ServerConfig): Promi
     }
   });
 
-  const server = createServer(async (req, res) => {
-    try {
-      await handleRequest(req, res, caseRoot, config, repos, pendingTasks);
-    } catch (err) {
-      log.error('request error', { error: String(err) });
-      jsonResponse(res, 500, { error: 'Internal server error' });
-    }
+  const server = Bun.serve({
+    port: config.port,
+    hostname: config.host,
+    async fetch(req) {
+      try {
+        return await handleRequest(req, caseRoot, config, repos, pendingTasks);
+      } catch (err) {
+        log.error('request error', { error: String(err) });
+        return Response.json({ error: 'Internal server error' }, { status: 500 });
+      }
+    },
   });
 
-  server.listen(config.port, config.host, () => {
-    log.info('server started', { port: config.port, host: config.host });
-    process.stdout.write(`Case orchestrator listening on http://${config.host}:${config.port}\n`);
-  });
+  log.info('server started', { port: server.port, hostname: server.hostname });
+  process.stdout.write(`Case orchestrator listening on http://${server.hostname}:${server.port}\n`);
 
   // Graceful shutdown
   const shutdown = () => {
     log.info('shutting down');
     stopScanners();
-    server.close();
+    server.stop();
     process.exit(0);
   };
 
@@ -59,160 +60,128 @@ export async function startServer(caseRoot: string, config: ServerConfig): Promi
 }
 
 async function handleRequest(
-  req: IncomingMessage,
-  res: ServerResponse,
+  req: Request,
   caseRoot: string,
   config: ServerConfig,
   repos: ProjectEntry[],
   pendingTasks: TaskCreateRequest[],
-): Promise<void> {
-  const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
-  const method = req.method?.toUpperCase() ?? 'GET';
+): Promise<Response> {
+  const url = new URL(req.url);
+  const method = req.method;
 
-  // Health check
   if (method === 'GET' && url.pathname === '/health') {
-    jsonResponse(res, 200, { status: 'ok', uptime: process.uptime() });
-    return;
+    return Response.json({ status: 'ok', uptime: process.uptime() });
   }
 
-  // List pending tasks
   if (method === 'GET' && url.pathname === '/tasks') {
-    jsonResponse(res, 200, {
+    return Response.json({
       pending: pendingTasks.map((t) => ({
         repo: t.repo,
         title: t.title,
         trigger: t.trigger.type,
       })),
     });
-    return;
   }
 
-  // GitHub webhook
   if (method === 'POST' && url.pathname === '/webhook/github') {
-    await handleGitHubWebhook(req, res, caseRoot, config, pendingTasks);
-    return;
+    return handleGitHubWebhook(req, caseRoot, config, pendingTasks);
   }
 
-  // Create task manually
   if (method === 'POST' && url.pathname === '/tasks') {
-    await handleCreateTask(req, res, caseRoot);
-    return;
+    return handleCreateTask(req, caseRoot);
   }
 
-  // Start a pending task
   const startMatch = url.pathname.match(/^\/tasks\/(\d+)\/start$/);
   if (method === 'POST' && startMatch) {
     const idx = parseInt(startMatch[1], 10);
-    await handleStartTask(idx, res, caseRoot, pendingTasks);
-    return;
+    return handleStartTask(idx, caseRoot, pendingTasks);
   }
 
-  jsonResponse(res, 404, { error: 'Not found' });
+  return Response.json({ error: 'Not found' }, { status: 404 });
 }
 
 async function handleGitHubWebhook(
-  req: IncomingMessage,
-  res: ServerResponse,
+  req: Request,
   caseRoot: string,
   config: ServerConfig,
   pendingTasks: TaskCreateRequest[],
-): Promise<void> {
-  const body = await readBody(req);
+): Promise<Response> {
+  const body = await req.text();
 
-  // Verify signature if secret is configured
   if (config.webhookSecret) {
-    const signature = req.headers['x-hub-signature-256'] as string | undefined;
-    if (!verifyWebhookSignature(body, signature, config.webhookSecret)) {
-      jsonResponse(res, 401, { error: 'Invalid signature' });
-      return;
+    const signature = req.headers.get('x-hub-signature-256') ?? undefined;
+    if (!(await verifyWebhookSignature(body, signature, config.webhookSecret))) {
+      return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }
   }
 
-  const eventType = req.headers['x-github-event'] as string;
-  const deliveryId = (req.headers['x-github-delivery'] as string) ?? 'unknown';
+  const eventType = req.headers.get('x-github-event');
+  const deliveryId = req.headers.get('x-github-delivery') ?? 'unknown';
 
   if (!eventType) {
-    jsonResponse(res, 400, { error: 'Missing X-GitHub-Event header' });
-    return;
+    return Response.json({ error: 'Missing X-GitHub-Event header' }, { status: 400 });
   }
 
   let payload: unknown;
   try {
     payload = JSON.parse(body);
   } catch {
-    jsonResponse(res, 400, { error: 'Invalid JSON' });
-    return;
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   const task = parseGitHubEvent(eventType, deliveryId, payload);
   if (task) {
     if (task.autoStart) {
-      // Auto-start: create and run immediately
       const created = await createTask(caseRoot, task);
-      // Fire and forget — don't block the webhook response
       dispatchPipeline(caseRoot, created.taskJsonPath).catch((err) => {
         log.error('auto-start pipeline failed', { error: String(err) });
       });
-      jsonResponse(res, 201, { action: 'created_and_started', taskId: created.taskId });
-    } else {
-      // Queue for human approval
-      pendingTasks.push(task);
-      jsonResponse(res, 201, { action: 'queued', repo: task.repo, title: task.title });
+      return Response.json({ action: 'created_and_started', taskId: created.taskId }, { status: 201 });
     }
-  } else {
-    jsonResponse(res, 200, { action: 'ignored' });
+    pendingTasks.push(task);
+    return Response.json({ action: 'queued', repo: task.repo, title: task.title }, { status: 201 });
   }
+
+  return Response.json({ action: 'ignored' });
 }
 
-async function handleCreateTask(
-  req: IncomingMessage,
-  res: ServerResponse,
-  caseRoot: string,
-): Promise<void> {
-  const body = await readBody(req);
-
+async function handleCreateTask(req: Request, caseRoot: string): Promise<Response> {
   let request: TaskCreateRequest;
   try {
-    request = JSON.parse(body) as TaskCreateRequest;
+    request = (await req.json()) as TaskCreateRequest;
   } catch {
-    jsonResponse(res, 400, { error: 'Invalid JSON' });
-    return;
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
   if (!request.repo || !request.title || !request.description) {
-    jsonResponse(res, 400, { error: 'Missing required fields: repo, title, description' });
-    return;
+    return Response.json({ error: 'Missing required fields: repo, title, description' }, { status: 400 });
   }
 
-  // Default trigger for manual API calls
   if (!request.trigger) {
     request.trigger = { type: 'manual', description: 'Created via API' };
   }
 
   const created = await createTask(caseRoot, request);
-  jsonResponse(res, 201, { taskId: created.taskId, path: created.taskJsonPath });
+  return Response.json({ taskId: created.taskId, path: created.taskJsonPath }, { status: 201 });
 }
 
 async function handleStartTask(
   idx: number,
-  res: ServerResponse,
   caseRoot: string,
   pendingTasks: TaskCreateRequest[],
-): Promise<void> {
+): Promise<Response> {
   if (idx < 0 || idx >= pendingTasks.length) {
-    jsonResponse(res, 404, { error: 'Task index out of range' });
-    return;
+    return Response.json({ error: 'Task index out of range' }, { status: 404 });
   }
 
   const request = pendingTasks.splice(idx, 1)[0];
   const created = await createTask(caseRoot, request);
 
-  // Fire and forget
   dispatchPipeline(caseRoot, created.taskJsonPath).catch((err) => {
     log.error('pipeline dispatch failed', { taskId: created.taskId, error: String(err) });
   });
 
-  jsonResponse(res, 200, { action: 'started', taskId: created.taskId });
+  return Response.json({ action: 'started', taskId: created.taskId });
 }
 
 async function dispatchPipeline(caseRoot: string, taskJsonPath: string): Promise<void> {
@@ -221,20 +190,4 @@ async function dispatchPipeline(caseRoot: string, taskJsonPath: string): Promise
     mode: 'unattended',
   });
   await runPipeline(config);
-}
-
-// --- Helpers ---
-
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
-    req.on('error', reject);
-  });
-}
-
-function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(body));
 }

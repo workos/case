@@ -1,26 +1,28 @@
 import { describe, it, expect } from 'bun:test';
 import { verifyWebhookSignature, parseGitHubEvent } from '../entry/github-webhook.js';
-import { createHmac } from 'node:crypto';
 
 describe('verifyWebhookSignature', () => {
   const secret = 'test-secret';
 
-  it('returns true for valid signature', () => {
+  it('returns true for valid signature', async () => {
     const payload = '{"action":"completed"}';
-    const sig = 'sha256=' + createHmac('sha256', secret).update(payload).digest('hex');
-    expect(verifyWebhookSignature(payload, sig, secret)).toBe(true);
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+    const hex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    expect(await verifyWebhookSignature(payload, `sha256=${hex}`, secret)).toBe(true);
   });
 
-  it('returns false for invalid signature', () => {
-    expect(verifyWebhookSignature('payload', 'sha256=invalid', secret)).toBe(false);
+  it('returns false for invalid signature', async () => {
+    expect(await verifyWebhookSignature('payload', 'sha256=invalid', secret)).toBe(false);
   });
 
-  it('returns false when no secret configured', () => {
-    expect(verifyWebhookSignature('payload', 'sha256=sig', undefined)).toBe(false);
+  it('returns false when no secret configured', async () => {
+    expect(await verifyWebhookSignature('payload', 'sha256=sig', undefined)).toBe(false);
   });
 
-  it('returns false when no signature provided', () => {
-    expect(verifyWebhookSignature('payload', undefined, secret)).toBe(false);
+  it('returns false when no signature provided', async () => {
+    expect(await verifyWebhookSignature('payload', undefined, secret)).toBe(false);
   });
 });
 
