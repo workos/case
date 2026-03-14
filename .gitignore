@@ -2,3 +2,5 @@
 .case-active
 .case-tested
 .case-manual-tested
+.case-reviewed
+.case-doom-loop-state

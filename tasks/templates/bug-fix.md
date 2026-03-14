@@ -24,6 +24,12 @@ docs/playbooks/fix-bug.md
 
 {Any additional context: when it started, affected versions, related code paths, user reports.}
 
+## Success Condition
+
+<!-- Machine-checkable command that measures progress. Implementer runs this after each attempt. -->
+<!-- Example: pnpm test --reporter=json 2>&1 | jq '.numPassedTests' -->
+<!-- Set checkCommand, checkBaseline, checkTarget in the companion .task.json -->
+
 ## Acceptance Criteria
 
 - [ ] Bug is reproducible with a failing test

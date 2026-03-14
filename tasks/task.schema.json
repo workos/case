@@ -72,6 +72,21 @@
       "type": ["integer", "null"],
       "default": null,
       "description": "Pull request number"
+    },
+    "checkCommand": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Shell command that outputs a single number measuring progress. Implementer runs after each attempt to decide keep/discard."
+    },
+    "checkBaseline": {
+      "type": ["number", "null"],
+      "default": null,
+      "description": "Value of checkCommand before implementation starts. Captured by implementer at setup."
+    },
+    "checkTarget": {
+      "type": ["number", "null"],
+      "default": null,
+      "description": "Target value for checkCommand. Task succeeds when checkCommand output >= checkTarget."
     }
   },
   "additionalProperties": false,

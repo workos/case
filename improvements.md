@@ -52,19 +52,14 @@ Items already implemented in the harness. Kept here for traceability.
 | **47** | Context specialization | Agents receive role-specific context via SKILL.md routing |
 | **52** | Success-is-silent output rule | Scripts output only on failure; mark-tested.sh emits only to stderr |
 | **53** | Per-agent tool profiles (enforced) | Each agent has minimal tool set defined in agent .md frontmatter |
+| **5** | Add `.case-reviewed` to `.gitignore` | Added `.case-reviewed` and `.case-doom-loop-state` to .gitignore |
+| **57** | Output redirection pattern | Implementer Section 2b: redirect all output to log files, grep for results |
+| **58** | Keep/discard binary discipline | Implementer Section 2c: measure progress after each attempt, revert on regression |
+| **59** | Machine-checkable success condition | `checkCommand`/`checkBaseline`/`checkTarget` fields in task.schema.json; implementer reads at setup and uses for keep/discard |
+| **60** | Explicit simplicity criterion | Implementer Rules: 3x line ratio gate, deletion-is-a-win heuristic |
 
-### Wave 1: Implementer effectiveness (prompt edits only)
-**Effort: 1-2 days. No dependencies. No infrastructure — just prompt and template changes.**
-
-These are the autoresearch-inspired changes. Zero infrastructure, immediate payoff.
-
-| # | Item | Why now |
-|---|------|---------|
-| **57** | Output redirection pattern | Add explicit instruction to implementer: redirect command output to log files, grep for results. Raw output never enters context. Currently partial (parse-test-output.sh exists) but not in the agent prompt itself. |
-| **58** | Keep/discard binary discipline | Implementer captures baseline before changes, reverts if target metric doesn't improve. Prevents compounding mess from forward-fixes. Not yet implemented. |
-| **59** | Machine-checkable success condition per task | Add `check_command` / `check_baseline` / `check_target` fields to task schema. Implementer runs after each attempt. Removes ambiguity about progress. |
-| **60** | Explicit simplicity criterion in implementer prompt | "If your fix adds more than 3x the lines needed, simplify before committing." Not yet in the prompt — golden-principles.md #9 mentions 300-line file limit but that's a different concern. |
-| **5** | Add `.case-reviewed` to `.gitignore` | Still missing. 1-line fix. |
+### Wave 1: Implementer effectiveness (prompt edits only) ✓ COMPLETE
+**Shipped 2026-03-14. All items implemented as prompt/template/schema changes.**
 
 ### Wave 2: Safety + measurement infrastructure
 **Effort: 1-2 weeks. No dependencies on Wave 1 (can overlap).**
