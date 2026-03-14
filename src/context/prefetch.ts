@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { AgentName, PipelineConfig } from '../types.js';
 import { runScript } from '../util/run-script.js';
@@ -75,9 +74,9 @@ export async function prefetchRepoContext(config: PipelineConfig, role: AgentNam
 }
 
 async function readFileSafe(path: string): Promise<string> {
-  try {
-    return await readFile(path, 'utf-8');
-  } catch {
-    return '';
+  const file = Bun.file(path);
+  if (await file.exists()) {
+    return file.text();
   }
+  return '';
 }

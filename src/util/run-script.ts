@@ -1,8 +1,5 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { createLogger } from './logger.js';
 
-const execFileAsync = promisify(execFile);
 const log = createLogger();
 
 export interface ScriptResult {
@@ -12,7 +9,7 @@ export interface ScriptResult {
 }
 
 /**
- * Run a script safely via execFile (no shell injection).
+ * Run a script safely via Bun.spawn (no shell injection).
  * Always returns a structured result — never throws.
  */
 export async function runScript(
@@ -24,36 +21,44 @@ export async function runScript(
   const start = Date.now();
 
   try {
-    const { stdout, stderr } = await execFileAsync(scriptPath, args, {
+    const proc = Bun.spawn([scriptPath, ...args], {
       cwd: options?.cwd,
-      timeout,
-      maxBuffer: 10 * 1024 * 1024, // 10 MB
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
 
-    log.info('script completed', {
+    const timer = setTimeout(() => proc.kill(), timeout);
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    const exitCode = await proc.exited;
+    clearTimeout(timer);
+
+    const level = exitCode === 0 ? 'info' : 'error';
+    log[level](exitCode === 0 ? 'script completed' : 'script failed', {
       script: scriptPath,
       args,
       durationMs: Date.now() - start,
-      exitCode: 0,
+      exitCode,
     });
 
-    return { stdout, stderr, exitCode: 0 };
+    return { stdout, stderr, exitCode };
   } catch (err: unknown) {
-    const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string; code?: string | number };
-    const exitCode = typeof e.code === 'number' ? e.code : 1;
+    const e = err as Error;
 
     log.error('script failed', {
       script: scriptPath,
       args,
       durationMs: Date.now() - start,
-      exitCode,
+      exitCode: 1,
       error: e.message,
     });
 
     return {
-      stdout: e.stdout ?? '',
-      stderr: e.stderr ?? e.message ?? '',
-      exitCode,
+      stdout: '',
+      stderr: e.message ?? '',
+      exitCode: 1,
     };
   }
 }

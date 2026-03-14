@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { ProjectEntry, TaskCreateRequest, TriggerSource } from '../../types.js';
 import { createLogger } from '../../util/logger.js';
 
-const execFileAsync = promisify(execFile);
 const log = createLogger();
 
 interface WorkflowRun {
@@ -69,15 +66,14 @@ export async function scanCIFailures(repos: ProjectEntry[]): Promise<TaskCreateR
 }
 
 async function getRecentFailures(remote: string): Promise<WorkflowRun[]> {
-  // Extract owner/repo from git remote URL
   const match = remote.match(/github\.com[:/](.+?)\.git$/);
   if (!match) return [];
 
   const ghRepo = match[1];
 
-  const { stdout } = await execFileAsync(
-    'gh',
+  const proc = Bun.spawn(
     [
+      'gh',
       'run',
       'list',
       '--repo',
@@ -91,8 +87,13 @@ async function getRecentFailures(remote: string): Promise<WorkflowRun[]> {
       '--json',
       'databaseId,workflowName,conclusion,headBranch,url,headSha',
     ],
-    { timeout: 15_000 },
+    { stdout: 'pipe', stderr: 'pipe' },
   );
+
+  const timer = setTimeout(() => proc.kill(), 15_000);
+  const stdout = await new Response(proc.stdout).text();
+  await proc.exited;
+  clearTimeout(timer);
 
   return JSON.parse(stdout) as WorkflowRun[];
 }

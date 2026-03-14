@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import type { PipelineConfig, PipelineMode, ProjectEntry } from './types.js';
 
@@ -8,9 +7,9 @@ interface ProjectsManifest {
 
 /** Load and parse projects.json from the case root. */
 export function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
-  return readFile(resolve(caseRoot, 'projects.json'), 'utf-8').then(
-    (raw) => (JSON.parse(raw) as ProjectsManifest).repos,
-  );
+  return Bun.file(resolve(caseRoot, 'projects.json'))
+    .text()
+    .then((raw) => (JSON.parse(raw) as ProjectsManifest).repos);
 }
 
 /** Resolve a repo path (potentially relative) to absolute from caseRoot. */
@@ -26,7 +25,7 @@ export async function buildPipelineConfig(opts: {
   dryRun?: boolean;
 }): Promise<PipelineConfig> {
   const taskJsonPath = resolve(opts.taskJsonPath);
-  const raw = await readFile(taskJsonPath, 'utf-8');
+  const raw = await Bun.file(taskJsonPath).text();
   const task = JSON.parse(raw) as { repo: string; mode?: PipelineMode };
 
   // Derive caseRoot from taskJsonPath: tasks/active/foo.task.json -> ../../

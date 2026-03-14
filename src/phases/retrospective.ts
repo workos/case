@@ -48,9 +48,8 @@ export async function runRetrospectivePhase(
   // We reuse assemblePrompt with 'closer' role for minimal context,
   // then prepend the retrospective template manually since 'retrospective'
   // isn't in the AgentName type (not a pipeline agent)
-  const { readFile } = await import('node:fs/promises');
   const { resolve } = await import('node:path');
-  const template = await readFile(resolve(config.caseRoot, 'agents/retrospective.md'), 'utf-8');
+  const template = await Bun.file(resolve(config.caseRoot, 'agents/retrospective.md')).text();
 
   const prompt = [
     template,

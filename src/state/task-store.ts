@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { AgentName, TaskJson, TaskStatus } from '../types.js';
 import { runScript } from '../util/run-script.js';
@@ -25,7 +24,7 @@ export class TaskStore {
 
   /** Read and parse the task JSON file directly (faster than script). */
   async read(): Promise<TaskJson> {
-    const raw = await readFile(this.taskJsonPath, 'utf-8');
+    const raw = await Bun.file(this.taskJsonPath).text();
     return JSON.parse(raw) as TaskJson;
   }
 

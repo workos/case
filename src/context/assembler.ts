@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
@@ -20,7 +19,7 @@ export async function assemblePrompt(
   previousResults: Map<AgentName, AgentResult>,
 ): Promise<string> {
   const templatePath = resolve(config.caseRoot, `agents/${role}.md`);
-  const template = await readFile(templatePath, 'utf-8');
+  const template = await Bun.file(templatePath).text();
 
   const contextBlock = buildContextBlock(role, config, task, repoContext, previousResults);
 

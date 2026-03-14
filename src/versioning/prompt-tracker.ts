@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createLogger } from '../util/logger.js';
 
@@ -19,14 +18,11 @@ interface ChangelogEntry {
  */
 export async function getCurrentPromptVersions(caseRoot: string): Promise<Record<string, string>> {
   const changelogPath = resolve(caseRoot, 'docs/agent-versions/changelog.jsonl');
+  const file = Bun.file(changelogPath);
 
-  let raw: string;
-  try {
-    raw = await readFile(changelogPath, 'utf-8');
-  } catch {
-    return {};
-  }
+  if (!(await file.exists())) return {};
 
+  const raw = await file.text();
   const versions: Record<string, string> = {};
 
   for (const line of raw.split('\n')) {
@@ -50,15 +46,13 @@ export async function getCurrentPromptVersions(caseRoot: string): Promise<Record
  */
 export async function findPriorRunId(caseRoot: string, taskId: string): Promise<string | null> {
   const logPath = resolve(caseRoot, 'docs/run-log.jsonl');
+  const file = Bun.file(logPath);
 
-  let raw: string;
-  try {
-    raw = await readFile(logPath, 'utf-8');
-  } catch {
-    return null;
-  }
+  if (!(await file.exists())) return null;
 
+  const raw = await file.text();
   let priorRunId: string | null = null;
+
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
     try {

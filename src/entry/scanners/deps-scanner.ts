@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 import type { ProjectEntry, TaskCreateRequest, TriggerSource } from '../../types.js';
 import { createLogger } from '../../util/logger.js';
 
-const execFileAsync = promisify(execFile);
 const log = createLogger();
 
 /** Track repos we've already flagged outdated deps for. */
@@ -38,7 +35,6 @@ export async function scanOutdatedDeps(caseRoot: string, repos: ProjectEntry[]):
       const outdated = await getOutdatedPackages(repoPath, repo.packageManager);
       if (outdated.length === 0) continue;
 
-      // Only flag if there are major version bumps or security-related packages
       const significant = outdated.filter((pkg) => {
         const [curMajor] = pkg.current.split('.');
         const [latMajor] = pkg.latest.split('.');
@@ -54,15 +50,11 @@ export async function scanOutdatedDeps(caseRoot: string, repos: ProjectEntry[]):
       tasks.push({
         repo: repo.name,
         title: `Update ${significant.length} outdated dependencies`,
-        description: [
-          `Major version updates available:`,
-          '',
-          depList,
-          '',
-          'Update each dependency, run tests, and verify nothing breaks.',
-        ].join('\n'),
+        description: [`Major version updates available:`, '', depList, '', 'Update each dependency, run tests, and verify nothing breaks.'].join(
+          '\n',
+        ),
         issueType: 'freeform',
-        mode: 'attended', // Dep updates need human oversight
+        mode: 'attended',
         trigger,
         autoStart: false,
       });
@@ -80,21 +72,22 @@ export async function scanOutdatedDeps(caseRoot: string, repos: ProjectEntry[]):
 
 async function getOutdatedPackages(repoPath: string, packageManager: string): Promise<OutdatedPackage[]> {
   const cmd = packageManager === 'pnpm' ? 'pnpm' : 'npm';
-  const args = ['outdated', '--json'];
 
   try {
     // pnpm/npm outdated exits non-zero when outdated packages exist
-    const { stdout } = await execFileAsync(cmd, args, {
+    const proc = Bun.spawn([cmd, 'outdated', '--json'], {
       cwd: repoPath,
-      timeout: 30_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
+
+    const timer = setTimeout(() => proc.kill(), 30_000);
+    const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
+    clearTimeout(timer);
+
     return parseOutdatedOutput(stdout);
-  } catch (err: unknown) {
-    const e = err as NodeJS.ErrnoException & { stdout?: string };
-    // Non-zero exit is expected when packages are outdated
-    if (e.stdout) {
-      return parseOutdatedOutput(e.stdout);
-    }
+  } catch {
     return [];
   }
 }

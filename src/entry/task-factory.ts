@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
 import type { TaskCreateRequest, TaskJson } from '../types.js';
 import { createLogger } from '../util/logger.js';
@@ -78,8 +78,8 @@ export async function createTask(caseRoot: string, request: TaskCreateRequest): 
     .filter(Boolean)
     .join('\n');
 
-  await writeFile(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
-  await writeFile(taskMdPath, taskMd);
+  await Bun.write(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
+  await Bun.write(taskMdPath, taskMd);
 
   log.info('task created', {
     taskId,

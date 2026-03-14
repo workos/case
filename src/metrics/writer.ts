@@ -1,4 +1,4 @@
-import { appendFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import type { RunMetrics } from '../types.js';
 import { createLogger } from '../util/logger.js';
@@ -48,7 +48,9 @@ export async function writeRunMetrics(
   };
 
   await mkdir(dirname(logFile), { recursive: true });
-  await appendFile(logFile, JSON.stringify(entry) + '\n');
+  const file = Bun.file(logFile);
+  const existing = (await file.exists()) ? await file.text() : '';
+  await Bun.write(file, existing + JSON.stringify(entry) + '\n');
 
   log.info('run metrics written', { runId: metrics.runId, outcome: metrics.outcome });
 }

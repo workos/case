@@ -1,5 +1,4 @@
 import { parseArgs } from 'node:util';
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { buildPipelineConfig } from './config.js';
 import { runPipeline } from './pipeline.js';
@@ -46,7 +45,7 @@ async function runTask(values: Record<string, unknown>) {
   }
 
   const taskPath = values.task as string;
-  if (!existsSync(taskPath)) {
+  if (!(await Bun.file(taskPath).exists())) {
     process.stderr.write(`Error: task file not found: ${taskPath}\n`);
     process.exit(1);
   }

@@ -91,15 +91,21 @@ async function spawnViaSDK(prompt: string, cwd: string, timeout: number): Promis
 }
 
 async function spawnViaCLI(prompt: string, cwd: string, timeout: number): Promise<string> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execFileAsync = promisify(execFile);
-
-  const { stdout } = await execFileAsync('claude', ['--print', '-p', prompt], {
+  const proc = Bun.spawn(['claude', '--print', '-p', prompt], {
     cwd,
-    timeout,
-    maxBuffer: 50 * 1024 * 1024, // 50 MB for agent output
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
+
+  const timer = setTimeout(() => proc.kill(), timeout);
+  const stdout = await new Response(proc.stdout).text();
+  const exitCode = await proc.exited;
+  clearTimeout(timer);
+
+  if (exitCode !== 0) {
+    const stderr = await new Response(proc.stderr).text();
+    throw new Error(`claude CLI exited with code ${exitCode}: ${stderr.slice(0, 500)}`);
+  }
 
   return stdout;
 }
