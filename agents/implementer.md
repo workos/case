@@ -44,7 +44,8 @@ Read the output to understand: current branch, last commits, task status, which 
 4. Read the playbook referenced in the task file
 5. Read `/Users/nicknisi/Developer/case/projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
 6. Read `/Users/nicknisi/Developer/case/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
-7. If the task JSON has a `checkCommand`, run it now and record the output as your baseline:
+7. Check for working memory — if `{task-stem}.working.md` exists alongside the task file, read it. This contains state from previous runs: what was tried, what failed, blockers, files changed so far. Use this to avoid repeating failed approaches.
+8. If the task JSON has a `checkCommand`, run it now and record the output as your baseline:
    ```bash
    BASELINE=$(eval "$(jq -r '.checkCommand' <task.json>)" 2>/dev/null)
    echo "Baseline: $BASELINE"
@@ -170,6 +171,32 @@ Then create the final commit as usual.
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer status completed
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer completed now
    ```
+
+### 4b. Update Working Memory
+
+**Always do this, even on failure.** Write (or update) `{task-stem}.working.md` alongside the task file in `tasks/active/`:
+
+```markdown
+# Working Memory — {task-id}
+Updated: {ISO timestamp}
+
+## Current State
+- Phase: implementing
+- Status: {completed | failed | partial}
+- Last commit: {hash or "none"}
+
+## What Was Tried
+- {approach 1}: {outcome — kept/reverted/partial}
+- {approach 2}: {outcome}
+
+## Blockers
+- {any unresolved issues, or "none"}
+
+## Files Changed
+- {list of files modified in this session}
+```
+
+This survives across sessions. If the implementer is re-spawned (retry or resume), the next run reads this in Setup step 7 to avoid repeating failed approaches.
 
 ### 5. Output
 

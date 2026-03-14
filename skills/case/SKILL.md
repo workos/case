@@ -188,6 +188,7 @@ _(Already done in the Arguments section above)_
 2. Use the `Agent` tool:
    - **prompt**: `<implementer.md content>` + task context:
      - Task file path (`.md` and `.task.json`)
+     - Working memory path (`{task-stem}.working.md` — may not exist on first run)
      - Target repo path
      - Issue summary (title, body, key details)
      - Playbook path from Task Routing
@@ -253,16 +254,24 @@ _(Already done in the Arguments section above)_
 
 ### Step 8: Complete
 
-Report to user:
-- PR URL from closer's `AGENT_RESULT`
-- Summary: what was done (from implementer), what was tested (from verifier), what was reviewed (from reviewer), PR link (from closer)
+1. Log the run:
+   ```bash
+   bash /Users/nicknisi/Developer/case/scripts/log-run.sh <task.json> completed
+   ```
+2. Report to user:
+   - PR URL from closer's `AGENT_RESULT`
+   - Summary: what was done (from implementer), what was tested (from verifier), what was reviewed (from reviewer), PR link (from closer)
 
 ### Step 9: Spawn Retrospective
 
 **Always runs** — after both successful and failed pipelines, at every failure class (baseline, implementer, verifier, reviewer, closer). Every failure branch in steps 3-8 routes here explicitly. This is how the harness improves itself.
 
-1. Read `/Users/nicknisi/Developer/case/agents/retrospective.md`
-2. Use the `Agent` tool:
+1. Log the run (if not already logged in step 8):
+   ```bash
+   bash /Users/nicknisi/Developer/case/scripts/log-run.sh <task.json> <outcome> [failed-agent]
+   ```
+2. Read `/Users/nicknisi/Developer/case/agents/retrospective.md`
+3. Use the `Agent` tool:
    - **prompt**: `<retrospective.md content>` + context:
      - Task file path (with progress log from all agents)
      - Task JSON path (with agent phases and timing)
@@ -270,14 +279,14 @@ Report to user:
      - If failed: which agent failed and its AGENT_RESULT error
    - **subagent_type**: `general-purpose`
    - **run_in_background**: `true` (retrospective runs async, doesn't block the pipeline)
-3. The retrospective agent **auto-applies** improvements directly to case/ files (docs, scripts, agents, hooks). High and medium priority fixes are applied immediately; low priority fixes are applied if straightforward.
-4. When the background agent completes, report to the user:
+4. The retrospective agent **proposes amendments** to `docs/proposed-amendments/` for human review. Only repo learnings (`docs/learnings/`) are applied directly.
+5. When the background agent completes, report to the user:
    ```
-   "Retrospective applied <N> harness improvement(s): <summary of changes>"
+   "Retrospective proposed <N> amendment(s): <summary>"
    ```
-   Include the list of files changed from the AGENT_RESULT artifacts.
+   Include the list of proposed amendment files from the AGENT_RESULT artifacts.
 
-**The retrospective never blocks the pipeline.** It runs in the background after the PR is created. If it fails or produces no improvements, the `/case` run is still complete.
+**The retrospective never blocks the pipeline.** It runs in the background after the PR is created. If it fails or produces no proposals, the `/case` run is still complete.
 
 ## Re-entry Semantics
 

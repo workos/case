@@ -57,18 +57,15 @@ Items already implemented in the harness. Kept here for traceability.
 | **58** | Keep/discard binary discipline | Implementer Section 2c: measure progress after each attempt, revert on regression |
 | **59** | Machine-checkable success condition | `checkCommand`/`checkBaseline`/`checkTarget` fields in task.schema.json; implementer reads at setup and uses for keep/discard |
 | **60** | Explicit simplicity criterion | Implementer Rules: 3x line ratio gate, deletion-is-a-win heuristic |
+| **41** | Working memory (WORKING.md) | Implementer reads `{task-stem}.working.md` at setup, writes it at end (even on failure). Survives retries. |
+| **42** | Cross-run JSONL log | `scripts/log-run.sh` appends structured entry to `docs/run-log.jsonl` after each pipeline run. Called from SKILL.md Steps 8 and 9. |
+| **51** | Human review gate for retrospective | Retrospective proposes amendments to `docs/proposed-amendments/` instead of direct edits. Only repo learnings applied directly. |
 
 ### Wave 1: Implementer effectiveness (prompt edits only) ✓ COMPLETE
 **Shipped 2026-03-14. All items implemented as prompt/template/schema changes.**
 
-### Wave 2: Safety + measurement infrastructure
-**Effort: 1-2 weeks. No dependencies on Wave 1 (can overlap).**
-
-| # | Item | Why now |
-|---|------|---------|
-| **51** | Human review gate for retrospective amendments | **Most important safety item.** ETH Zurich study: auto-generated agent files hurt performance. Retrospective currently edits in place — change to propose-and-stage with human promotion. |
-| **42** | Cross-run JSONL log | Task JSON captures per-task data but no timeline view across tasks. Append structured entry to `docs/run-log.jsonl` after each pipeline run. Foundation for Wave 3 self-improvement. |
-| **41** | Working memory (WORKING.md) | Learnings + task JSON exist but no per-task scratch state that survives retries. When implementer fails mid-run, next session starts cold. Add WORKING.md per active task with: current phase, last attempt, blockers, files changed. |
+### Wave 2: Safety + measurement infrastructure ✓ COMPLETE
+**Shipped 2026-03-14. Retrospective gated, run log created, working memory added.**
 
 ### Wave 3: Self-improvement loop
 **Effort: 2-4 weeks. Depends on Wave 2 (#42) for run log data.**
