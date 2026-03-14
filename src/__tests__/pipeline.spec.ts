@@ -155,8 +155,8 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
-      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })              // closer
-      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });                            // retrospective
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
     await runPipeline(makeConfig());
 
@@ -171,17 +171,26 @@ describe('runPipeline', () => {
     mockSpawnAgent
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer fails
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // retry also fails
-      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });                       // retrospective
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
     // analyze-failure.sh says not retryable
     mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })  // session-start
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })    // git log
-      .mockResolvedValueOnce({                                            // analyze-failure
-        stdout: JSON.stringify({ failureClass: 'unknown', retryViable: false, errorSummary: 'bad', filesInvolved: [], whatWasTried: [], suggestedFocus: 'stop' }),
-        stderr: '', exitCode: 0,
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log
+      .mockResolvedValueOnce({
+        // analyze-failure
+        stdout: JSON.stringify({
+          failureClass: 'unknown',
+          retryViable: false,
+          errorSummary: 'bad',
+          filesInvolved: [],
+          whatWasTried: [],
+          suggestedFocus: 'stop',
+        }),
+        stderr: '',
+        exitCode: 0,
       })
-      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });     // any remaining
+      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 }); // any remaining
 
     mockNotifierAskUser.mockResolvedValue('Abort');
 
@@ -199,8 +208,16 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({
-        stdout: JSON.stringify({ failureClass: 'unknown', retryViable: false, errorSummary: 'bad', filesInvolved: [], whatWasTried: [], suggestedFocus: 'stop' }),
-        stderr: '', exitCode: 0,
+        stdout: JSON.stringify({
+          failureClass: 'unknown',
+          retryViable: false,
+          errorSummary: 'bad',
+          filesInvolved: [],
+          whatWasTried: [],
+          suggestedFocus: 'stop',
+        }),
+        stderr: '',
+        exitCode: 0,
       })
       .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
 
@@ -224,8 +241,8 @@ describe('runPipeline', () => {
     mockSpawnAgent
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
-      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })              // closer
-      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });                            // retrospective
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
     await runPipeline(makeConfig());
 

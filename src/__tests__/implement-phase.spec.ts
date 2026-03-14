@@ -120,8 +120,9 @@ describe('runImplementPhase', () => {
 
     mockRunScript
       .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })   // git log
-      .mockResolvedValueOnce({                                           // analyze-failure
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log
+      .mockResolvedValueOnce({
+        // analyze-failure
         stdout: JSON.stringify({
           failureClass: 'test-failure',
           failedAgent: 'implementer',

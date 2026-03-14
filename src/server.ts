@@ -165,11 +165,7 @@ async function handleCreateTask(req: Request, caseRoot: string): Promise<Respons
   return Response.json({ taskId: created.taskId, path: created.taskJsonPath }, { status: 201 });
 }
 
-async function handleStartTask(
-  idx: number,
-  caseRoot: string,
-  pendingTasks: TaskCreateRequest[],
-): Promise<Response> {
+async function handleStartTask(idx: number, caseRoot: string, pendingTasks: TaskCreateRequest[]): Promise<Response> {
   if (idx < 0 || idx >= pendingTasks.length) {
     return Response.json({ error: 'Task index out of range' }, { status: 404 });
   }

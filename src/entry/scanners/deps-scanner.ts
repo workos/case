@@ -54,9 +54,13 @@ export async function scanOutdatedDeps(caseRoot: string, repos: ProjectEntry[]):
       tasks.push({
         repo: repo.name,
         title: `Update ${significant.length} outdated dependencies`,
-        description: [`Major version updates available:`, '', depList, '', 'Update each dependency, run tests, and verify nothing breaks.'].join(
-          '\n',
-        ),
+        description: [
+          `Major version updates available:`,
+          '',
+          depList,
+          '',
+          'Update each dependency, run tests, and verify nothing breaks.',
+        ].join('\n'),
         issueType: 'freeform',
         mode: 'attended',
         trigger,

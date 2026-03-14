@@ -74,14 +74,24 @@ async function getRecentFailures(remote: string): Promise<WorkflowRun[]> {
   if (!match) return [];
 
   const ghRepo = match[1];
-  const result = await runScript('gh', [
-    'run', 'list',
-    '--repo', ghRepo,
-    '--branch', 'main',
-    '--status', 'failure',
-    '--limit', '5',
-    '--json', 'databaseId,workflowName,conclusion,headBranch,url,headSha',
-  ], { timeout: 15_000 });
+  const result = await runScript(
+    'gh',
+    [
+      'run',
+      'list',
+      '--repo',
+      ghRepo,
+      '--branch',
+      'main',
+      '--status',
+      'failure',
+      '--limit',
+      '5',
+      '--json',
+      'databaseId,workflowName,conclusion,headBranch,url,headSha',
+    ],
+    { timeout: 15_000 },
+  );
 
   if (result.exitCode !== 0) return [];
   return JSON.parse(result.stdout) as WorkflowRun[];
