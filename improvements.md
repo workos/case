@@ -20,12 +20,11 @@ Sources informing these improvements:
 
 ## Prioritized Execution Plan
 
-> **Last revised: 2026-03-14.** Waves 1-5 complete.
-> Completed items moved to "Done" section. Remaining work is in "Deferred" section.
+> **Last revised: 2026-03-14.** Waves 1-5 complete. All 60 items accounted for: 41 completed, 19 deferred.
 
 ### Completed (shipped as of 2026-03-14)
 
-Items already implemented in the harness. Kept here for traceability.
+All 41 items implemented across waves 1-5. Kept here for traceability.
 
 | #      | Item                                    | How it shipped                                                                                                                                                                                                   |
 | ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -33,95 +32,43 @@ Items already implemented in the harness. Kept here for traceability.
 | **2**  | Extract `$CASE_ROOT`                    | Used throughout scripts                                                                                                                                                                                          |
 | **3**  | Document evidence marker formats        | SKILL.md Subagent Output Contract covers .case-tested, .case-reviewed, AGENT_RESULT JSON                                                                                                                         |
 | **4**  | Remove closer's duplicate marker checks | Hooks are the single enforcement point (pre-pr-check.sh)                                                                                                                                                         |
+| **5**  | Add `.case-reviewed` to `.gitignore`    | Added `.case-reviewed` and `.case-doom-loop-state` to .gitignore                                                                                                                                                 |
 | **9**  | Document failure recovery               | SKILL.md steps 3-9 route all failures to retrospective                                                                                                                                                           |
 | **10** | Document AGENT_RESULT contract          | Fully documented in SKILL.md with exact JSON schema                                                                                                                                                              |
+| **15** | Deterministic context prefetching       | `src/context/prefetch.ts` + `assembler.ts` — parallel fetching, role-specific context assembly (implementer gets learnings, verifier gets minimal, closer gets prior AGENT_RESULTs)                               |
 | **18** | Cap CI retries                          | Doom-loop detection hook (threshold=3) in doom-loop-detect.sh                                                                                                                                                    |
 | **19** | Shift feedback left                     | Implementer section 3 runs typecheck + lint before committing                                                                                                                                                    |
+| **20** | Multiple entry points                   | `src/server.ts` HTTP service: GitHub webhooks, manual task creation, task dispatch. `src/entry/github-webhook.ts` + `task-factory.ts`                                                                            |
 | **22** | SHA-pinned evidence markers             | mark-tested.sh creates output_hash via shasum -a 256                                                                                                                                                             |
 | **25** | Incident-to-harness loop                | Retrospective escalates learned patterns to docs/learnings/ and golden-principles.md                                                                                                                             |
 | **28** | Structured metrics per run              | Task JSON stores tested/manualTested flags + per-phase agent status/timing                                                                                                                                       |
 | **29** | Coaching from metrics                   | Retrospective analyzes task timing and agent phases automatically                                                                                                                                                |
+| **30** | Agent prompt versioning                 | `scripts/snapshot-agent.sh` creates snapshots + `docs/agent-versions/changelog.jsonl` tracks version, agent, date, task, reason, contentHash. Retrospective runs snapshot before proposing agent prompt changes   |
 | **33** | Externalization audit                   | Per-repo learnings files populated (docs/learnings/\*.md), retrospective maintains them                                                                                                                          |
 | **34** | Linters with remediation instructions   | check.sh has `FIX:` instructions for every failure                                                                                                                                                               |
 | **35** | Parseable output everywhere             | mark-tested.sh, parse-test-output.sh, session-start.sh, entropy-scan.sh all emit structured output                                                                                                               |
 | **36** | Kill the advisory dead zone             | golden-principles.md classifies each principle as [enforced] or [advisory] with check commands                                                                                                                   |
 | **37** | Pre-filter script output                | session-start.sh gates context gathering; mark-tested.sh redirects raw output to marker file                                                                                                                     |
+| **40** | Hybrid orchestration                    | `src/pipeline.ts` while/switch loop + phase modules + AGENT_RESULT parsing. `src/metrics/` per-phase timing + RunMetrics. `src/versioning/prompt-tracker.ts` links runs to prompt versions                       |
+| **41** | Working memory (WORKING.md)             | Implementer reads `{task-stem}.working.md` at setup, writes it at end (even on failure). Survives retries                                                                                                        |
+| **42** | Cross-run JSONL log                     | `scripts/log-run.sh` appends structured entry to `docs/run-log.jsonl` after each pipeline run. Called from SKILL.md Steps 8 and 9                                                                                |
 | **43** | JSON for state, MD for docs             | Task JSON structured; learnings in Markdown — convention established                                                                                                                                             |
 | **44** | Initializer decomposition               | from-ideation SKILL.md breaks ideation contracts into sequential phases                                                                                                                                          |
 | **45** | Background stale-doc scanning           | entropy-scan.sh with `/loop` support                                                                                                                                                                             |
+| **46** | Attended vs unattended modes            | `src/notify.ts` — readline prompts (attended) vs auto-abort (unattended). Task schema `mode` field added                                                                                                        |
 | **47** | Context specialization                  | Agents receive role-specific context via SKILL.md routing                                                                                                                                                        |
+| **48** | Intelligent respawning                  | SKILL.md Step 4b: on implementer failure, `analyze-failure.sh` classifies error, checks working memory for prior attempts, generates targeted retry context. Max 1 intelligent retry per run                     |
+| **50** | Proactive work finding                  | `src/entry/scanners/` — CI failure (hourly), stale docs (daily), dependency (weekly) scanners. Tasks created with human approval gate                                                                            |
+| **51** | Human review gate for retrospective     | Retrospective proposes amendments to `docs/proposed-amendments/` instead of direct edits. Only repo learnings applied directly                                                                                   |
 | **52** | Success-is-silent output rule           | Scripts output only on failure; mark-tested.sh emits only to stderr                                                                                                                                              |
 | **53** | Per-agent tool profiles (enforced)      | Each agent has minimal tool set defined in agent .md frontmatter                                                                                                                                                 |
-| **5**  | Add `.case-reviewed` to `.gitignore`    | Added `.case-reviewed` and `.case-doom-loop-state` to .gitignore                                                                                                                                                 |
+| **54** | Prompt snapshots for one-step rollback  | Snapshots stored as `docs/agent-versions/{agent}-{date}.md`. Changelog enables O(1) lookup of what changed and why. Rollback = copy snapshot back                                                                |
+| **55** | Relational fields in run log            | `log-run.sh` now emits `promptVersions` (from changelog), `priorRunId` (previous run for same task), `parentTaskId` (from contractPath for ideation tasks)                                                       |
+| **56** | Two-tier test verification              | Implementer runs `vitest --related` (changed files only) before full suite. `fastTestCommand` field in task schema. Fast failure = fix immediately, don't waste full suite                                       |
 | **57** | Output redirection pattern              | Implementer Section 2b: redirect all output to log files, grep for results                                                                                                                                       |
 | **58** | Keep/discard binary discipline          | Implementer Section 2c: measure progress after each attempt, revert on regression                                                                                                                                |
 | **59** | Machine-checkable success condition     | `checkCommand`/`checkBaseline`/`checkTarget` fields in task.schema.json; implementer reads at setup and uses for keep/discard                                                                                    |
 | **60** | Explicit simplicity criterion           | Implementer Rules: 3x line ratio gate, deletion-is-a-win heuristic                                                                                                                                               |
-| **41** | Working memory (WORKING.md)             | Implementer reads `{task-stem}.working.md` at setup, writes it at end (even on failure). Survives retries.                                                                                                       |
-| **42** | Cross-run JSONL log                     | `scripts/log-run.sh` appends structured entry to `docs/run-log.jsonl` after each pipeline run. Called from SKILL.md Steps 8 and 9.                                                                               |
-| **51** | Human review gate for retrospective     | Retrospective proposes amendments to `docs/proposed-amendments/` instead of direct edits. Only repo learnings applied directly.                                                                                  |
-| **30** | Agent prompt versioning                 | `scripts/snapshot-agent.sh` creates snapshots + `docs/agent-versions/changelog.jsonl` tracks version, agent, date, task, reason, contentHash. Retrospective runs snapshot before proposing agent prompt changes. |
-| **54** | Prompt snapshots for one-step rollback  | Snapshots stored as `docs/agent-versions/{agent}-{date}.md`. Changelog enables O(1) lookup of what changed and why. Rollback = copy snapshot back.                                                               |
-| **55** | Relational fields in run log            | `log-run.sh` now emits `promptVersions` (from changelog), `priorRunId` (previous run for same task), `parentTaskId` (from contractPath for ideation tasks).                                                      |
-| **48** | Intelligent respawning                  | SKILL.md Step 4b: on implementer failure, `analyze-failure.sh` classifies error, checks working memory for prior attempts, generates targeted retry context. Max 1 intelligent retry per run.                    |
-| **56** | Two-tier test verification              | Implementer runs `vitest --related` (changed files only) before full suite. `fastTestCommand` field in task schema. Fast failure = fix immediately, don't waste full suite.                                      |
-| **40** | Hybrid orchestration (phases 4-5)       | `src/metrics/` per-phase timing + structured RunMetrics. `src/versioning/prompt-tracker.ts` reads changelog, links runs to prompt versions.                                                                      |
-| **20** | Multiple entry points                   | `src/server.ts` HTTP service: GitHub webhooks, manual task creation, task dispatch. `src/entry/github-webhook.ts` + `task-factory.ts`.                                                                           |
-| **50** | Proactive work finding                  | `src/entry/scanners/` — CI failure (hourly), stale docs (daily), dependency (weekly) scanners. Tasks created with human approval gate.                                                                           |
-
-### Wave 1: Implementer effectiveness (prompt edits only) ✓ COMPLETE
-
-**Shipped 2026-03-14. All items implemented as prompt/template/schema changes.**
-
-| #      | Item                                                | Why now                                                                                                                                                                                                               |
-| ------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **57** | Output redirection pattern                          | Add explicit instruction to implementer: redirect command output to log files, grep for results. Raw output never enters context. Currently partial (parse-test-output.sh exists) but not in the agent prompt itself. |
-| **58** | Keep/discard binary discipline                      | Implementer captures baseline before changes, reverts if target metric doesn't improve. Prevents compounding mess from forward-fixes. Not yet implemented.                                                            |
-| **59** | Machine-checkable success condition per task        | Add `check_command` / `check_baseline` / `check_target` fields to task schema. Implementer runs after each attempt. Removes ambiguity about progress.                                                                 |
-| **60** | Explicit simplicity criterion in implementer prompt | "If your fix adds more than 3x the lines needed, simplify before committing." Not yet in the prompt — golden-principles.md #9 mentions 300-line file limit but that's a different concern.                            |
-| **5**  | Add `.case-reviewed` to `.gitignore`                | Still missing. 1-line fix.                                                                                                                                                                                            |
-
-### Wave 2: Safety + measurement infrastructure ✓ COMPLETE
-
-**Shipped 2026-03-14. Retrospective gated, run log created, working memory added.**
-
-| #      | Item                                           | Why now                                                                                                                                                                                                                               |
-| ------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **51** | Human review gate for retrospective amendments | **Most important safety item.** ETH Zurich study: auto-generated agent files hurt performance. Retrospective currently edits in place — change to propose-and-stage with human promotion.                                             |
-| **42** | Cross-run JSONL log                            | Task JSON captures per-task data but no timeline view across tasks. Append structured entry to `docs/run-log.jsonl` after each pipeline run. Foundation for Wave 3 self-improvement.                                                  |
-| **41** | Working memory (WORKING.md)                    | Learnings + task JSON exist but no per-task scratch state that survives retries. When implementer fails mid-run, next session starts cold. Add WORKING.md per active task with: current phase, last attempt, blockers, files changed. |
-
-### Wave 3: Self-improvement loop ✓ COMPLETE
-
-**Shipped 2026-03-14. Prompt versioning, relational run log, intelligent respawning, two-tier testing.**
-
-| #      | Item                                   | Why now                                                                                                                                                                                          |
-| ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **30** | Agent prompt versioning                | No changelog or snapshot system exists. When retrospective modifies a prompt, record: what changed, which metrics motivated it, which task triggered it. Required to detect regression.          |
-| **54** | Prompt snapshots for one-step rollback | Copy agent prompt to `docs/agent-versions/{agent}-{date}.md` before retrospective edits. Combined with #30 changelog, gives full provenance + one-step undo.                                     |
-| **55** | Relational fields in run log schema    | Run log entries link to parent task, prior runs, prompt version. Enables "did the last prompt change improve CI first-push rate?" without manual correlation. Depends on #42.                    |
-| **48** | Intelligent respawning                 | Doom-loop currently blocks but doesn't analyze/adjust. On failure: capture what failed, generate adjusted prompt, retry once with targeted fix. One intelligent retry > three identical retries. |
-| **56** | Two-tier test verification             | Fast subset (changed-file tests via `vitest --related`) first, full suite only if subset passes. Reduces context waste and tightens the implementer feedback loop.                               |
-
-### Wave 4: Programmatic orchestrator ✅
-
-**Completed 2026-03-14.** TypeScript orchestrator replaces SKILL.md Steps 4-9 with deterministic while/switch loop.
-
-| #      | Item                              | Status                                                                                                                                                                                 |
-| ------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **40** | Hybrid orchestration (phases 1-3) | ✅ `src/pipeline.ts` — while/switch loop, phase modules, AGENT_RESULT parsing, re-entry via `determineEntryPhase()`                                                                    |
-| **46** | Attended vs unattended modes      | ✅ `src/notify.ts` — readline prompts (attended) vs auto-abort (unattended). Task schema `mode` field added.                                                                           |
-| **15** | Deterministic context prefetching | ✅ `src/context/prefetch.ts` + `assembler.ts` — parallel fetching, role-specific context assembly (implementer gets learnings, verifier gets minimal, closer gets prior AGENT_RESULTs) |
-
-### Wave 5: Scale and automate ✅
-
-**Completed 2026-03-14.** Orchestrator is now a service with metrics, webhooks, and proactive scanners.
-
-| #      | Item                              | Status                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **40** | Hybrid orchestration (phases 4-5) | ✅ `src/metrics/collector.ts` + `writer.ts` — per-phase timing, CI first-push tracking, review findings, prompt version recording. `src/versioning/prompt-tracker.ts` — reads changelog.jsonl, links runs to prompt versions. Metrics written to `run-log.jsonl` in structured JSON.                                                                                                                                                               |
-| **20** | Multiple entry points             | ✅ `src/server.ts` — HTTP service with endpoints: `POST /webhook/github` (GitHub webhook receiver with HMAC verification), `POST /tasks` (manual task creation), `POST /tasks/:id/start` (dispatch pending task), `GET /health`, `GET /tasks`. `src/entry/github-webhook.ts` — parses workflow_run + check_suite events, maps GitHub repos to case repos. `src/entry/task-factory.ts` — creates task.json + task.md pairs from any trigger source. |
-| **50** | Proactive work finding            | ✅ `src/entry/scanners/` — three scanners run on configurable intervals: CI failure scanner (`ci-scanner.ts`, uses `gh` CLI, hourly), stale docs scanner (`stale-docs-scanner.ts`, wraps entropy-scan.sh, daily), dependency scanner (`deps-scanner.ts`, checks for major version bumps, weekly). All create tasks requiring human approval before pipeline start.                                                                                 |
 
 ### Deferred (do when relevant, not on a schedule)
 
@@ -136,14 +83,17 @@ These are real improvements but don't block anything and can be picked up opport
 | **12** | Ideation workflow docs           | Next ideation contract run                    |
 | **13** | Flesh out learnings files        | Happens naturally as retrospective runs       |
 | **14** | Expand architecture docs         | When working in under-documented repos        |
+| **16** | Curated tool subsets             | Superseded by #53; revisit for MCP curation   |
 | **17** | Conditional rules per directory  | When a repo grows large enough to need it     |
 | **21** | Pre-warmed environments          | When bootstrap.sh becomes a bottleneck        |
-| **23** | Machine-readable risk contract   | Part of Wave 4 orchestrator                   |
+| **23** | Machine-readable risk contract   | When risk-tier routing is needed               |
+| **24** | Preflight gate before CI fanout  | Covered by #19; revisit if CI waste grows     |
 | **26** | Auto-resolve bot threads         | After multi-run PR workflows exist            |
 | **27** | SHA dedup for markers            | When running parallel agents on same PR       |
-| **31** | Domain-specific evaluators       | After Wave 3 metrics show blind spots         |
-| **32** | Tool call analytics              | After Wave 4 orchestrator can log tool use    |
-| **38** | Promote-to-tool criteria         | Design exercise, do during Wave 4             |
+| **31** | Domain-specific evaluators       | After metrics show blind spots                |
+| **32** | Tool call analytics              | After orchestrator can log tool use           |
+| **38** | Promote-to-tool criteria         | Design exercise, when script count grows      |
+| **39** | Context window budget per agent  | Applied via #37, #47, #52; formalize if needed |
 | **49** | Multi-model review               | When single-reviewer blind spots are measured |
 
 ---
