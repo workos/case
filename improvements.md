@@ -64,8 +64,22 @@ Items already implemented in the harness. Kept here for traceability.
 ### Wave 1: Implementer effectiveness (prompt edits only) ✓ COMPLETE
 **Shipped 2026-03-14. All items implemented as prompt/template/schema changes.**
 
+| # | Item | Why now |
+|---|------|---------|
+| **57** | Output redirection pattern | Add explicit instruction to implementer: redirect command output to log files, grep for results. Raw output never enters context. Currently partial (parse-test-output.sh exists) but not in the agent prompt itself. |
+| **58** | Keep/discard binary discipline | Implementer captures baseline before changes, reverts if target metric doesn't improve. Prevents compounding mess from forward-fixes. Not yet implemented. |
+| **59** | Machine-checkable success condition per task | Add `check_command` / `check_baseline` / `check_target` fields to task schema. Implementer runs after each attempt. Removes ambiguity about progress. |
+| **60** | Explicit simplicity criterion in implementer prompt | "If your fix adds more than 3x the lines needed, simplify before committing." Not yet in the prompt — golden-principles.md #9 mentions 300-line file limit but that's a different concern. |
+| **5** | Add `.case-reviewed` to `.gitignore` | Still missing. 1-line fix. |
+
 ### Wave 2: Safety + measurement infrastructure ✓ COMPLETE
 **Shipped 2026-03-14. Retrospective gated, run log created, working memory added.**
+
+| # | Item | Why now |
+|---|------|---------|
+| **51** | Human review gate for retrospective amendments | **Most important safety item.** ETH Zurich study: auto-generated agent files hurt performance. Retrospective currently edits in place — change to propose-and-stage with human promotion. |
+| **42** | Cross-run JSONL log | Task JSON captures per-task data but no timeline view across tasks. Append structured entry to `docs/run-log.jsonl` after each pipeline run. Foundation for Wave 3 self-improvement. |
+| **41** | Working memory (WORKING.md) | Learnings + task JSON exist but no per-task scratch state that survives retries. When implementer fails mid-run, next session starts cold. Add WORKING.md per active task with: current phase, last attempt, blockers, files changed. |
 
 ### Wave 3: Self-improvement loop
 **Effort: 2-4 weeks. Depends on Wave 2 (#42) for run log data.**
