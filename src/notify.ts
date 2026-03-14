@@ -1,4 +1,3 @@
-import { createInterface } from 'node:readline';
 import type { PipelineMode } from './types.js';
 
 export interface Notifier {
@@ -7,7 +6,7 @@ export interface Notifier {
 }
 
 /**
- * Attended mode: prompts human via readline.
+ * Attended mode: prompts human via Bun's prompt() global.
  * Unattended mode: auto-selects the last option (by convention, the safe default / "Abort").
  */
 export function createNotifier(mode: PipelineMode): Notifier {
@@ -28,26 +27,18 @@ export function createNotifier(mode: PipelineMode): Notifier {
     send(message) {
       process.stdout.write(`${message}\n`);
     },
-    async askUser(prompt, options) {
-      process.stdout.write(`\n${prompt}\n`);
+    async askUser(userPrompt, options) {
+      process.stdout.write(`\n${userPrompt}\n`);
       options.forEach((opt, i) => {
         process.stdout.write(`  ${i + 1}. ${opt}\n`);
       });
 
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        const answer = await new Promise<string>((resolve) => {
-          rl.question('Choose (number): ', resolve);
-        });
-        const idx = parseInt(answer, 10) - 1;
-        if (idx >= 0 && idx < options.length) {
-          return options[idx];
-        }
-        // Invalid input defaults to last option (safe default)
-        return options[options.length - 1];
-      } finally {
-        rl.close();
+      const answer = prompt('Choose (number): ') ?? '';
+      const idx = parseInt(answer, 10) - 1;
+      if (idx >= 0 && idx < options.length) {
+        return options[idx];
       }
+      return options[options.length - 1];
     },
   };
 }

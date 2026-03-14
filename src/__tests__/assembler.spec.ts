@@ -1,21 +1,20 @@
 import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
 import { assemblePrompt } from '../context/assembler.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 // Use real temp files instead of mocking node:fs/promises
 // (avoids mock.module conflicts with other test files)
-const tempCaseRoot = join(tmpdir(), `case-assembler-test-${Date.now()}`);
+const tempCaseRoot = join(process.env.TMPDIR ?? '/tmp', `case-assembler-test-${Date.now()}`);
 
 async function setupTemplates() {
   const agentsDir = join(tempCaseRoot, 'agents');
   await mkdir(agentsDir, { recursive: true });
-  await writeFile(join(agentsDir, 'implementer.md'), '# Implementer Template');
-  await writeFile(join(agentsDir, 'verifier.md'), '# Verifier Template');
-  await writeFile(join(agentsDir, 'reviewer.md'), '# Reviewer Template');
-  await writeFile(join(agentsDir, 'closer.md'), '# Closer Template');
+  await Bun.write(join(agentsDir, 'implementer.md'), '# Implementer Template');
+  await Bun.write(join(agentsDir, 'verifier.md'), '# Verifier Template');
+  await Bun.write(join(agentsDir, 'reviewer.md'), '# Reviewer Template');
+  await Bun.write(join(agentsDir, 'closer.md'), '# Closer Template');
 }
 
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {

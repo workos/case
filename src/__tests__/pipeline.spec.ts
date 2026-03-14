@@ -7,9 +7,8 @@ import {
   mockFindPriorRunId,
 } from './mocks.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 // Pipeline-specific mocks (not shared — only pipeline uses these)
 const mockStoreRead = mock();
@@ -37,7 +36,7 @@ mock.module('../notify.js', () => ({ createNotifier: mockCreateNotifier }));
 const { runPipeline } = await import('../pipeline.js');
 
 // Temp directory for agent templates (real assembler reads these)
-const tempCaseRoot = join(tmpdir(), `case-pipeline-test-${Date.now()}`);
+const tempCaseRoot = join(process.env.TMPDIR ?? '/tmp', `case-pipeline-test-${Date.now()}`);
 
 async function setupTempFiles() {
   const agentsDir = join(tempCaseRoot, 'agents');
@@ -45,7 +44,7 @@ async function setupTempFiles() {
   await mkdir(agentsDir, { recursive: true });
   await mkdir(docsDir, { recursive: true });
   for (const agent of ['implementer', 'verifier', 'reviewer', 'closer', 'retrospective']) {
-    await writeFile(join(agentsDir, `${agent}.md`), `# ${agent}`);
+    await Bun.write(join(agentsDir, `${agent}.md`), `# ${agent}`);
   }
 }
 

@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { createTask } from '../entry/task-factory.js';
 import type { TaskCreateRequest } from '../types.js';
-import { readFile, rm, mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 describe('createTask', () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = join(tmpdir(), `case-test-${Date.now()}`);
+    tempDir = join(process.env.TMPDIR ?? '/tmp', `case-test-${Date.now()}`);
     await mkdir(join(tempDir, 'tasks/active'), { recursive: true });
   });
 
@@ -27,13 +26,13 @@ describe('createTask', () => {
     expect(result.taskJsonPath).toContain('.task.json');
     expect(result.taskMdPath).toContain('.md');
 
-    const taskJson = JSON.parse(await readFile(result.taskJsonPath, 'utf-8'));
+    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
     expect(taskJson.id).toBe(result.taskId);
     expect(taskJson.repo).toBe('cli');
     expect(taskJson.status).toBe('active');
     expect(taskJson.tested).toBe(false);
 
-    const taskMd = await readFile(result.taskMdPath, 'utf-8');
+    const taskMd = await Bun.file(result.taskMdPath).text();
     expect(taskMd).toContain('Fix broken test');
     expect(taskMd).toContain('The login test');
     expect(taskMd).toContain('Repo:** cli');
@@ -53,13 +52,13 @@ describe('createTask', () => {
     };
 
     const result = await createTask(tempDir, request);
-    const taskJson = JSON.parse(await readFile(result.taskJsonPath, 'utf-8'));
+    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
 
     expect(taskJson.issueType).toBe('github');
     expect(taskJson.issue).toBe('https://github.com/workos/authkit-ssr/issues/42');
     expect(taskJson.mode).toBe('unattended');
 
-    const taskMd = await readFile(result.taskMdPath, 'utf-8');
+    const taskMd = await Bun.file(result.taskMdPath).text();
     expect(taskMd).toContain('webhook');
 
     await rm(tempDir, { recursive: true, force: true });
@@ -77,7 +76,7 @@ describe('createTask', () => {
     };
 
     const result = await createTask(tempDir, request);
-    const taskJson = JSON.parse(await readFile(result.taskJsonPath, 'utf-8'));
+    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
 
     expect(taskJson.checkCommand).toBe('vitest run --reporter=json');
     expect(taskJson.checkBaseline).toBe(10);

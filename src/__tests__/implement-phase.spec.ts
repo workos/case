@@ -1,19 +1,18 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import { mockSpawnAgent, mockRunScript } from './mocks.js';
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
-import { writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 
 // Import the REAL implement phase (no mock.module for phases)
 const { runImplementPhase } = await import('../phases/implement.js');
 
-const tempCaseRoot = join(tmpdir(), `case-impl-test-${Date.now()}`);
+const tempCaseRoot = join(process.env.TMPDIR ?? '/tmp', `case-impl-test-${Date.now()}`);
 
 async function setupTempFiles() {
   await mkdir(join(tempCaseRoot, 'agents'), { recursive: true });
   await mkdir(join(tempCaseRoot, 'docs/learnings'), { recursive: true });
-  await writeFile(join(tempCaseRoot, 'agents/implementer.md'), '# Implementer');
+  await Bun.write(join(tempCaseRoot, 'agents/implementer.md'), '# Implementer');
 }
 
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
