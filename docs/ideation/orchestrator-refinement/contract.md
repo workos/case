@@ -74,6 +74,7 @@ Phase 2: Agent runner + CLI create (code)
 **Strategy**: Sequential (2 small phases, no parallelism needed)
 
 1. **Phase 1** — Update improvements.md _(independent, docs only)_
+
    ```bash
    /execute-spec docs/ideation/orchestrator-refinement/spec-phase-1.md
    ```

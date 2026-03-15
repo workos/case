@@ -21,9 +21,9 @@ Also note the SDK-path mistake in the completed items — agent-runner.ts should
 
 ### Modified Files
 
-| File Path          | Changes                                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `improvements.md`  | Move items #20, #40 (phases 4-5), #50 out of completed table. Reclassify in deferred. Add rationale section. |
+| File Path         | Changes                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `improvements.md` | Move items #20, #40 (phases 4-5), #50 out of completed table. Reclassify in deferred. Add rationale section. |
 
 ## Implementation Details
 
@@ -33,15 +33,15 @@ Also note the SDK-path mistake in the completed items — agent-runner.ts should
 
 **Items to move from Completed to Deferred:**
 
-| # | Item | Current "How it shipped" | New deferred note |
-|---|------|--------------------------|-------------------|
-| **20** | Multiple entry points | `src/server.ts` HTTP service... | Code exists but premature; activate when task volume justifies a running service |
-| **50** | Proactive work finding | `src/entry/scanners/`... | Code exists but premature; activate when manual task identification becomes a bottleneck |
+| #      | Item                   | Current "How it shipped"        | New deferred note                                                                        |
+| ------ | ---------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| **20** | Multiple entry points  | `src/server.ts` HTTP service... | Code exists but premature; activate when task volume justifies a running service         |
+| **50** | Proactive work finding | `src/entry/scanners/`...        | Code exists but premature; activate when manual task identification becomes a bottleneck |
 
 **Item to split:**
 
-| # | Item | Action |
-|---|------|--------|
+| #      | Item                 | Action                                                                                                                                                                                                                                         |
+| ------ | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **40** | Hybrid orchestration | Keep phases 1-3 (pipeline.ts, phase modules, context assembly) as completed. Move phases 4-5 (metrics service, prompt version service) description to note that metrics collection code exists but the service layer wrapping it is premature. |
 
 Actually, looking more carefully: item #40's "phases 4-5" row in the completed table describes `src/metrics/` and `src/versioning/prompt-tracker.ts` — these are libraries, not the service layer. They're used by the pipeline itself. The service layer is #20 (server.ts) and #50 (scanners). So #40 stays completed as-is.
@@ -71,8 +71,8 @@ grep -c '^\| \*\*' improvements.md
 
 ## Error Handling
 
-| Error Scenario | Handling Strategy |
-|---|---|
+| Error Scenario                 | Handling Strategy             |
+| ------------------------------ | ----------------------------- |
 | Accidentally remove wrong item | Git diff review before commit |
 
 ## Testing Requirements

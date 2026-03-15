@@ -23,20 +23,20 @@ Remove `@anthropic-ai/claude-agent-sdk` from `package.json`.
 
 ### New Files
 
-| File Path                              | Purpose                                         |
-| -------------------------------------- | ----------------------------------------------- |
-| `src/util/parse-frontmatter.ts`        | Extract YAML frontmatter from agent `.md` files |
-| `src/__tests__/parse-frontmatter.spec.ts` | Tests for frontmatter parser                 |
+| File Path                                 | Purpose                                         |
+| ----------------------------------------- | ----------------------------------------------- |
+| `src/util/parse-frontmatter.ts`           | Extract YAML frontmatter from agent `.md` files |
+| `src/__tests__/parse-frontmatter.spec.ts` | Tests for frontmatter parser                    |
 
 ### Modified Files
 
-| File Path               | Changes                                                              |
-| ----------------------- | -------------------------------------------------------------------- |
-| `src/agent-runner.ts`   | Remove SDK path. Rewrite CLI path with --worktree, --allowedTools, --output-format. Parse frontmatter for agent metadata. |
-| `src/types.ts`          | Add `AgentMetadata` interface. Add `agentName` to `SpawnAgentOptions`. |
-| `src/index.ts`          | Add `create` subcommand with --repo, --title, --description flags.   |
-| `src/__tests__/mocks.ts`| Update spawnAgent mock if signature changes.                         |
-| `package.json`          | Remove `@anthropic-ai/claude-agent-sdk` from dependencies.           |
+| File Path                | Changes                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `src/agent-runner.ts`    | Remove SDK path. Rewrite CLI path with --worktree, --allowedTools, --output-format. Parse frontmatter for agent metadata. |
+| `src/types.ts`           | Add `AgentMetadata` interface. Add `agentName` to `SpawnAgentOptions`.                                                    |
+| `src/index.ts`           | Add `create` subcommand with --repo, --title, --description flags.                                                        |
+| `src/__tests__/mocks.ts` | Update spawnAgent mock if signature changes.                                                                              |
+| `package.json`           | Remove `@anthropic-ai/claude-agent-sdk` from dependencies.                                                                |
 
 ## Implementation Details
 
@@ -83,6 +83,7 @@ export async function loadAgentMetadata(agentPath: string): Promise<AgentMetadat
 **Pattern to follow**: The existing `spawnViaCLI` function structure, but with proper flags.
 
 **Overview**: Remove the SDK path. Rewrite CLI spawning to:
+
 - Load agent metadata from frontmatter
 - Build CLI args with `--print`, `--output-format`, `--allowedTools`, `--worktree`
 - Parse structured output for AGENT_RESULT
@@ -144,8 +145,8 @@ export interface AgentMetadata {
 export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
-  agentName: AgentName;  // NEW — which agent .md to load
-  caseRoot: string;      // NEW — needed to resolve agents/ directory
+  agentName: AgentName; // NEW — which agent .md to load
+  caseRoot: string; // NEW — needed to resolve agents/ directory
   timeout?: number;
   background?: boolean;
 }
@@ -172,6 +173,7 @@ export interface SpawnAgentOptions {
 **Change per file**: Add `agentName: '<role>'` and `caseRoot: config.caseRoot` to the `spawnAgent({ ... })` call.
 
 Example for implement.ts:
+
 ```typescript
 // Before
 const { result } = await spawnAgent({ prompt, cwd: config.repoPath });
@@ -246,11 +248,11 @@ const { result } = await spawnAgent({
 
 ### Unit Tests
 
-| Test File                                    | Coverage                                      |
-| -------------------------------------------- | --------------------------------------------- |
-| `src/__tests__/parse-frontmatter.spec.ts`    | Frontmatter extraction from agent .md content |
-| `src/__tests__/implement-phase.spec.ts`      | Still passes with updated spawnAgent signature |
-| `src/__tests__/pipeline.spec.ts`             | Still passes with updated mocks               |
+| Test File                                 | Coverage                                       |
+| ----------------------------------------- | ---------------------------------------------- |
+| `src/__tests__/parse-frontmatter.spec.ts` | Frontmatter extraction from agent .md content  |
+| `src/__tests__/implement-phase.spec.ts`   | Still passes with updated spawnAgent signature |
+| `src/__tests__/pipeline.spec.ts`          | Still passes with updated mocks                |
 
 **Key test cases for frontmatter parser**:
 
@@ -278,13 +280,13 @@ const { result } = await spawnAgent({
 
 ## Error Handling
 
-| Error Scenario               | Handling Strategy                                                     |
-| ---------------------------- | --------------------------------------------------------------------- |
-| `claude` CLI not found       | Clear error: "claude CLI not found. Install from https://..."         |
-| Agent .md missing frontmatter| Throw with agent name and expected format                             |
-| CLI exits non-zero           | Capture stderr, include in SpawnAgentResult.error                     |
-| Timeout exceeded             | Kill process, return failed result with "timeout after Xms"           |
-| Create with invalid repo     | Validate against projects.json, print available repo names            |
+| Error Scenario                | Handling Strategy                                             |
+| ----------------------------- | ------------------------------------------------------------- |
+| `claude` CLI not found        | Clear error: "claude CLI not found. Install from https://..." |
+| Agent .md missing frontmatter | Throw with agent name and expected format                     |
+| CLI exits non-zero            | Capture stderr, include in SpawnAgentResult.error             |
+| Timeout exceeded              | Kill process, return failed result with "timeout after Xms"   |
+| Create with invalid repo      | Validate against projects.json, print available repo names    |
 
 ## Validation Commands
 
