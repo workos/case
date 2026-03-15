@@ -9,10 +9,12 @@ const log = createLogger();
  * Spawn a Claude Code session via the CLI with proper harness enforcement.
  *
  * Uses `claude --print` with:
- *   --worktree      git isolation per agent
- *   --allowedTools  from agent .md frontmatter
- *   --output-format stream-json  for structured output parsing
- *   --model         from frontmatter if specified
+ *   --allowedTools       from agent .md frontmatter
+ *   --output-format json single JSON result
+ *   --model              from frontmatter if specified
+ *   --permission-mode    bypassPermissions (non-interactive)
+ *
+ * Prompt is piped via stdin to avoid CLI arg length limits.
  */
 export async function spawnAgent(options: SpawnAgentOptions): Promise<SpawnAgentResult> {
   const timeout = options.timeout ?? 600_000; // 10 min default
@@ -63,20 +65,18 @@ export async function spawnAgent(options: SpawnAgentOptions): Promise<SpawnAgent
   }
 }
 
-function buildCliArgs(options: SpawnAgentOptions, metadata: AgentMetadata): string[] {
-  const args = ['claude', '--print', '-p', options.prompt, '--output-format', 'stream-json'];
+function buildCliArgs(metadata: AgentMetadata): string[] {
+  const args = [
+    'claude',
+    '--print',
+    '--output-format',
+    'json',
+    '--permission-mode',
+    'bypassPermissions',
+    '--allowedTools',
+    metadata.tools.join(','),
+  ];
 
-  // Tool restrictions from agent frontmatter
-  for (const tool of metadata.tools) {
-    args.push('--allowedTools', tool);
-  }
-
-  // Git worktree isolation (skip for background/fire-and-forget agents)
-  if (!options.background) {
-    args.push('--worktree');
-  }
-
-  // Model override from frontmatter
   if (metadata.model) {
     args.push('--model', metadata.model);
   }
@@ -85,10 +85,12 @@ function buildCliArgs(options: SpawnAgentOptions, metadata: AgentMetadata): stri
 }
 
 async function runClaude(options: SpawnAgentOptions, metadata: AgentMetadata, timeout: number): Promise<string> {
-  const args = buildCliArgs(options, metadata);
+  const args = buildCliArgs(metadata);
 
+  // Pipe prompt via stdin to avoid CLI arg length limits
   const proc = Bun.spawn(args, {
     cwd: options.cwd,
+    stdin: new Response(options.prompt),
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -103,34 +105,33 @@ async function runClaude(options: SpawnAgentOptions, metadata: AgentMetadata, ti
     throw new Error(`claude CLI exited with code ${exitCode}: ${stderr.slice(0, 500)}`);
   }
 
-  // Parse stream-json output: extract text content from assistant messages
-  return extractTextFromStreamJson(stdout);
+  return extractTextFromOutput(stdout);
 }
 
-/** Extract text content from stream-json formatted output. */
-function extractTextFromStreamJson(raw: string): string {
-  const chunks: string[] = [];
+/** Extract assistant text from JSON output format. */
+function extractTextFromOutput(raw: string): string {
+  // --output-format json returns a single JSON object with a result field
+  try {
+    const parsed = JSON.parse(raw) as {
+      result?: string;
+      content?: Array<{ type: string; text?: string }>;
+    };
 
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-
-    let event: { type?: string; message?: { content?: Array<{ type: string; text?: string }> } };
-    try {
-      event = JSON.parse(line);
-    } catch {
-      // Not JSON — might be plain text output, include as-is
-      chunks.push(line);
-      continue;
+    // Format: { result: "text content" }
+    if (typeof parsed.result === 'string') {
+      return parsed.result;
     }
 
-    if (event.type === 'assistant' && event.message?.content) {
-      for (const block of event.message.content) {
-        if (block.type === 'text' && block.text) {
-          chunks.push(block.text);
-        }
-      }
+    // Format: { content: [{ type: "text", text: "..." }] }
+    if (Array.isArray(parsed.content)) {
+      return parsed.content
+        .filter((b) => b.type === 'text' && b.text)
+        .map((b) => b.text!)
+        .join('');
     }
+  } catch {
+    // Not valid JSON — return raw text (plain --print output)
   }
 
-  return chunks.join('');
+  return raw;
 }
