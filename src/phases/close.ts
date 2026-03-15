@@ -48,7 +48,12 @@ export async function runClosePhase(
   const repoContext = await prefetchRepoContext(config, 'closer');
   const prompt = await assemblePrompt('closer', config, task, repoContext, previousResults);
 
-  const { result } = await spawnAgent({ prompt, cwd: config.repoPath });
+  const { result } = await spawnAgent({
+    prompt,
+    cwd: config.repoPath,
+    agentName: 'closer',
+    caseRoot: config.caseRoot,
+  });
 
   if (result.status === 'completed') {
     await store.setAgentPhase('closer', 'status', 'completed');

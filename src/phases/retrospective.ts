@@ -65,7 +65,7 @@ export async function runRetrospectivePhase(
   ].join('\n');
 
   // Fire and forget — don't await
-  spawnAgent({ prompt, cwd: config.repoPath, background: true }).catch((err) => {
+  spawnAgent({ prompt, cwd: config.repoPath, agentName: 'retrospective', caseRoot: config.caseRoot, background: true }).catch((err) => {
     log.error('retrospective agent failed', { error: String(err) });
   });
 

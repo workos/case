@@ -46,7 +46,12 @@ export async function runVerifyPhase(
   const repoContext = await prefetchRepoContext(config, 'verifier');
   const prompt = await assemblePrompt('verifier', config, task, repoContext, previousResults);
 
-  const { result } = await spawnAgent({ prompt, cwd: config.repoPath });
+  const { result } = await spawnAgent({
+    prompt,
+    cwd: config.repoPath,
+    agentName: 'verifier',
+    caseRoot: config.caseRoot,
+  });
 
   if (result.status === 'completed') {
     await store.setAgentPhase('verifier', 'status', 'completed');

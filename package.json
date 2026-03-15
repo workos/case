@@ -16,9 +16,7 @@
     "start": "bun src/index.ts",
     "serve": "bun src/index.ts serve"
   },
-  "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/bun": "^1.3.10",
     "@types/node": "^22.0.0",

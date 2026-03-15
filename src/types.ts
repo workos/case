@@ -100,9 +100,18 @@ export interface PhaseOutput {
   nextPhase: PipelinePhase;
 }
 
+export interface AgentMetadata {
+  name: string;
+  description: string;
+  tools: string[];
+  model?: string;
+}
+
 export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
+  agentName: AgentName | 'retrospective';
+  caseRoot: string;
   timeout?: number;
   background?: boolean;
 }

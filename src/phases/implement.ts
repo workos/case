@@ -36,7 +36,12 @@ export async function runImplementPhase(
   const prompt = await assemblePrompt('implementer', config, task, repoContext, previousResults);
 
   // Spawn implementer
-  const { result } = await spawnAgent({ prompt, cwd: config.repoPath });
+  const { result } = await spawnAgent({
+    prompt,
+    cwd: config.repoPath,
+    agentName: 'implementer',
+    caseRoot: config.caseRoot,
+  });
 
   if (result.status === 'completed') {
     await store.setAgentPhase('implementer', 'status', 'completed');
@@ -111,7 +116,12 @@ async function attemptRetry(
   const retryPrompt = retryContext + originalPrompt;
 
   log.phase('implement', 'retrying', { failureClass: analysis.failureClass });
-  const { result: retryResult } = await spawnAgent({ prompt: retryPrompt, cwd: config.repoPath });
+  const { result: retryResult } = await spawnAgent({
+    prompt: retryPrompt,
+    cwd: config.repoPath,
+    agentName: 'implementer',
+    caseRoot: config.caseRoot,
+  });
 
   if (retryResult.status === 'completed') {
     await store.setAgentPhase('implementer', 'status', 'completed');

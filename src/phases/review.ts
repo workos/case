@@ -47,7 +47,12 @@ export async function runReviewPhase(
   const repoContext = await prefetchRepoContext(config, 'reviewer');
   const prompt = await assemblePrompt('reviewer', config, task, repoContext, previousResults);
 
-  const { result } = await spawnAgent({ prompt, cwd: config.repoPath });
+  const { result } = await spawnAgent({
+    prompt,
+    cwd: config.repoPath,
+    agentName: 'reviewer',
+    caseRoot: config.caseRoot,
+  });
 
   await store.setAgentPhase(
     'reviewer',

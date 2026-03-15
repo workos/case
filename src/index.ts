@@ -3,8 +3,9 @@ import { resolve } from 'node:path';
 import { buildPipelineConfig } from './config.js';
 import { runPipeline } from './pipeline.js';
 import { startServer } from './server.js';
+import { createTask } from './entry/task-factory.js';
 import { createLogger } from './util/logger.js';
-import type { PipelineMode, ServerConfig } from './types.js';
+import type { PipelineMode, ServerConfig, TaskCreateRequest } from './types.js';
 
 const log = createLogger();
 
@@ -18,6 +19,11 @@ async function main() {
       'webhook-secret': { type: 'string' },
       'dry-run': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
+      repo: { type: 'string' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      issue: { type: 'string' },
+      'issue-type': { type: 'string' },
     },
     allowPositionals: true,
     strict: true,
@@ -30,7 +36,9 @@ async function main() {
 
   const command = positionals[0] ?? 'run';
 
-  if (command === 'serve') {
+  if (command === 'create') {
+    await runCreate(values);
+  } else if (command === 'serve') {
     await runServe(values);
   } else {
     await runTask(values);
@@ -69,6 +77,44 @@ async function runTask(values: Record<string, unknown>) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error('pipeline crashed', { error: msg });
     process.stderr.write(`Fatal: ${msg}\n`);
+    process.exit(1);
+  }
+}
+
+async function runCreate(values: Record<string, unknown>) {
+  const repo = values.repo as string | undefined;
+  const title = values.title as string | undefined;
+  const description = values.description as string | undefined;
+
+  if (!repo || !title || !description) {
+    process.stderr.write('Error: --repo, --title, and --description are required\n');
+    printUsage();
+    process.exit(1);
+  }
+
+  const caseRoot = resolve(process.cwd());
+  const mode = (values.mode as PipelineMode | undefined) ?? 'attended';
+  const issueType = values['issue-type'] as 'github' | 'linear' | 'freeform' | undefined;
+
+  const request: TaskCreateRequest = {
+    repo,
+    title,
+    description,
+    issue: values.issue as string | undefined,
+    issueType: issueType ?? (values.issue ? 'github' : 'freeform'),
+    mode,
+    trigger: { type: 'cli', user: 'local' },
+  };
+
+  try {
+    const result = await createTask(caseRoot, request);
+    process.stdout.write(`Task created: ${result.taskId}\n`);
+    process.stdout.write(`  JSON: ${result.taskJsonPath}\n`);
+    process.stdout.write(`  Spec: ${result.taskMdPath}\n`);
+    process.stdout.write(`\nRun with:\n  bun src/index.ts --task ${result.taskJsonPath}\n`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Error creating task: ${msg}\n`);
     process.exit(1);
   }
 }
@@ -122,12 +168,21 @@ function printUsage() {
   process.stdout.write(`
 Usage:
   bun src/index.ts [run] --task <path> [options]    Run pipeline for a task
+  bun src/index.ts create [options]                 Create a new task
   bun src/index.ts serve [options]                  Start as HTTP service
 
 Run options:
   --task, -t <path>         Path to .task.json file (required)
   --mode, -m <mode>         attended | unattended (default: attended)
   --dry-run                 Log phase transitions without spawning agents
+
+Create options:
+  --repo <name>             Target repo from projects.json (required)
+  --title <title>           Task title (required)
+  --description <desc>      Task description (required)
+  --issue <id>              Issue identifier (optional)
+  --issue-type <type>       github | linear | freeform (default: freeform)
+  --mode, -m <mode>         attended | unattended (default: attended)
 
 Serve options:
   --port, -p <port>         HTTP port (default: 3847)
