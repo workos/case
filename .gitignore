@@ -5,6 +5,16 @@
 .case-reviewed
 .case-doom-loop-state
 
+# Active tasks (ephemeral per-run state, moved to tasks/done/ after merge)
+tasks/active/
+
+# Proposed amendments (staged for human review, not committed until approved)
+docs/proposed-amendments/*.md
+!docs/proposed-amendments/.gitkeep
+
+# Run log (append-only, machine-generated)
+docs/run-log.jsonl
+
 # Build artifacts
 node_modules/
 dist/
