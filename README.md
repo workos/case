@@ -93,10 +93,10 @@ The `/case` skill dispatches to the orchestrator automatically after Step 3 (bra
 
 ```
 src/
-  index.ts              CLI entry point (--task, --mode, --dry-run)
+  index.ts              CLI entry point (run, create, serve)
   pipeline.ts           Core while/switch loop (replaces SKILL.md Steps 4-9)
   notify.ts             Attended (readline) vs unattended (auto-abort) notifier
-  agent-runner.ts       Spawns Claude Code via SDK, parses AGENT_RESULT
+  agent-runner.ts       Spawns Claude Code via CLI, parses AGENT_RESULT
   config.ts             Loads projects.json, resolves paths, builds config
   types.ts              TaskJson, AgentResult, PipelineConfig, etc.
   state/
@@ -113,6 +113,7 @@ src/
     retrospective.ts    Spawn retrospective in background (fire-and-forget)
   util/
     parse-agent-result.ts  Extract AGENT_RESULT JSON from agent output
+    parse-frontmatter.ts   Extract agent metadata from .md frontmatter
     run-script.ts          Safe execFile wrapper (no shell injection)
     logger.ts              Structured JSON-lines to stderr
 ```
@@ -296,7 +297,7 @@ hooks/
 src/                                Programmatic orchestrator (TypeScript)
   index.ts                          CLI entry point
   pipeline.ts                       Core while/switch loop (Steps 4-9)
-  agent-runner.ts                   Spawn Claude Code via SDK, parse AGENT_RESULT
+  agent-runner.ts                   Spawn Claude Code via CLI, parse AGENT_RESULT
   phases/                           One module per pipeline phase
   context/                          Role-specific prompt assembly
   state/                            Task store + re-entry logic
