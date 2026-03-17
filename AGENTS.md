@@ -7,7 +7,7 @@ Humans steer. Agents execute. When agents struggle, fix the harness.
 
 Run the session-start script to gather context before doing anything else:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 

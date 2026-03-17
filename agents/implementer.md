@@ -12,11 +12,12 @@ Implement a fix or feature in the target repo. Write code, run automated tests, 
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Case repo path** (`CASE_REPO`) — absolute path to the case harness repo
+- **Task file path** — absolute path to the `.md` task file in `${CASE_REPO}/tasks/active/`
 - **Task JSON path** — the `.task.json` companion (same stem as the .md)
 - **Target repo path** — absolute path to the repo where you'll work
 - **Issue summary** — title, body, and key details from the GitHub/Linear issue
-- **Playbook path** — reference to the relevant playbook in `/Users/nicknisi/Developer/case/docs/playbooks/`
+- **Playbook path** — reference to the relevant playbook in `${CASE_REPO}/docs/playbooks/`
 
 ## Workflow
 
@@ -24,7 +25,7 @@ You receive from the orchestrator:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -34,15 +35,15 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON: set status to `implementing` and agent phase to running
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status implementing
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer status running
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer started now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> status implementing
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent implementer status running
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent implementer started now
    ```
 2. Read the task file (`.md`) — understand the objective, acceptance criteria, and checklist
 3. Read the target repo's `CLAUDE.md` for project-specific instructions
 4. Read the playbook referenced in the task file
-5. Read `/Users/nicknisi/Developer/case/projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
-6. Read `/Users/nicknisi/Developer/case/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
+5. Read `${CASE_REPO}/projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
+6. Read `${CASE_REPO}/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
 
 ### 2. Implement
 
@@ -91,9 +92,9 @@ Then create the final commit as usual.
    Prefer the JSON reporter for structured evidence (pass/fail counts, duration, per-file breakdown):
    ```bash
    # Preferred — structured evidence via vitest JSON reporter
-   pnpm test --reporter=json 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   pnpm test --reporter=json 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh
    # Fallback — if JSON reporter is unavailable or the repo doesn't use vitest
-   pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   pnpm test 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh
    ```
    This creates `.case-tested` with a hash of test output AND updates the task JSON `tested` field. You do NOT set `tested` directly.
 
@@ -115,8 +116,8 @@ Then create the final commit as usual.
 
 4. **Update task JSON**:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer completed now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent implementer status completed
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent implementer completed now
    ```
 
 ### 5. Output

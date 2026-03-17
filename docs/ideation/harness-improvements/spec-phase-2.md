@@ -11,7 +11,7 @@ The Anthropic article identified this as the single highest-leverage interventio
 
 ## Feedback Strategy
 
-**Inner-loop command**: `bash scripts/session-start.sh /Users/nicknisi/Developer/case`
+**Inner-loop command**: `bash scripts/session-start.sh ${CASE_REPO}`
 
 **Playground**: The script itself — run it against the case repo and inspect output.
 
@@ -129,7 +129,7 @@ For each agent file, insert before the existing first numbered step:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -166,13 +166,13 @@ Read the output to understand: current branch, last commits, task status, which 
 bash -n scripts/session-start.sh
 
 # Run against case repo
-bash scripts/session-start.sh /Users/nicknisi/Developer/case
+bash scripts/session-start.sh ${CASE_REPO}
 
 # Validate JSON output
 bash scripts/session-start.sh . | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log('branch:', d.repo.branch); console.log('Valid JSON: true')"
 
 # Run with task
-bash scripts/session-start.sh . --task /Users/nicknisi/Developer/case/tasks/active/authkit-nextjs-1-issue-364-proxy-support.task.json
+bash scripts/session-start.sh . --task ${CASE_REPO}/tasks/active/authkit-nextjs-1-issue-364-proxy-support.task.json
 
 # Verify agent files were updated
 for f in agents/implementer.md agents/verifier.md agents/closer.md agents/retrospective.md; do

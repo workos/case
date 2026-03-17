@@ -23,13 +23,13 @@ The orchestrator uses the Claude Code `Agent` tool to spawn subagents, passing e
 
 ### Orchestrator SKILL.md Rewrite
 
-**Pattern to follow**: Current `skills/case/SKILL.md` (preserve argument parsing, routing table, rules sections). Ideation's `execute-spec/SKILL.md` (for subagent dispatch pattern at `/Users/nicknisi/.claude/plugins/cache/nicknisi/ideation/0.9.0/skills/execute-spec/`).
+**Pattern to follow**: Current `skills/case/SKILL.md` (preserve argument parsing, routing table, rules sections). Ideation's `execute-spec/SKILL.md` (for subagent dispatch pattern in the ideation plugin's `skills/execute-spec/` directory).
 
 **Overview**: The SKILL.md becomes an orchestrator document. It retains existing sections (Arguments, Rules, Always Load, Task Routing, Project Manifest, Verification Tools) but replaces the monolithic execution flow with a phased subagent dispatch.
 
 **Key decisions**:
 
-- **Agent prompt paths are absolute**: The orchestrator reads agent prompt files from `/Users/nicknisi/Developer/case/agents/` (the `agents/` directory at the case repo root, NOT relative to CWD). SKILL.md must use the full absolute path since `/case` runs from target repos, not from the case repo. This matches how SKILL.md already references scripts with absolute paths.
+- **Agent prompt paths are absolute**: The orchestrator reads agent prompt files from `${CASE_REPO}/agents/` (the `agents/` directory at the case repo root, NOT relative to CWD). SKILL.md must use the full absolute path since `/case` runs from target repos, not from the case repo. This matches how SKILL.md already references scripts with absolute paths.
 - Each subagent is spawned sequentially (implementer → verifier → closer). No parallelism within a single `/case` run — the pipeline is linear.
 - The orchestrator creates both the `.md` task file AND the `.task.json` companion at the same time.
 - Baseline smoke test uses `scripts/bootstrap.sh` which already exists and validates repo readiness.
@@ -71,11 +71,11 @@ ORCHESTRATOR FLOW
 
 0. CHECK FOR EXISTING TASK (idempotent re-entry)
    - Read .case-active — if it contains a task ID, look up that specific
-     /Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json
+     ${CASE_REPO}/tasks/active/{task-id}.task.json
      directly (fastest, most reliable)
    - If .case-active missing or empty: derive repo name from git remote,
      then match by argument type:
-       GitHub issue → scan /Users/nicknisi/Developer/case/tasks/active/*.task.json
+       GitHub issue → scan ${CASE_REPO}/tasks/active/*.task.json
                       for matching repo + issueType "github" + issue number
        Linear ID    → scan for matching issueType "linear" + issue ID
        Free text    → no automatic re-entry (ambiguous). Proceed to step 1.
@@ -99,8 +99,8 @@ ORCHESTRATOR FLOW
 
 2. TASK SETUP (updated for new format)
    - Find next sequential task number
-   - Create task file (.md) in /Users/nicknisi/Developer/case/tasks/active/ using appropriate template
-   - Create companion .task.json in /Users/nicknisi/Developer/case/tasks/active/ with initial values:
+   - Create task file (.md) in ${CASE_REPO}/tasks/active/ using appropriate template
+   - Create companion .task.json in ${CASE_REPO}/tasks/active/ with initial values:
      {
        "id": "<repo>-<n>-issue-<number>",
        "status": "active",
@@ -132,7 +132,7 @@ ORCHESTRATOR FLOW
      If exists: git checkout <branch>  (resume)
      If not: git checkout -b <branch>  (create)
    - Run baseline smoke test:
-     bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
+     bash ${CASE_REPO}/scripts/bootstrap.sh <repo-name>
    - If FAIL: stop, report broken baseline, suggest fixing before proceeding
    - If PASS: continue
    - Append to progress log:
@@ -143,7 +143,7 @@ ORCHESTRATOR FLOW
    - Update task JSON: orchestrator status → completed
 
 4. SPAWN IMPLEMENTER
-   - Read /Users/nicknisi/Developer/case/agents/implementer.md
+   - Read ${CASE_REPO}/agents/implementer.md
    - Use Agent tool:
      - prompt: <implementer.md content> + task context (file path, repo path,
        issue summary, playbook)
@@ -154,7 +154,7 @@ ORCHESTRATOR FLOW
    - If status == "completed": continue
 
 5. SPAWN VERIFIER
-   - Read /Users/nicknisi/Developer/case/agents/verifier.md
+   - Read ${CASE_REPO}/agents/verifier.md
    - Use Agent tool:
      - prompt: <verifier.md content> + task context (file path, repo path)
      - subagent_type: general-purpose
@@ -179,8 +179,8 @@ ORCHESTRATOR FLOW
 
 6. SPAWN CLOSER
    - Update task JSON: status → closing
-     bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status closing
-   - Read /Users/nicknisi/Developer/case/agents/closer.md
+     bash ${CASE_REPO}/scripts/task-status.sh <task.json> status closing
+   - Read ${CASE_REPO}/agents/closer.md
    - Use Agent tool:
      - prompt: <closer.md content> + task context (file path, repo path,
        verifier AGENT_RESULT)
@@ -214,7 +214,7 @@ ORCHESTRATOR FLOW
 
 **Sections to add**:
 
-- `## Agent Architecture` — brief overview of the four-agent pipeline, reference to agents/ directory at `/Users/nicknisi/Developer/case/agents/`
+- `## Agent Architecture` — brief overview of the four-agent pipeline, reference to agents/ directory at `${CASE_REPO}/agents/`
 - `## Subagent Output Contract` — the AGENT_RESULT JSON schema that all subagents must produce
 - `## Baseline Smoke Test` — explain the bootstrap.sh check and what to do if it fails
 - `## Re-entry Semantics` — how the orchestrator resumes from `.task.json` state if a prior run was interrupted
@@ -247,7 +247,7 @@ ORCHESTRATOR FLOW
 | Verifier fails + src/ changed | Verification is mandatory (hook blocks without it). Options: fix-and-retry or abort. No skip. |
 | Verifier fails + no src/ changed | Verification is optional. Options: fix-and-retry, skip, or abort. |
 | Closer fails (hooks block PR) | Report missing prerequisites. Suggest which steps to run (mark-tested.sh, mark-manual-tested.sh). User decides next step. |
-| Agent prompt file not found | Stop with clear error: "Agent prompt file not found at /Users/nicknisi/Developer/case/agents/{name}.md — is the case plugin installed correctly?" |
+| Agent prompt file not found | Stop with clear error: "Agent prompt file not found at ${CASE_REPO}/agents/{name}.md — is the case plugin installed correctly?" |
 | No AGENT_RESULT in subagent response | Treat as failed. Log the raw response for debugging. Report to user. |
 | Re-entry: existing task found | Resume from last completed phase. Do not recreate task file or branch. |
 | Task JSON companion missing | Orchestrator creates it. If it goes missing mid-flow, recreate with current known state. |

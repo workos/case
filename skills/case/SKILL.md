@@ -9,9 +9,15 @@ argument-hint: "[issue-number] or [LINEAR-ID]"
 You are operating within the Case harness for WorkOS open source projects.
 Humans steer. Agents execute. When agents struggle, fix the harness.
 
-**Case repo**: `/Users/nicknisi/Developer/case`
+**Case repo**: Resolve dynamically at the start of each `/case` invocation. This SKILL.md file lives at `skills/case/SKILL.md` within the case repo. Strip that suffix from this file's absolute path to get `CASE_REPO`. All `${CASE_REPO}` references below use this resolved path.
 
-All paths below are relative to the skill's cache directory. For scripts, tasks, and project manifest, use the case repo path above.
+Before running any scripts, resolve and verify the case repo path:
+```bash
+# CASE_REPO is the root of the case harness repo (parent of skills/, agents/, scripts/)
+# Derive it from this skill file's location: strip skills/case/ from the path
+CASE_REPO="<resolved-path>"  # Replace with actual path derived from this SKILL.md's location
+ls "${CASE_REPO}/AGENTS.md" "${CASE_REPO}/projects.json" > /dev/null
+```
 
 ## Agent Architecture
 
@@ -26,7 +32,7 @@ Case uses a **six-agent pipeline** to prevent context pollution and enable self-
 | **Closer** | Create PR with thorough description, satisfy hook gates, post review comments | Read, Bash, Glob, Grep |
 | **Retrospective** | Apply harness improvements directly, maintain per-repo learnings | Read, Edit, Write, Bash, Glob, Grep |
 
-Agent prompt files: `/Users/nicknisi/Developer/case/agents/{implementer,verifier,reviewer,closer,retrospective}.md`
+Agent prompt files: `${CASE_REPO}/agents/{implementer,verifier,reviewer,closer,retrospective}.md`
 
 The orchestrator spawns each agent sequentially using the `Agent` tool, passing the agent prompt file content as the prompt. Each agent ends its response with a structured `AGENT_RESULT` block (see below).
 
@@ -91,7 +97,7 @@ After parsing and fetching the issue, execute this pipeline:
 **Explicit arguments always win over `.case-active`.** The `.case-active` shortcut is only used for no-arg `/case`. When an explicit issue number or Linear ID is provided, re-entry is matched by issue content, not by `.case-active`.
 
 1. **If an explicit argument was provided** (issue number or Linear ID):
-   - Scan `/Users/nicknisi/Developer/case/tasks/active/*.task.json` for a match:
+   - Scan `${CASE_REPO}/tasks/active/*.task.json` for a match:
      - GitHub issue → matching `repo` + `issueType: "github"` + `issue` number
      - Linear ID → matching `issueType: "linear"` + `issue` ID
    - Ignore `.case-active` — it may be stale or from a different issue
@@ -99,7 +105,7 @@ After parsing and fetching the issue, execute this pipeline:
    - If not found → proceed to step 1 (new task)
 
 2. **If no argument** (`/case` with no args):
-   - Read `.case-active` — if it contains a task ID, look up `/Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json` directly
+   - Read `.case-active` — if it contains a task ID, look up `${CASE_REPO}/tasks/active/{task-id}.task.json` directly
    - If found → resume
    - If not found → load harness context (no orchestrator flow)
 
@@ -122,9 +128,9 @@ _(Already done in the Arguments section above)_
 ### Step 2: Task Setup
 
 1. Derive repo name from `git remote get-url origin`
-2. Find next sequential task number: count existing `{repo}-*.md` files in `/Users/nicknisi/Developer/case/tasks/active/` + 1
-3. Create task file (`.md`) using the appropriate template from `/Users/nicknisi/Developer/case/tasks/templates/`
-4. Create companion `.task.json` in `/Users/nicknisi/Developer/case/tasks/active/`:
+2. Find next sequential task number: count existing `{repo}-*.md` files in `${CASE_REPO}/tasks/active/` + 1
+3. Create task file (`.md`) using the appropriate template from `${CASE_REPO}/tasks/templates/`
+4. Create companion `.task.json` in `${CASE_REPO}/tasks/active/`:
    ```json
    {
      "id": "<repo>-<n>-issue-<number>",
@@ -163,7 +169,7 @@ _(Already done in the Arguments section above)_
    - Not exists → `git checkout -b <branch>` (create)
 3. Run baseline smoke test:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
+   bash ${CASE_REPO}/scripts/bootstrap.sh <repo-name>
    ```
    - If FAIL: Report broken baseline to user via `AskUserQuestion`. Do not spawn implementer. **Go to step 9 (Retrospective)** with outcome "failed" and failed agent "orchestrator/baseline".
    - If PASS: continue
@@ -176,13 +182,13 @@ _(Already done in the Arguments section above)_
    ```
 5. Update task JSON:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent orchestrator status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent orchestrator completed now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent orchestrator status completed
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent orchestrator completed now
    ```
 
 ### Step 4: Spawn Implementer
 
-1. Read `/Users/nicknisi/Developer/case/agents/implementer.md`
+1. Read `${CASE_REPO}/agents/implementer.md`
 2. Use the `Agent` tool:
    - **prompt**: `<implementer.md content>` + task context:
      - Task file path (`.md` and `.task.json`)
@@ -197,7 +203,7 @@ _(Already done in the Arguments section above)_
 
 ### Step 5: Spawn Verifier
 
-1. Read `/Users/nicknisi/Developer/case/agents/verifier.md`
+1. Read `${CASE_REPO}/agents/verifier.md`
 2. Use the `Agent` tool:
    - **prompt**: `<verifier.md content>` + task context (file path, repo path)
    - **subagent_type**: `general-purpose`
@@ -217,7 +223,7 @@ _(Already done in the Arguments section above)_
 
 ### Step 6: Spawn Reviewer
 
-1. Read `/Users/nicknisi/Developer/case/agents/reviewer.md`
+1. Read `${CASE_REPO}/agents/reviewer.md`
 2. Use the `Agent` tool:
    - **prompt**: `<reviewer.md content>` + task context:
      - Task file path (`.md` and `.task.json`)
@@ -238,9 +244,9 @@ _(Already done in the Arguments section above)_
 
 1. Update task JSON status to `closing`:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status closing
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> status closing
    ```
-2. Read `/Users/nicknisi/Developer/case/agents/closer.md`
+2. Read `${CASE_REPO}/agents/closer.md`
 3. Use the `Agent` tool:
    - **prompt**: `<closer.md content>` + task context (file path, repo path, verifier `AGENT_RESULT`, reviewer `AGENT_RESULT`)
    - **subagent_type**: `general-purpose`
@@ -259,7 +265,7 @@ Report to user:
 
 **Always runs** — after both successful and failed pipelines, at every failure class (baseline, implementer, verifier, reviewer, closer). Every failure branch in steps 3-8 routes here explicitly. This is how the harness improves itself.
 
-1. Read `/Users/nicknisi/Developer/case/agents/retrospective.md`
+1. Read `${CASE_REPO}/agents/retrospective.md`
 2. Use the `Agent` tool:
    - **prompt**: `<retrospective.md content>` + context:
      - Task file path (with progress log from all agents)
@@ -292,7 +298,7 @@ If `/case` is invoked and a `.task.json` already exists for the issue, the orche
 Before spawning the implementer, the orchestrator runs the target repo's test/build suite to confirm a clean baseline. This prevents agents from building on broken foundations.
 
 ```bash
-bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
+bash ${CASE_REPO}/scripts/bootstrap.sh <repo-name>
 ```
 
 The bootstrap script runs the repo's `setup`, `build`, `test`, `typecheck`, and `lint` commands (from `projects.json`). If any fail:
@@ -337,25 +343,25 @@ Based on the user's request, load the relevant context:
 
 ## Project Manifest
 
-Full repo metadata (paths, commands, remotes): `/Users/nicknisi/Developer/case/projects.json`
+Full repo metadata (paths, commands, remotes): `${CASE_REPO}/projects.json`
 
 ## Task Dispatch
 
 To create a task for async agent execution:
 
-1. Choose template from `/Users/nicknisi/Developer/case/tasks/templates/`
+1. Choose template from `${CASE_REPO}/tasks/templates/`
 2. Fill in `{placeholder}` fields
-3. Save `.md` to `/Users/nicknisi/Developer/case/tasks/active/{repo}-{n}-{slug}.md`
-4. Create companion `.task.json` with the same stem (see task schema: `/Users/nicknisi/Developer/case/tasks/task.schema.json`)
-5. Update task JSON status as agents complete work via `/Users/nicknisi/Developer/case/scripts/task-status.sh`
+3. Save `.md` to `${CASE_REPO}/tasks/active/{repo}-{n}-{slug}.md`
+4. Create companion `.task.json` with the same stem (see task schema: `${CASE_REPO}/tasks/task.schema.json`)
+5. Update task JSON status as agents complete work via `${CASE_REPO}/scripts/task-status.sh`
 
 Available templates:
-- `/Users/nicknisi/Developer/case/tasks/templates/cli-command.md` — add a CLI command
-- `/Users/nicknisi/Developer/case/tasks/templates/authkit-framework.md` — new AuthKit framework integration
-- `/Users/nicknisi/Developer/case/tasks/templates/bug-fix.md` — fix a bug in any repo
-- `/Users/nicknisi/Developer/case/tasks/templates/cross-repo-update.md` — coordinated cross-repo change
+- `${CASE_REPO}/tasks/templates/cli-command.md` — add a CLI command
+- `${CASE_REPO}/tasks/templates/authkit-framework.md` — new AuthKit framework integration
+- `${CASE_REPO}/tasks/templates/bug-fix.md` — fix a bug in any repo
+- `${CASE_REPO}/tasks/templates/cross-repo-update.md` — coordinated cross-repo change
 
-Format spec: `/Users/nicknisi/Developer/case/tasks/README.md`
+Format spec: `${CASE_REPO}/tasks/README.md`
 
 ## Working in a Target Repo
 
@@ -363,9 +369,9 @@ Before making changes in any target repo:
 
 1. Create a feature branch (or use `claude --worktree` for isolated work)
 2. Read that repo's `CLAUDE.md` or `CLAUDE.local.md` for project-specific instructions
-3. Run `/Users/nicknisi/Developer/case/scripts/bootstrap.sh {repo-name}` to verify readiness
+3. Run `${CASE_REPO}/scripts/bootstrap.sh {repo-name}` to verify readiness
 4. Follow the repo's PR checklist before opening a PR
-5. Run `/Users/nicknisi/Developer/case/scripts/check.sh --repo {repo-name}` to verify conventions
+5. Run `${CASE_REPO}/scripts/check.sh --repo {repo-name}` to verify conventions
 
 ## Verification Tools
 
@@ -438,8 +444,8 @@ cp .playwright-cli/page-*.png /tmp/after.png
 
 # Upload and get markdown
 # For video: the script auto-converts to GIF (inline) + mp4 (download link)
-VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
-SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
+VIDEO=$(${CASE_REPO}/scripts/upload-screenshot.sh /tmp/verification.webm)
+SCREENSHOT=$(${CASE_REPO}/scripts/upload-screenshot.sh /tmp/after.png)
 
 # Use in PR body — VIDEO contains both GIF embed and mp4 download link
 echo "## Verification"
@@ -497,8 +503,8 @@ The orchestrator spawns the closer, which handles this checklist. If you're the 
 
 When an agent struggles or produces poor output, the fix goes into case/, not the code:
 
-- Missing pattern? Add to `/Users/nicknisi/Developer/case/docs/architecture/`
-- Unclear convention? Update `/Users/nicknisi/Developer/case/docs/conventions/`
-- Recurring task? Add a playbook + template in `/Users/nicknisi/Developer/case/`
-- Agent violation? Add to `/Users/nicknisi/Developer/case/docs/golden-principles.md` and update `scripts/check.sh`
+- Missing pattern? Add to `${CASE_REPO}/docs/architecture/`
+- Unclear convention? Update `${CASE_REPO}/docs/conventions/`
+- Recurring task? Add a playbook + template in `${CASE_REPO}/`
+- Agent violation? Add to `${CASE_REPO}/docs/golden-principles.md` and update `scripts/check.sh`
 - Wrong approach? Update the relevant `CLAUDE.md` in the target repo

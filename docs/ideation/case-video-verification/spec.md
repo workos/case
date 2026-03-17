@@ -38,7 +38,7 @@ Wire `playwright-cli video-start` / `video-stop` into the verifier agent's workf
    ```
 4. Add video upload after screenshots:
    ```bash
-   VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   VIDEO=$(${CASE_REPO}/scripts/upload-screenshot.sh /tmp/verification.webm)
    echo "$VIDEO"
    ```
    The upload script returns `<video src="url" controls></video>` for video files.

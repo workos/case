@@ -27,7 +27,7 @@ Additionally, every agent must end its response with a structured `AGENT_RESULT`
 
 ### Implementer Agent
 
-**Pattern to follow**: Ideation plugin's `agents/reviewer.md` and `agents/scout.md` (at `/Users/nicknisi/.claude/plugins/cache/nicknisi/ideation/0.9.0/agents/`)
+**Pattern to follow**: Ideation plugin's `agents/reviewer.md` and `agents/scout.md` (in the ideation plugin's `agents/` directory)
 
 **Overview**: The implementer receives a task file path, target repo path, and issue details. It implements the fix, runs unit tests, commits with a conventional message, and updates the task progress log. It does NOT do manual testing, create evidence markers, or create PRs.
 
@@ -197,7 +197,7 @@ tools: ["Read", "Bash", "Glob", "Grep"]
 - [ ] Verify implementer prompt does NOT mention Playwright, screenshots, or PR creation
 - [ ] Verify verifier prompt does NOT mention editing code or committing
 - [ ] Verify closer prompt does NOT mention editing code, running tests, or using Playwright
-- [ ] Verify all three reference correct absolute script paths (`/Users/nicknisi/Developer/case/scripts/mark-tested.sh`, etc.)
+- [ ] Verify all three reference correct absolute script paths (`${CASE_REPO}/scripts/mark-tested.sh`, etc.)
 - [ ] Verify all three include the AGENT_RESULT output format section
 
 ## Validation Commands

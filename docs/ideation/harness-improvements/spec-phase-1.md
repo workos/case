@@ -131,9 +131,9 @@ Update the test piping command in `agents/implementer.md` to recommend JSON repo
 ```markdown
 # In the Validate section, add guidance:
 # Prefer JSON reporter for structured evidence:
-pnpm test --reporter=json 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+pnpm test --reporter=json 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh
 # Fallback if JSON reporter unavailable:
-pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+pnpm test 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh
 ```
 
 ## Testing Requirements

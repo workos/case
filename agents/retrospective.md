@@ -12,6 +12,7 @@ You run after every `/case` pipeline completion (success or failure). Your job: 
 
 You receive from the orchestrator:
 
+- **Case repo path** (`CASE_REPO`) — absolute path to the case harness repo
 - **Task file path** — absolute path to the `.md` task file (with progress log from all agents)
 - **Task JSON path** — the `.task.json` companion (with status, agent phases, evidence flags)
 - **Pipeline outcome** — "completed" (PR created) or "failed" (stopped at some agent)
@@ -23,7 +24,7 @@ You receive from the orchestrator:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -91,7 +92,7 @@ For each finding, apply the fix directly:
 4. For script changes, verify syntax with `bash -n <file>` after editing
 5. Log each applied change with file path and one-line summary
 
-**What you can edit** (all within `/Users/nicknisi/Developer/case/`):
+**What you can edit** (all within `${CASE_REPO}/`):
 - `docs/architecture/` — architecture docs
 - `docs/conventions/` — convention docs
 - `docs/playbooks/` — playbooks
