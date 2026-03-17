@@ -12,7 +12,8 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Case repo path** (`CASE_REPO`) — absolute path to the case harness repo
+- **Task file path** — absolute path to the `.md` task file in `${CASE_REPO}/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
@@ -22,7 +23,7 @@ You receive from the orchestrator:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -32,9 +33,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status reviewing
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent reviewer status running
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent reviewer started now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> status reviewing
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent reviewer status running
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent reviewer started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
@@ -120,7 +121,7 @@ Format each finding as:
 
 1. If **no critical findings**: create the evidence marker:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/mark-reviewed.sh \
+   bash ${CASE_REPO}/scripts/mark-reviewed.sh \
      --critical 0 --warnings <N> --info <N>
    ```
 
@@ -138,8 +139,8 @@ Format each finding as:
 
 4. **Update task JSON**:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent reviewer status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent reviewer completed now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent reviewer status completed
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent reviewer completed now
    ```
 
 ### 5. Output

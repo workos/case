@@ -67,7 +67,7 @@ fi
 echo ".case-tested created (hash: ${OUTPUT_HASH:0:12}...)" >&2
 
 # Update task JSON if .case-active contains a task ID
-CASE_REPO="/Users/nicknisi/Developer/case"
+CASE_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [[ -f ".case-active" ]]; then
   TASK_ID=$(cat .case-active | tr -d '[:space:]')
   TASK_JSON="${CASE_REPO}/tasks/active/${TASK_ID}.task.json"

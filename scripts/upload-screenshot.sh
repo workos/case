@@ -18,7 +18,20 @@
 
 set -euo pipefail
 
-ASSETS_REPO="nicknisi/case-assets"
+if [[ -z "${CASE_ASSETS_REPO:-}" ]]; then
+  echo "ERROR: CASE_ASSETS_REPO is not set." >&2
+  echo "" >&2
+  echo "This script uploads screenshots/videos to a GitHub repo as release assets." >&2
+  echo "Set CASE_ASSETS_REPO to your own GitHub repo (e.g., 'youruser/case-assets')." >&2
+  echo "" >&2
+  echo "Setup:" >&2
+  echo "  1. Create a GitHub repo for assets (e.g., gh repo create case-assets --public)" >&2
+  echo "  2. Export the env var: export CASE_ASSETS_REPO='youruser/case-assets'" >&2
+  echo "  3. Or add it to your shell profile / Claude Code settings" >&2
+  exit 1
+fi
+
+ASSETS_REPO="$CASE_ASSETS_REPO"
 RELEASE_TAG="assets"
 
 if [[ $# -lt 1 ]]; then

@@ -214,7 +214,7 @@ closing → verifying        (hook failure, re-verify)
 1. Read current `scripts/mark-tested.sh`
 2. After creating the `.case-tested` file (existing behavior), add:
    - Read `.case-active` for task ID
-   - If task ID found and `.task.json` exists: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> tested true --from-marker`
+   - If task ID found and `.task.json` exists: `bash ${CASE_REPO}/scripts/task-status.sh <file> tested true --from-marker`
 3. Test: pipe test output through script, verify both `.case-tested` file and `.task.json` `tested` field are updated
 
 **Implementation steps — mark-manual-tested.sh**:
@@ -222,7 +222,7 @@ closing → verifying        (hook failure, re-verify)
 1. Read current `scripts/mark-manual-tested.sh`
 2. After creating the `.case-manual-tested` file (existing behavior), add:
    - Read `.case-active` for task ID
-   - If task ID found and `.task.json` exists: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> manualTested true --from-marker`
+   - If task ID found and `.task.json` exists: `bash ${CASE_REPO}/scripts/task-status.sh <file> manualTested true --from-marker`
 3. Test: run after playwright screenshots exist, verify both `.case-manual-tested` file and `.task.json` `manualTested` field are updated
 
 ### Updated Post-PR Cleanup Hook
@@ -242,11 +242,11 @@ closing → verifying        (hook failure, re-verify)
 1. Read current `hooks/post-pr-cleanup.sh`
 2. **Deterministic task targeting**: instead of iterating all files in `tasks/active/`, identify the active task by:
    - Read `.case-active` marker file — update it to contain the task ID (e.g., `authkit-nextjs-1-issue-53`). The orchestrator writes the task ID into `.case-active` instead of bare `touch`.
-   - Use the task ID to find the specific `.task.json`: `/Users/nicknisi/Developer/case/tasks/active/{task-id}.task.json`
-   - If `.case-active` has no content (old-format bare touch), fall back to iterating all files in `/Users/nicknisi/Developer/case/tasks/active/` (backward compat)
+   - Use the task ID to find the specific `.task.json`: `${CASE_REPO}/tasks/active/{task-id}.task.json`
+   - If `.case-active` has no content (old-format bare touch), fall back to iterating all files in `${CASE_REPO}/tasks/active/` (backward compat)
 3. Update the targeted task JSON:
-   - Run `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> status pr-opened`
-   - If a PR URL is available from the tool output, run `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> prUrl <url>`
+   - Run `bash ${CASE_REPO}/scripts/task-status.sh <file> status pr-opened`
+   - If a PR URL is available from the tool output, run `bash ${CASE_REPO}/scripts/task-status.sh <file> prUrl <url>`
 4. Keep marker file cleanup (`rm -f .case-active .case-tested .case-manual-tested`)
 5. Add fallback: if no `.task.json` found, move `.md` files as before (backward compat)
 

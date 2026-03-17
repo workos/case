@@ -166,7 +166,7 @@ After updating learnings, scan the learnings file for patterns:
 **What to add** (after step 5 "Read projects.json"):
 
 ```markdown
-6. Read `/Users/nicknisi/Developer/case/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
+6. Read `${CASE_REPO}/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
 ```
 
 **Implementation steps**:

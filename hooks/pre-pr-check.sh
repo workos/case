@@ -5,6 +5,9 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CASE_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # Read hook input from stdin
 INPUT=$(cat)
 
@@ -44,10 +47,10 @@ fi
 # Check 2: Tests were run (.case-tested marker with evidence)
 if [[ ! -f ".case-tested" ]]; then
   FAILURES+=("[FAIL] Tests not verified — .case-tested marker missing")
-  FIXES+=("  FIX: Run tests and pipe output: pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh")
+  FIXES+=("  FIX: Run tests and pipe output: pnpm test 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh")
 elif ! grep -q "output_hash:" ".case-tested" 2>/dev/null; then
   FAILURES+=("[FAIL] Tests marker has no evidence — was created with 'touch' instead of the mark-tested script")
-  FIXES+=("  FIX: Run tests properly: pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh")
+  FIXES+=("  FIX: Run tests properly: pnpm test 2>&1 | bash ${CASE_REPO}/scripts/mark-tested.sh")
 fi
 
 # Check 3: Manual testing (smart — only required if src/ files changed)
@@ -63,10 +66,10 @@ fi
 if [[ "$NEEDS_MANUAL_TEST" == "true" ]]; then
   if [[ ! -f ".case-manual-tested" ]]; then
     FAILURES+=("[FAIL] Manual testing not done — .case-manual-tested marker missing")
-    FIXES+=("  FIX: Test in the example app with playwright-cli, then: bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh")
+    FIXES+=("  FIX: Test in the example app with playwright-cli, then: bash ${CASE_REPO}/scripts/mark-manual-tested.sh")
   elif ! grep -q "evidence:" ".case-manual-tested" 2>/dev/null; then
     FAILURES+=("[FAIL] Manual testing marker has no evidence — was created with 'touch' instead of the mark script")
-    FIXES+=("  FIX: Use playwright-cli to test, then: bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh")
+    FIXES+=("  FIX: Use playwright-cli to test, then: bash ${CASE_REPO}/scripts/mark-manual-tested.sh")
   fi
 fi
 
@@ -98,7 +101,7 @@ fi
 # Check 5: Code review evidence (.case-reviewed marker)
 if [[ ! -f ".case-reviewed" ]]; then
   FAILURES+=("[FAIL] Code review not done — .case-reviewed marker missing")
-  FIXES+=("  FIX: Run the reviewer agent, then: bash /Users/nicknisi/Developer/case/scripts/mark-reviewed.sh --critical 0 --warnings N --info N")
+  FIXES+=("  FIX: Run the reviewer agent, then: bash ${CASE_REPO}/scripts/mark-reviewed.sh --critical 0 --warnings N --info N")
 elif ! grep -q "critical: 0" ".case-reviewed" 2>/dev/null; then
   FAILURES+=("[FAIL] Code review has unresolved critical findings")
   FIXES+=("  FIX: Address critical findings from the reviewer, then re-run the reviewer agent")

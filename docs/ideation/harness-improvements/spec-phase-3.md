@@ -141,7 +141,7 @@ EOF
 echo ".case-reviewed created (${WARNINGS} warnings, ${INFO} info)" >&2
 
 # Update task JSON if .case-active present
-CASE_REPO="/Users/nicknisi/Developer/case"
+CASE_REPO="${CASE_REPO}"
 if [[ -f ".case-active" ]]; then
   TASK_ID=$(cat .case-active | tr -d '[:space:]')
   TASK_JSON="${CASE_REPO}/tasks/active/${TASK_ID}.task.json"
@@ -180,7 +180,7 @@ Insert after the manual testing check block (after the `fi` closing Check 3):
 # Check 5: Code review evidence (.case-reviewed marker)
 if [[ ! -f ".case-reviewed" ]]; then
   FAILURES+=("[FAIL] Code review not done — .case-reviewed marker missing")
-  FIXES+=("  FIX: Run the reviewer agent, then: bash /Users/nicknisi/Developer/case/scripts/mark-reviewed.sh --critical 0 --warnings N --info N")
+  FIXES+=("  FIX: Run the reviewer agent, then: bash ${CASE_REPO}/scripts/mark-reviewed.sh --critical 0 --warnings N --info N")
 elif ! grep -q "critical: 0" ".case-reviewed" 2>/dev/null; then
   FAILURES+=("[FAIL] Code review has unresolved critical findings")
   FIXES+=("  FIX: Address critical findings from the reviewer, then re-run the reviewer agent")

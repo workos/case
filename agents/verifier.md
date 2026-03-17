@@ -12,7 +12,8 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Case repo path** (`CASE_REPO`) — absolute path to the case harness repo
+- **Task file path** — absolute path to the `.md` task file in `${CASE_REPO}/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
@@ -22,7 +23,7 @@ You receive from the orchestrator:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -32,9 +33,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status verifying
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier status running
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier started now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> status verifying
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent verifier status running
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent verifier started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
@@ -61,7 +62,7 @@ git diff --name-only HEAD~1 | grep "^src/" || git diff --name-only main | grep "
 
 1. Read the issue description from the task file's `## Issue Reference` or `## Objective` section
 2. Identify the specific bug/feature scenario to reproduce
-3. Read `/Users/nicknisi/Developer/case/projects.json` to find if the target repo has an example app
+3. Read `${CASE_REPO}/projects.json` to find if the target repo has an example app
 
 **3a. Port hygiene — MANDATORY before starting any app:**
 ```bash
@@ -120,12 +121,12 @@ If the implementer added a new export, alias, or API:
 3. **Upload video and screenshots** for PR inclusion:
    ```bash
    # Upload video — the script auto-converts to GIF (inline) + mp4 (download)
-   VIDEO_MARKDOWN=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   VIDEO_MARKDOWN=$(${CASE_REPO}/scripts/upload-screenshot.sh /tmp/verification.webm)
    echo "$VIDEO_MARKDOWN"
 
    # Upload screenshot
    cp .playwright-cli/page-*.png /tmp/after.png
-   SCREENSHOT=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/after.png)
+   SCREENSHOT=$(${CASE_REPO}/scripts/upload-screenshot.sh /tmp/after.png)
    echo "$SCREENSHOT"
    ```
 
@@ -137,7 +138,7 @@ If the implementer added a new export, alias, or API:
 
 4. Create the manual testing evidence marker:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh
+   bash ${CASE_REPO}/scripts/mark-manual-tested.sh
    ```
    This checks for recent playwright screenshots and creates `.case-manual-tested` with evidence. It also updates the task JSON `manualTested` field. You do NOT set `manualTested` directly.
 
@@ -156,8 +157,8 @@ If the implementer added a new export, alias, or API:
 
 2. **Update task JSON**:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier completed now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent verifier status completed
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent verifier completed now
    ```
 
 ### 6. Output

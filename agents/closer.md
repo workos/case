@@ -12,10 +12,12 @@ Create a pull request with a thorough description based on the task file, progre
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Case repo path** (`CASE_REPO`) — absolute path to the case harness repo
+- **Task file path** — absolute path to the `.md` task file in `${CASE_REPO}/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo
 - **Verifier AGENT_RESULT** — structured output from the verifier (screenshot URLs, evidence markers, pass/fail)
+- **Reviewer AGENT_RESULT** — structured output from the reviewer (findings, severity counts)
 
 ## Workflow
 
@@ -23,7 +25,7 @@ You receive from the orchestrator:
 
 Run the session-start script to orient yourself:
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(bash ${CASE_REPO}/scripts/session-start.sh <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -38,7 +40,7 @@ Read the output to understand: current branch, last commits, task status, which 
    - `.case-manual-tested` — should have `evidence` field (if src/ files changed)
    - `.case-reviewed` — should have `critical: 0` (review findings summary)
 4. Extract video and screenshot tags from the verifier's progress log entry or AGENT_RESULT (look for `<video` tags and `![` image tags)
-5. Read `/Users/nicknisi/Developer/case/docs/conventions/pull-requests.md` for PR format rules
+5. Read `${CASE_REPO}/docs/conventions/pull-requests.md` for PR format rules
 
 ### 2. Draft PR
 
@@ -151,8 +153,8 @@ Only post if there are actual findings to share. Skip this step if the reviewer 
 
 1. **Update task JSON** — agent phase only. The `status → pr-opened` transition is owned by the post-PR hook (fires automatically after `gh pr create` succeeds). Do NOT set status here — it creates duplicate ownership.
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent closer status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent closer completed now
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent closer status completed
+   bash ${CASE_REPO}/scripts/task-status.sh <task.json> agent closer completed now
    ```
    The hook will handle: `status → pr-opened` and `prUrl`.
 

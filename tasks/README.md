@@ -52,7 +52,7 @@ The JSON file stores structured metadata that agents and scripts update programm
 
 Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`.
 
-Read/write via: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> <field> [value]`
+Read/write via: `bash ${CASE_REPO}/scripts/task-status.sh <file> <field> [value]`
 
 **Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`mark-tested.sh`, `mark-manual-tested.sh`) — not by agents directly.
 

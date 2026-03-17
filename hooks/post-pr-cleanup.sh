@@ -7,7 +7,8 @@
 
 set -euo pipefail
 
-CASE_REPO="/Users/nicknisi/Developer/case"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CASE_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Read hook input from stdin
 INPUT=$(cat)
