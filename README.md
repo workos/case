@@ -59,7 +59,7 @@ graph TD
 
 ## Self-Improvement
 
-After every pipeline run — success or failure — the retrospective agent analyzes what happened and **applies improvements directly** to the harness. It also maintains per-repo learnings files so knowledge compounds across runs:
+After every pipeline run — success or failure — the retrospective agent analyzes what happened and **applies improvements directly** to the harness. It also maintains per-repo learnings in an [external repo](#3-set-up-environment-variables) so knowledge compounds across runs:
 
 ```mermaid
 graph LR
@@ -70,7 +70,7 @@ graph LR
     C -->|agent skipped steps| F["Apply fix: agent prompt"]
     C -->|hook too lenient| G["Apply fix: hook script"]
     C -->|nothing| H["No improvements needed"]
-    D --> I["Update repo learnings"]
+    D --> I["Update repo learnings (external repo)"]
     E --> I
     F --> I
     G --> I
@@ -79,9 +79,61 @@ graph LR
     J -->|no| L["Done"]
 ```
 
-## Quick Start
+## Getting Started
 
-### Install the plugin
+### 1. Fork the repo
+
+Case improves itself after every pipeline run — the retrospective agent edits harness files directly. Fork the repo so those improvements have somewhere to land and don't conflict with upstream.
+
+```bash
+gh repo fork workos/case --clone
+```
+
+Add upstream as a remote so you can pull future improvements:
+
+```bash
+cd case
+git remote add upstream git@github.com:workos/case.git
+```
+
+### 2. Clone target repos alongside case
+
+Case expects target repos as siblings in the same parent directory. All paths in `projects.json` are relative (`../cli/main`, `../authkit-nextjs`, etc.):
+
+```
+~/dev/
+  case/                       # this repo (your fork)
+  cli/main/                   # workos/workos-cli
+  skills/                     # workos/skills
+  authkit-session/            # workos/authkit-ssr
+  authkit-tanstack-start/     # workos/authkit-tanstack-start
+  authkit-nextjs/             # workos/authkit-nextjs
+```
+
+You only need to clone the repos you plan to work in.
+
+### 3. Set up environment variables
+
+Some features require external GitHub repos for user-specific data. Set these in your shell profile or Claude Code settings:
+
+| Variable | Purpose | Required for |
+| --- | --- | --- |
+| `CASE_ASSETS_REPO` | GitHub repo for PR screenshots/videos (e.g., `youruser/case-assets`) | `scripts/upload-screenshot.sh` |
+| `CASE_LEARNINGS_REPO` | GitHub repo for per-repo tactical knowledge (e.g., `youruser/case-learnings`) | `scripts/read-learning.sh`, `scripts/write-learning.sh` |
+
+```bash
+# Create the repos
+gh repo create case-assets --public --description "PR screenshots and videos for case harness"
+gh repo create case-learnings --public --description "Per-repo tactical knowledge for case harness"
+
+# Add to your shell profile
+export CASE_ASSETS_REPO='youruser/case-assets'
+export CASE_LEARNINGS_REPO='youruser/case-learnings'
+```
+
+Both are optional — scripts fail fast with setup instructions if the env var is missing. The pipeline works without them, but you won't get screenshot uploads or accumulated learnings.
+
+### 4. Install the plugin
 
 ```bash
 claude plugin marketplace add /path/to/case
@@ -95,7 +147,7 @@ To update after changes:
 claude plugin uninstall case && claude plugin marketplace update && claude plugin install case
 ```
 
-### Use with an issue
+### 5. Use with an issue
 
 From any target repo:
 
@@ -252,6 +304,8 @@ scripts/
   mark-manual-tested.sh             Evidence-based manual test marker
   mark-reviewed.sh                  Review evidence marker (requires critical: 0)
   upload-screenshot.sh              Upload images to GitHub for PR descriptions
+  read-learning.sh                  Read per-repo learnings from external repo
+  write-learning.sh                 Append learnings to external repo
   session-start.sh                  Session context for all agents (structured JSON)
   parse-test-output.sh              Parse vitest JSON reporter into structured evidence
   entropy-scan.sh                   Convention drift scanner across repos
@@ -267,7 +321,7 @@ scripts/
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK |
 | authkit-nextjs | `../authkit-nextjs` | AuthKit Next.js SDK |
 
-The manifest (`projects.json`) and all tooling are designed to scale to 25+ repos. Add a new repo by appending to `projects.json`.
+All paths are relative — case expects target repos as siblings in the same parent directory (see [Getting Started](#2-clone-target-repos-alongside-case)). The manifest (`projects.json`) and all tooling are designed to scale to 25+ repos. Add a new repo by appending to `projects.json`.
 
 ## Philosophy
 
