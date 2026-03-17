@@ -96,9 +96,15 @@ cd case
 git remote add upstream git@github.com:workos/case.git
 ```
 
-### 2. Clone target repos alongside case
+### 2. Set up the project manifest
 
-Case expects target repos as siblings in the same parent directory. All paths in `projects.json` are relative (`../cli/main`, `../authkit-nextjs`, etc.):
+The project manifest (`projects.json`) tells case where your target repos live. It's gitignored so each user can customize paths without polluting the repo. Copy the example and edit it:
+
+```bash
+cp projects.example.json projects.json
+```
+
+The default paths assume target repos are siblings of case:
 
 ```
 ~/dev/
@@ -110,7 +116,9 @@ Case expects target repos as siblings in the same parent directory. All paths in
   authkit-nextjs/             # workos/authkit-nextjs
 ```
 
-You only need to clone the repos you plan to work in.
+If your repos live elsewhere, edit the `path` field for each repo in `projects.json` — paths are resolved relative to the case directory and can point anywhere (e.g., `../../other/path/cli`).
+
+You only need entries for repos you plan to work in.
 
 ### 3. Set up environment variables
 
@@ -277,7 +285,8 @@ hooks/
 
 AGENTS.md                           Entry point for agents (project landscape)
 CLAUDE.md                           How to improve case itself
-projects.json                       Manifest of target repos
+projects.example.json               Example manifest (copy to projects.json)
+projects.json                       Your local manifest (gitignored)
 
 docs/
   architecture/                     Canonical patterns per repo type
@@ -321,7 +330,7 @@ scripts/
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK |
 | authkit-nextjs | `../authkit-nextjs` | AuthKit Next.js SDK |
 
-All paths are relative — case expects target repos as siblings in the same parent directory (see [Getting Started](#2-clone-target-repos-alongside-case)). The manifest (`projects.json`) and all tooling are designed to scale to 25+ repos. Add a new repo by appending to `projects.json`.
+Default paths in `projects.example.json` assume sibling directories, but paths are configurable (see [Getting Started](#2-set-up-the-project-manifest)). The manifest and all tooling are designed to scale to 25+ repos. Add a new repo by appending to your `projects.json`.
 
 ## Philosophy
 
@@ -364,7 +373,7 @@ They're complementary. Case depends on skills for product knowledge.
 
 ## Adding a New Repo
 
-1. Add entry to `projects.json` (follow the schema)
+1. Add entry to your `projects.json` (follow `projects.schema.json`)
 2. Ensure the repo has a `CLAUDE.md` with: commands, architecture, do/don't, PR checklist
 3. Run `bash scripts/check.sh --repo <name>` to verify compliance
 4. Add architecture doc to `docs/architecture/` if the repo introduces a new pattern

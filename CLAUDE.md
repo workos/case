@@ -46,7 +46,8 @@ Case depends on the skills plugin for product knowledge. They are complementary,
 ```
 AGENTS.md                 # Entry point for agents (routing map)
 CLAUDE.md                 # This file (meta-instructions for case itself)
-projects.json             # Manifest of target repos
+projects.example.json     # Example manifest (copy to projects.json)
+projects.json             # Local manifest (gitignored)
 projects.schema.json      # JSON Schema for the manifest
 docs/
   architecture/           # Canonical patterns per repo type

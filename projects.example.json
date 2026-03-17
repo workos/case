@@ -1,0 +1,80 @@
+{
+  "$schema": "./projects.schema.json",
+  "repos": [
+    {
+      "name": "cli",
+      "path": "../cli/main",
+      "remote": "git@github.com:workos/workos-cli.git",
+      "description": "WorkOS CLI for installing AuthKit integrations and managing WorkOS resources",
+      "language": "typescript",
+      "packageManager": "pnpm",
+      "commands": {
+        "setup": "pnpm install",
+        "build": "pnpm build",
+        "test": "pnpm test",
+        "lint": "pnpm lint",
+        "typecheck": "pnpm typecheck"
+      }
+    },
+    {
+      "name": "skills",
+      "path": "../skills",
+      "remote": "git@github.com:workos/skills.git",
+      "description": "Claude Code plugin providing WorkOS integration skills",
+      "language": "typescript",
+      "packageManager": "pnpm",
+      "commands": {
+        "setup": "pnpm install",
+        "test": "pnpm test",
+        "lint": "pnpm lint",
+        "format": "pnpm format"
+      }
+    },
+    {
+      "name": "authkit-session",
+      "path": "../authkit-session",
+      "remote": "git@github.com:workos/authkit-ssr.git",
+      "description": "Framework-agnostic TypeScript authentication library for WorkOS with pluggable storage adapters",
+      "language": "typescript",
+      "packageManager": "pnpm",
+      "commands": {
+        "setup": "pnpm install",
+        "build": "pnpm run build",
+        "test": "pnpm test",
+        "typecheck": "pnpm run typecheck",
+        "format": "pnpm run format"
+      }
+    },
+    {
+      "name": "authkit-tanstack-start",
+      "path": "../authkit-tanstack-start",
+      "remote": "git@github.com:workos/authkit-tanstack-start.git",
+      "description": "WorkOS library for TanStack Start providing authentication and session management helpers",
+      "language": "typescript",
+      "packageManager": "pnpm",
+      "commands": {
+        "setup": "pnpm install",
+        "build": "pnpm build",
+        "test": "pnpm test",
+        "typecheck": "pnpm run typecheck",
+        "format": "pnpm run format"
+      }
+    },
+    {
+      "name": "authkit-nextjs",
+      "path": "../authkit-nextjs",
+      "remote": "git@github.com:workos/authkit-nextjs.git",
+      "description": "Authentication and session helpers for using WorkOS & AuthKit with Next.js",
+      "language": "typescript",
+      "packageManager": "pnpm",
+      "commands": {
+        "setup": "pnpm install",
+        "build": "pnpm run build",
+        "test": "pnpm test",
+        "lint": "pnpm run lint",
+        "typecheck": "pnpm run typecheck",
+        "format": "pnpm run format"
+      }
+    }
+  ]
+}

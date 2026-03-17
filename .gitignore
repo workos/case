@@ -2,3 +2,6 @@
 .case-active
 .case-tested
 .case-manual-tested
+
+# Local project manifest (copy from projects.example.json and customize paths)
+projects.json
