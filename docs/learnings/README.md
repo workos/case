@@ -1,21 +1,39 @@
-# Repo Learnings
+# Repo Learnings (External)
 
-Tactical knowledge accumulated by the retrospective agent across pipeline runs. Each file corresponds to a repo in `projects.json`.
+Per-repo tactical knowledge is stored in a separate GitHub repo, configured via the `CASE_LEARNINGS_REPO` environment variable. This keeps codebase-specific knowledge out of the open-source harness repo.
+
+## Setup
+
+1. Create a GitHub repo for learnings:
+   ```bash
+   gh repo create case-learnings --public --description "Per-repo tactical knowledge for case harness"
+   ```
+
+2. Set the env var:
+   ```bash
+   export CASE_LEARNINGS_REPO='youruser/case-learnings'
+   ```
+   Add this to your shell profile or Claude Code settings for persistence.
 
 ## How it works
 
-1. After every `/case` pipeline run, the retrospective agent analyzes what happened
-2. If it discovers tactical knowledge specific to a repo, it appends to that repo's learnings file
-3. The implementer agent reads the relevant learnings file during setup, before writing code
-4. If the same issue appears 3+ times in a learnings file, the retrospective escalates it to a convention or golden principle
+1. After every pipeline run, the retrospective agent calls `scripts/write-learning.sh` to append tactical knowledge
+2. Before coding, the implementer agent calls `scripts/read-learning.sh` to load tactical knowledge
+3. If 3+ similar entries accumulate, the retrospective escalates to a convention or golden principle (in the case repo)
+4. Each fork/user has their own learnings repo — knowledge doesn't leak across forks
 
 ## Format
 
-Each entry is a dated bullet point with context:
+Each entry is a dated bullet point:
 
 ```markdown
-- **2026-03-08** — `src/middleware.ts`: Mock `next/headers` as a module, not individual exports. Individual mocks cause type errors in strict mode. (from task authkit-nextjs-1-issue-53)
+- **2026-03-08** — `src/middleware.ts`: Mock `next/headers` as a module, not individual exports. (from task authkit-nextjs-1-issue-53)
 ```
+
+## Scripts
+
+- `scripts/read-learning.sh <repo>` — read a repo's learnings (stdout)
+- `scripts/write-learning.sh <repo> <entry>` — append an entry and commit to the external repo
 
 ## Rules
 

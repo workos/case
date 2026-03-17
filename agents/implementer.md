@@ -43,7 +43,11 @@ Read the output to understand: current branch, last commits, task status, which 
 3. Read the target repo's `CLAUDE.md` for project-specific instructions
 4. Read the playbook referenced in the task file
 5. Read `${CASE_REPO}/projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
-6. Read `${CASE_REPO}/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
+6. Read tactical knowledge from previous tasks in this repo:
+   ```bash
+   bash ${CASE_REPO}/scripts/read-learning.sh {repo} || true
+   ```
+   Review the output before starting. If the command fails (CASE_LEARNINGS_REPO not set), skip — learnings are supplementary.
 
 ### 2. Implement
 

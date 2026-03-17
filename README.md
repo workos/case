@@ -235,7 +235,7 @@ docs/
   playbooks/                        Step-by-step guides for recurring operations
   golden-principles.md              Enforced invariants across all repos
   philosophy.md                     Design principles guiding case (incl. context engineering)
-  learnings/                        Per-repo tactical knowledge from retrospective
+  learnings/README.md               Setup for external learnings repo (per-repo knowledge)
   ideation/                         Ideation artifacts (contracts, specs)
 
 tasks/

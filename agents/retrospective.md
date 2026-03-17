@@ -101,7 +101,7 @@ For each finding, apply the fix directly:
 - `scripts/` — harness scripts
 - `hooks/` — hook scripts
 - `skills/` — skill files
-- `docs/learnings/` — per-repo tactical knowledge
+- External learnings repo (via `${CASE_REPO}/scripts/write-learning.sh`) — per-repo tactical knowledge
 
 **What you must NEVER edit:**
 - Target repo source code (anything outside `case/`)
@@ -125,21 +125,28 @@ After applying harness improvements, check if the run produced tactical knowledg
 
 **How to append:**
 1. Identify the target repo from the task file's `## Target Repos` section
-2. Read `docs/learnings/{repo}.md`
+2. Read existing learnings to check for duplicates:
+   ```bash
+   bash ${CASE_REPO}/scripts/read-learning.sh {repo}
+   ```
 3. Check if a similar learning already exists (don't duplicate)
 4. Append a new entry:
-   ```
-   - **{YYYY-MM-DD}** — `{file or area}`: {1-2 line tactical note}. (from task {task-filename})
+   ```bash
+   bash ${CASE_REPO}/scripts/write-learning.sh {repo} "- **{YYYY-MM-DD}** — \`{file or area}\`: {1-2 line tactical note}. (from task {task-filename})"
    ```
 
 ### 4c. Escalate Repeated Violations
 
-After updating learnings, scan the learnings file for patterns:
+After updating learnings, scan the learnings for patterns:
 
-1. Read `docs/learnings/{repo}.md`
+1. Read the learnings:
+   ```bash
+   LEARNINGS=$(bash ${CASE_REPO}/scripts/read-learning.sh {repo})
+   echo "$LEARNINGS"
+   ```
 2. Look for 3+ entries describing the same class of issue (e.g., multiple entries about mocking, multiple about import paths)
 3. If found, escalate:
-   - If it's a repo-specific pattern -> note it for the repo's CLAUDE.md (add a comment to the learnings file: "ESCALATION CANDIDATE: consider adding to {repo} CLAUDE.md")
+   - If it's a repo-specific pattern -> note it for the repo's CLAUDE.md (add an entry: "ESCALATION CANDIDATE: consider adding to {repo} CLAUDE.md")
    - If it's a cross-repo pattern -> add to `docs/golden-principles.md` or the relevant convention doc
 4. Log the escalation in your output summary
 
