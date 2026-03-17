@@ -60,7 +60,7 @@ Steps 0-3 (issue parsing, task creation, branch setup) are handled by the LLM or
 | **Verifier**      | Test the specific fix with Playwright, create evidence                            | Edit code, commit              |
 | **Reviewer**      | Review diff against golden principles, classify findings, gate PR creation        | Edit code, commit, run tests   |
 | **Closer**        | Create PR with thorough description, satisfy hooks, post review comments          | Edit code, run tests           |
-| **Retrospective** | Analyze the run, apply harness improvements directly, maintain per-repo learnings | Edit target repo code          |
+| **Retrospective** | Analyze the run, propose harness improvements, apply per-repo learnings directly  | Edit target repo code          |
 
 ## Programmatic Orchestrator
 
@@ -129,23 +129,23 @@ Each agent receives only what it needs — not everything:
 
 ## Self-Improvement
 
-After every pipeline run — success or failure — the retrospective agent analyzes what happened and **applies improvements directly** to the harness. It also maintains per-repo learnings files so knowledge compounds across runs:
+After every pipeline run — success or failure — the retrospective agent analyzes what happened and **proposes improvements** to the harness (staged in `docs/proposed-amendments/` for human review). It also applies per-repo learnings directly so knowledge compounds across runs:
 
 ```mermaid
 graph LR
     A["Pipeline completes"] --> B["Retrospective reads progress log"]
     B --> C{"What went wrong?"}
-    C -->|missing pattern| D["Apply fix: docs/architecture/"]
-    C -->|unclear convention| E["Apply fix: docs/conventions/"]
-    C -->|agent skipped steps| F["Apply fix: agent prompt"]
-    C -->|hook too lenient| G["Apply fix: hook script"]
+    C -->|missing pattern| D["Propose: docs/architecture/"]
+    C -->|unclear convention| E["Propose: docs/conventions/"]
+    C -->|agent skipped steps| F["Propose: agent prompt change"]
+    C -->|hook too lenient| G["Propose: hook fix"]
     C -->|nothing| H["No improvements needed"]
-    D --> I["Update repo learnings"]
+    D --> I["Apply repo learnings directly"]
     E --> I
     F --> I
     G --> I
     I --> J{"3+ similar learnings?"}
-    J -->|yes| K["Escalate to convention or golden principle"]
+    J -->|yes| K["Propose escalation to convention"]
     J -->|no| L["Done"]
 ```
 

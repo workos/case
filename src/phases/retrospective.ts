@@ -7,7 +7,7 @@ const log = createLogger();
 
 /**
  * Step 9: Always runs — on success AND failure.
- * Spawns in background mode (fire-and-forget). Pipeline does not wait.
+ * Awaited so the retrospective completes before the process exits.
  */
 export async function runRetrospectivePhase(
   config: PipelineConfig,
@@ -64,16 +64,10 @@ export async function runRetrospectivePhase(
     retroContext,
   ].join('\n');
 
-  // Fire and forget — don't await
-  spawnAgent({
-    prompt,
-    cwd: config.repoPath,
-    agentName: 'retrospective',
-    caseRoot: config.caseRoot,
-    background: true,
-  }).catch((err) => {
+  try {
+    await spawnAgent({ prompt, cwd: config.repoPath, agentName: 'retrospective', caseRoot: config.caseRoot });
+    log.phase('retrospective', 'completed');
+  } catch (err) {
     log.error('retrospective agent failed', { error: String(err) });
-  });
-
-  log.phase('retrospective', 'spawned-background');
+  }
 }

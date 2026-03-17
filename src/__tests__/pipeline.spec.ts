@@ -272,11 +272,5 @@ describe('runPipeline', () => {
     await runPipeline(makeConfig());
 
     expect(mockWriteRunMetrics).toHaveBeenCalledTimes(1);
-    // Also check legacy log-run.sh was called
-    const runScriptCalls = mockRunScript.mock.calls;
-    const logRunCall = runScriptCalls.find(
-      (call: any[]) => Array.isArray(call[1]) && call[1].some((arg: string) => arg.includes('log-run.sh')),
-    );
-    expect(logRunCall).toBeDefined();
   });
 });

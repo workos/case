@@ -66,6 +66,9 @@ export async function spawnAgent(options: SpawnAgentOptions): Promise<SpawnAgent
 }
 
 function buildCliArgs(metadata: AgentMetadata): string[] {
+  // --permission-mode bypassPermissions: agents run non-interactively, can't prompt user
+  // --allowedTools: per-agent tool restrictions from .md frontmatter
+  // No --worktree: branch isolation is handled by the /case skill before orchestrator dispatch
   const args = [
     'claude',
     '--print',

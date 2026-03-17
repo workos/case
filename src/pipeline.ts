@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, PipelinePhase } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { determineEntryPhase } from './state/transitions.js';
@@ -11,7 +10,6 @@ import { runRetrospectivePhase } from './phases/retrospective.js';
 import { MetricsCollector } from './metrics/collector.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
-import { runScript } from './util/run-script.js';
 import { createLogger } from './util/logger.js';
 
 const log = createLogger();
@@ -62,6 +60,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             'Abort',
           ]);
           if (choice === 'Retry with guidance') {
+            // In attended mode, human can re-enter implement indefinitely.
+            // Each attempt gets maxRetries intelligent retries (analyze + adjust).
+            // This is by design — attended mode means the human decides when to stop.
             currentPhase = 'implement';
           } else {
             failedAgent = 'implementer';
@@ -172,14 +173,6 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   await writeRunMetrics(config.caseRoot, task.id, config.repoName, runMetrics, {
     priorRunId,
     parentTaskId: task.contractPath,
-  });
-
-  // Also run legacy log-run.sh for backward compatibility
-  const logRunScript = resolve(config.caseRoot, 'scripts/log-run.sh');
-  const logArgs = [logRunScript, config.taskJsonPath, outcome];
-  if (failedAgent) logArgs.push(failedAgent);
-  await runScript('bash', logArgs).catch(() => {
-    // Non-fatal — metrics already written above
   });
 
   log.info('pipeline finished', {
