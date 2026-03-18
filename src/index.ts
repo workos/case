@@ -4,6 +4,7 @@ import { buildPipelineConfig } from './config.js';
 import { runPipeline } from './pipeline.js';
 import { startServer } from './server.js';
 import { createTask } from './entry/task-factory.js';
+import { runCliOrchestrator } from './entry/cli-orchestrator.js';
 import { createLogger } from './util/logger.js';
 import type { PipelineMode, ServerConfig, TaskCreateRequest } from './types.js';
 
@@ -40,9 +41,57 @@ async function main() {
     await runCreate(values);
   } else if (command === 'serve') {
     await runServe(values);
-  } else {
+  } else if (values.task) {
+    // Explicit --task flag: existing pipeline-only flow
     await runTask(values);
+  } else {
+    // Positional argument routing: number, Linear ID, or freeform text
+    // `bun src/index.ts 1234` or `bun src/index.ts run 1234`
+    const argument = command === 'run' ? positionals[1] : positionals[0];
+
+    if (!argument) {
+      // No argument and no --task = future re-entry mode (Phase 2)
+      process.stderr.write('Error: provide an issue number, Linear ID, or --task <path>\n');
+      printUsage();
+      process.exit(1);
+    }
+
+    const mode = values.mode as PipelineMode | undefined;
+    if (mode && mode !== 'attended' && mode !== 'unattended') {
+      process.stderr.write('Error: --mode must be "attended" or "unattended"\n');
+      process.exit(1);
+    }
+
+    const caseRoot = resolveCaseRoot();
+
+    try {
+      await runCliOrchestrator({
+        argument,
+        mode: mode ?? 'attended',
+        dryRun: (values['dry-run'] as boolean) ?? false,
+        caseRoot,
+      });
+      process.exit(0);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error('cli orchestrator crashed', { error: msg });
+      process.stderr.write(`Fatal: ${msg}\n`);
+      process.exit(1);
+    }
   }
+}
+
+/**
+ * Resolve the case root directory.
+ * Uses CASE_ROOT env var if set, otherwise walks up from cwd looking for projects.json.
+ */
+function resolveCaseRoot(): string {
+  if (process.env.CASE_ROOT) return resolve(process.env.CASE_ROOT);
+
+  // Walk up from script location (src/index.ts -> project root)
+  const scriptDir = import.meta.dir;
+  const candidate = resolve(scriptDir, '..');
+  return candidate;
 }
 
 async function runTask(values: Record<string, unknown>) {
@@ -167,12 +216,18 @@ async function runServe(values: Record<string, unknown>) {
 function printUsage() {
   process.stdout.write(`
 Usage:
-  bun src/index.ts [run] --task <path> [options]    Run pipeline for a task
+  bun src/index.ts <issue>  [options]               Detect repo, fetch issue, run pipeline
+  bun src/index.ts [run] --task <path> [options]    Run pipeline for an existing task
   bun src/index.ts create [options]                 Create a new task
   bun src/index.ts serve [options]                  Start as HTTP service
 
+Standalone CLI (run from a target repo):
+  <issue>                     GitHub issue number (e.g., 1234)
+                              Linear ID (e.g., DX-1234)
+                              Freeform text (quoted, e.g., "fix login bug")
+
 Run options:
-  --task, -t <path>         Path to .task.json file (required)
+  --task, -t <path>         Path to .task.json file (skips Steps 0-3)
   --mode, -m <mode>         attended | unattended (default: attended)
   --dry-run                 Log phase transitions without spawning agents
 

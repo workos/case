@@ -126,6 +126,17 @@ export interface SpawnAgentResult {
   durationMs: number;
 }
 
+// --- Standalone CLI ---
+
+/** Normalized issue context from GitHub, Linear, or freeform text. */
+export interface IssueContext {
+  title: string;
+  body: string;
+  labels: string[];
+  issueType: 'github' | 'linear' | 'freeform';
+  issueNumber: string;
+}
+
 // --- Wave 5: Metrics ---
 
 export interface PhaseMetrics {

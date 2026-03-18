@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
-import type { TaskCreateRequest, TaskJson } from '../types.js';
+import type { IssueContext, TaskCreateRequest, TaskJson } from '../types.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -27,11 +27,25 @@ export interface TaskCreateResult {
   taskMdPath: string;
 }
 
+/** Optional enrichment passed by the CLI orchestrator. */
+export interface TaskEnrichment {
+  issueContext?: IssueContext;
+  branch?: string;
+}
+
 /**
  * Create a task.json + task.md pair in tasks/active/ from a TaskCreateRequest.
  * Returns paths to the created files for pipeline dispatch.
+ *
+ * When `enrichment` is provided (from CLI orchestrator), the task gets:
+ * - `branch` field in JSON
+ * - Richer markdown with issue reference and labels
  */
-export async function createTask(caseRoot: string, request: TaskCreateRequest): Promise<TaskCreateResult> {
+export async function createTask(
+  caseRoot: string,
+  request: TaskCreateRequest,
+  enrichment?: TaskEnrichment,
+): Promise<TaskCreateResult> {
   const taskId = generateTaskId(request.repo, request.title);
   const activeDir = resolve(caseRoot, 'tasks/active');
   await mkdir(activeDir, { recursive: true });
@@ -46,6 +60,7 @@ export async function createTask(caseRoot: string, request: TaskCreateRequest): 
     repo: request.repo,
     issue: request.issue,
     issueType: request.issueType ?? 'freeform',
+    branch: enrichment?.branch,
     mode: request.mode ?? 'attended',
     agents: {},
     tested: false,
@@ -57,14 +72,49 @@ export async function createTask(caseRoot: string, request: TaskCreateRequest): 
     checkTarget: request.checkTarget ?? null,
   };
 
-  const taskMd = [
+  const taskMd = buildTaskMarkdown(request, taskJson, enrichment?.issueContext);
+
+  await Bun.write(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
+  await Bun.write(taskMdPath, taskMd);
+
+  log.info('task created', {
+    taskId,
+    repo: request.repo,
+    trigger: request.trigger.type,
+    branch: enrichment?.branch,
+    file: basename(taskJsonPath),
+  });
+
+  return { taskId, taskJsonPath, taskMdPath };
+}
+
+/** Build task markdown. Enriched with issue context when available. */
+function buildTaskMarkdown(request: TaskCreateRequest, taskJson: TaskJson, issueContext?: IssueContext): string {
+  const lines: (string | false)[] = [
     `# ${request.title}`,
     '',
     `**Repo:** ${request.repo}`,
     `**Trigger:** ${request.trigger.type}${request.trigger.type === 'webhook' ? ` (${request.trigger.event})` : ''}`,
     `**Created:** ${taskJson.created}`,
-    request.issue ? `**Issue:** ${request.issue}` : '',
+    !!request.issue && `**Issue:** ${request.issue}`,
+    !!taskJson.branch && `**Branch:** ${taskJson.branch}`,
     '',
+  ];
+
+  // Issue reference section when enriched
+  if (issueContext) {
+    lines.push(
+      '## Issue Reference',
+      '',
+      `**Source:** ${issueContext.issueType} #${issueContext.issueNumber}`,
+    );
+    if (issueContext.labels.length > 0) {
+      lines.push(`**Labels:** ${issueContext.labels.join(', ')}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(
     '## Description',
     '',
     request.description,
@@ -74,19 +124,7 @@ export async function createTask(caseRoot: string, request: TaskCreateRequest): 
     '- [ ] Fix verified by tests',
     '- [ ] No regressions introduced',
     '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  );
 
-  await Bun.write(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
-  await Bun.write(taskMdPath, taskMd);
-
-  log.info('task created', {
-    taskId,
-    repo: request.repo,
-    trigger: request.trigger.type,
-    file: basename(taskJsonPath),
-  });
-
-  return { taskId, taskJsonPath, taskMdPath };
+  return lines.filter((line) => line !== false).join('\n');
 }
