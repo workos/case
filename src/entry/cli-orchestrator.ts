@@ -14,6 +14,8 @@ export interface CliOrchestratorOptions {
   argument?: string;
   mode: PipelineMode;
   dryRun: boolean;
+  /** Skip re-entry detection and create a fresh task. */
+  fresh?: boolean;
   caseRoot: string;
 }
 
@@ -29,7 +31,7 @@ export interface CliOrchestratorOptions {
  *   4. Dispatch to runPipeline()
  */
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
-  const { argument, mode, dryRun, caseRoot } = options;
+  const { argument, mode, dryRun, fresh, caseRoot } = options;
 
   // --- Step 0: Detect repo ---
   process.stdout.write('Detecting repo...\n');
@@ -39,11 +41,13 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   // --- Step 0b: Check for existing task (re-entry) ---
   let match: TaskMatch | null = null;
 
-  if (argument) {
-    const argType = detectArgumentType(argument);
-    match = await findTaskByIssue(caseRoot, detected.name, argType, argument);
-  } else {
-    match = await findTaskByMarker(caseRoot, detected.path);
+  if (!fresh) {
+    if (argument) {
+      const argType = detectArgumentType(argument);
+      match = await findTaskByIssue(caseRoot, detected.name, argType, argument);
+    } else {
+      match = await findTaskByMarker(caseRoot, detected.path);
+    }
   }
 
   if (match) {

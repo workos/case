@@ -20,6 +20,7 @@ async function main() {
       host: { type: 'string' },
       'webhook-secret': { type: 'string' },
       'dry-run': { type: 'boolean' },
+      fresh: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
       repo: { type: 'string' },
       title: { type: 'string' },
@@ -67,6 +68,7 @@ async function main() {
         argument: argument || undefined,
         mode: mode ?? 'attended',
         dryRun: (values['dry-run'] as boolean) ?? false,
+        fresh: (values.fresh as boolean) ?? false,
         caseRoot,
       });
       process.exit(0);
@@ -229,6 +231,7 @@ Run options:
   --task, -t <path>         Path to .task.json file (skips Steps 0-3)
   --mode, -m <mode>         attended | unattended (default: attended)
   --dry-run                 Log phase transitions without spawning agents
+  --fresh                   Skip re-entry detection, create a new task from scratch
 
 Create options:
   --repo <name>             Target repo from projects.json (required)
