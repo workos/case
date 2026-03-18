@@ -1,7 +1,6 @@
 import { parseAgentResult } from './util/parse-agent-result.js';
 import { loadAgentMetadata } from './util/parse-frontmatter.js';
 import { createLogger } from './util/logger.js';
-import { formatDuration } from './notify.js';
 import type { AgentMetadata, SpawnAgentOptions, SpawnAgentResult } from './types.js';
 
 const log = createLogger();

@@ -25,13 +25,20 @@ const MockTaskStore = mock(() => ({
 
 const mockNotifierSend = mock();
 const mockNotifierAskUser = mock();
+const mockNotifierPhaseStart = mock();
+const mockNotifierPhaseEnd = mock();
 const mockCreateNotifier = mock(() => ({
   send: mockNotifierSend,
   askUser: mockNotifierAskUser,
+  phaseStart: mockNotifierPhaseStart,
+  phaseEnd: mockNotifierPhaseEnd,
 }));
 
 mock.module('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
-mock.module('../notify.js', () => ({ createNotifier: mockCreateNotifier }));
+mock.module('../notify.js', () => ({
+  createNotifier: mockCreateNotifier,
+  formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
+}));
 
 const { runPipeline } = await import('../pipeline.js');
 
