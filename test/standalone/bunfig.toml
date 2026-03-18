@@ -1,0 +1,2 @@
+[test]
+# No preload — tests in this directory mock their own dependencies

@@ -102,20 +102,16 @@ export interface PhaseOutput {
   nextPhase: PipelinePhase;
 }
 
-export interface AgentMetadata {
-  name: string;
-  description: string;
-  tools: string[];
-  model?: string;
-}
-
 export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
   agentName: AgentName | 'retrospective';
   caseRoot: string;
   timeout?: number;
-  background?: boolean;
+  /** Model provider (default: "anthropic") */
+  provider?: string;
+  /** Model ID (default: "claude-sonnet-4-20250514") */
+  model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;
 }

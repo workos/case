@@ -9,9 +9,9 @@ import { mock } from 'bun:test';
 
 // --- I/O boundary mocks ---
 
-/** Mock for spawnAgent — prevents real Claude Code sessions */
+/** Mock for spawnAgent — prevents real Pi agent sessions */
 export const mockSpawnAgent = mock();
-mock.module('../agent-runner.js', () => ({ spawnAgent: mockSpawnAgent }));
+mock.module('../agent/pi-runner.js', () => ({ spawnAgent: mockSpawnAgent }));
 
 /** Mock for runScript — prevents real shell script execution */
 export const mockRunScript = mock();

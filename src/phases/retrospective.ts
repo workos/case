@@ -1,6 +1,6 @@
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
-import { spawnAgent } from '../agent-runner.js';
+import { spawnAgent } from '../agent/pi-runner.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();

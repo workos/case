@@ -15,11 +15,15 @@
     "lint": "oxlint",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun test",
+    "test": "bun test ./src/__tests__/ && bun test --cwd test/standalone",
     "start": "bun src/index.ts",
     "serve": "bun src/index.ts serve"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.60.0",
+    "@mariozechner/pi-ai": "^0.60.0",
+    "@mariozechner/pi-coding-agent": "^0.60.0"
+  },
   "devDependencies": {
     "@types/bun": "^1.3.10",
     "@types/node": "^22.0.0",

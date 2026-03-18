@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import type { AgentName, AgentResult, FailureAnalysis, PhaseOutput, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
-import { spawnAgent } from '../agent-runner.js';
+import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import { runScript } from '../util/run-script.js';
