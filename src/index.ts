@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { buildPipelineConfig } from './config.js';

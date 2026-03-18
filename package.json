@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=20"
   },
+  "bin": {
+    "xcase": "src/index.ts"
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
