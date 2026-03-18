@@ -1,5 +1,6 @@
 import { Agent } from '@mariozechner/pi-agent-core';
-import { streamSimple, getModel } from '@mariozechner/pi-ai';
+import { streamSimple } from '@mariozechner/pi-ai';
+import { AuthStorage, ModelRegistry } from '@mariozechner/pi-coding-agent';
 import { getToolsForAgent } from './tool-sets.js';
 import { loadSystemPrompt } from './prompt-loader.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
@@ -8,18 +9,20 @@ import type { SpawnAgentOptions, SpawnAgentResult } from '../types.js';
 
 const log = createLogger();
 
+const registry = new ModelRegistry(AuthStorage.create());
+
 export async function spawnAgent(options: SpawnAgentOptions): Promise<SpawnAgentResult> {
   const timeout = options.timeout ?? 600_000; // 10 min default
   const start = Date.now();
 
   const systemPrompt = await loadSystemPrompt(options.caseRoot, options.agentName);
   const tools = getToolsForAgent(options.agentName, options.cwd);
-  // as any: getModel expects string literal types (KnownProvider, model ID) but
-  // our config uses plain strings. Pi validates at runtime and throws if invalid.
-  const model = getModel(
-    (options.provider ?? 'anthropic') as any,
-    (options.model ?? 'claude-sonnet-4-20250514') as any,
-  );
+  const provider = options.provider ?? 'anthropic';
+  const modelId = options.model ?? 'claude-sonnet-4-20250514';
+  const model = registry.find(provider, modelId);
+  if (!model) {
+    throw new Error(`Model not found: ${provider}/${modelId}`);
+  }
 
   log.info('spawning agent', {
     agent: options.agentName,

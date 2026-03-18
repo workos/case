@@ -28,7 +28,6 @@ mock.module('@mariozechner/pi-agent-core', () => ({
 
 mock.module('@mariozechner/pi-ai', () => ({
   streamSimple: mock(),
-  getModel: mock(() => ({ id: 'mock-model', provider: 'anthropic' })),
 }));
 
 mock.module('@mariozechner/pi-coding-agent', () => ({
@@ -36,6 +35,11 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
   createWriteTool: mock(() => ({ name: 'write', label: 'Write' })),
   createEditTool: mock(() => ({ name: 'edit', label: 'Edit' })),
   createBashTool: mock(() => ({ name: 'bash', label: 'Bash' })),
+  AuthStorage: { create: () => ({}) },
+  ModelRegistry: class MockModelRegistry {
+    constructor() {}
+    find() { return { id: 'mock-model', provider: 'anthropic' }; }
+  },
 }));
 
 mock.module('../../src/agent/prompt-loader.js', () => ({
