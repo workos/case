@@ -254,11 +254,22 @@ Start a conversational session with the case orchestrator:
 # Freeform — discuss, plan, explore before running anything
 xcase --agent
 
-# Issue-directed — starts working immediately
+# Issue-directed — fetches the issue and presents context
 xcase --agent 1234
 ```
 
-The interactive mode uses Pi's TUI. You can discuss approaches, ask questions about the codebase, and trigger the pipeline when ready. The orchestrator has tools for fetching issues, creating tasks, running baselines, and executing the full pipeline — all invokable through conversation.
+The session starts with the same detection as batch mode — it identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
+
+```
+Repo: cli (/path/to/cli)
+
+Issue: Fix login bug
+Users cannot log in when cookies are disabled
+
+Ready to create a task and run the pipeline, or discuss first.
+```
+
+From there you can discuss approaches, ask questions, or tell the orchestrator to run the pipeline. Tools for fetching issues, creating tasks, running baselines, and executing the pipeline are all available through conversation.
 
 ## Task Tracking
 
