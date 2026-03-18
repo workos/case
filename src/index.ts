@@ -6,6 +6,7 @@ import { runPipeline } from './pipeline.js';
 import { startServer } from './server.js';
 import { createTask } from './entry/task-factory.js';
 import { runCliOrchestrator } from './entry/cli-orchestrator.js';
+import { startOrchestratorSession } from './agent/orchestrator-session.js';
 import { createLogger } from './util/logger.js';
 import type { PipelineMode, ServerConfig, TaskCreateRequest } from './types.js';
 
@@ -19,6 +20,7 @@ async function main() {
       port: { type: 'string', short: 'p' },
       host: { type: 'string' },
       'webhook-secret': { type: 'string' },
+      agent: { type: 'boolean' },
       'dry-run': { type: 'boolean' },
       fresh: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
@@ -39,7 +41,24 @@ async function main() {
 
   const command = positionals[0] ?? 'run';
 
-  if (command === 'create') {
+  if (values.agent) {
+    const argument = command === 'run' ? positionals[1] : positionals[0];
+    const caseRoot = resolveCaseRoot();
+
+    try {
+      await startOrchestratorSession({
+        caseRoot,
+        argument: argument || undefined,
+        mode: 'attended',
+      });
+      process.exit(0);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.error('orchestrator session crashed', { error: msg });
+      process.stderr.write(`Fatal: ${msg}\n`);
+      process.exit(1);
+    }
+  } else if (command === 'create') {
     await runCreate(values);
   } else if (command === 'serve') {
     await runServe(values);
@@ -217,6 +236,7 @@ function printUsage() {
   process.stdout.write(`
 Usage:
   bun src/index.ts [<issue>] [options]              Detect repo, fetch issue, run pipeline
+  bun src/index.ts --agent [<issue>] [options]      Interactive orchestrator session
   bun src/index.ts [run] --task <path> [options]    Run pipeline for an existing task
   bun src/index.ts create [options]                 Create a new task
   bun src/index.ts serve [options]                  Start as HTTP service
@@ -226,6 +246,11 @@ Standalone CLI (run from a target repo):
   <issue>                     GitHub issue number (e.g., 1234)
                               Linear ID (e.g., DX-1234)
                               Freeform text (quoted, e.g., "fix login bug")
+
+Agent options:
+  --agent                   Start interactive orchestrator session (Pi TUI)
+                            Without argument: freeform planning session
+                            With issue: starts working on the issue immediately
 
 Run options:
   --task, -t <path>         Path to .task.json file (skips Steps 0-3)
