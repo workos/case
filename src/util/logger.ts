@@ -11,10 +11,8 @@ export interface Logger {
  * Suppressed when CASE_QUIET=1 (set by CLI for interactive terminal use).
  */
 export function createLogger(): Logger {
-  const quiet = process.env.CASE_QUIET === '1';
-
   function emit(level: string, message: string, extra?: Record<string, unknown>) {
-    if (quiet) return;
+    if (process.env.CASE_QUIET === '1') return;
     const entry = {
       ts: new Date().toISOString(),
       level,
