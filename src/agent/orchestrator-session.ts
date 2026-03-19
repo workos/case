@@ -88,13 +88,13 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
         lines.push(`Entry phase: ${match.entryPhase}`);
         lines.push(`Task JSON: ${match.taskJsonPath}`);
         if (match.taskJson.prUrl) lines.push(`PR: ${match.taskJson.prUrl}`);
-        lines.push(`\nResume this task with run_pipeline, or discuss the approach.`);
+        lines.push(`\nTask is resumable from the ${match.entryPhase} phase.`);
       } else {
         try {
           const issue = await fetchIssue(argType, options.argument, detected.project.remote);
           lines.push(`\nIssue: ${issue.title}`);
           if (issue.body) lines.push(issue.body);
-          lines.push(`\nReady to create a task and run the pipeline, or discuss first.`);
+          lines.push(`\nNo existing task for this issue.`);
         } catch {
           lines.push(`\nIssue ${options.argument} — fetch failed, use fetch_issue tool to retry.`);
         }
@@ -106,7 +106,7 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
         lines.push(`\nActive task: ${match.taskJson.id} (status: ${match.taskJson.status})`);
         lines.push(`Entry phase: ${match.entryPhase}`);
         lines.push(`Task JSON: ${match.taskJsonPath}`);
-        lines.push(`\nResume with run_pipeline, or discuss.`);
+        lines.push(`\nTask is resumable from the ${match.entryPhase} phase.`);
       } else {
         lines.push(`No active task. Ready for a new issue or discussion.`);
       }
