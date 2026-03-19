@@ -107,7 +107,8 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
     } else {
       // No argument — don't auto-detect active tasks.
       // Let the agent discover them on demand to avoid auto-execution.
-      lines.push(`No argument provided. What would you like to work on?`);
+      lines.push(`No argument provided.`);
+      lines.push(`What would you like to work on?`);
     }
   } catch {
     // Not in a target repo — still useful for freeform sessions
@@ -140,7 +141,7 @@ function printBanner(contextBriefing: string): void {
     '',
     hr('╭', '╮'),
     row(cyan(pad(robot[0]))),
-    row(cyan(robot[1]) + bold('  case') + dim((' · agent orchestrator').padEnd(W - 10))),
+    row(cyan(robot[1]) + bold('  case') + dim((' · agent orchestrator').padEnd(W - 16))),
     row(cyan(pad(robot[2]))),
     row(cyan(pad(robot[3]))),
     hr('├', '┤'),
