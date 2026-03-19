@@ -141,7 +141,7 @@ function printBanner(contextBriefing: string): void {
     '',
     hr('╭', '╮'),
     row(cyan(pad(robot[0]))),
-    row(cyan(robot[1]) + bold('  case') + dim((' · agent orchestrator').padEnd(W - 16))),
+    row(cyan(robot[1]) + bold('  case') + dim(' · agent orchestrator'.padEnd(W - 16))),
     row(cyan(pad(robot[2]))),
     row(cyan(pad(robot[3]))),
     hr('├', '┤'),

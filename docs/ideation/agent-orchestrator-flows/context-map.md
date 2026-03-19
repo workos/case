@@ -6,13 +6,13 @@
 
 ## Dimensions
 
-| Dimension | Score | Notes |
-|---|---|---|
-| Scope clarity | 18/20 | 3 new files, 2 modified files, all with detailed implementation steps in spec. Only ambiguity: depth of re-entry logic (spec flags this as an open item). |
-| Pattern familiarity | 19/20 | All 4 existing tool files read, CLI orchestrator flow read, SKILL.md read. Naming, structure, imports, TypeBox usage, ToolDefinition shape all clear. |
+| Dimension            | Score | Notes                                                                                                                                                                                                                                          |
+| -------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 18/20 | 3 new files, 2 modified files, all with detailed implementation steps in spec. Only ambiguity: depth of re-entry logic (spec flags this as an open item).                                                                                      |
+| Pattern familiarity  | 19/20 | All 4 existing tool files read, CLI orchestrator flow read, SKILL.md read. Naming, structure, imports, TypeBox usage, ToolDefinition shape all clear.                                                                                          |
 | Dependency awareness | 17/20 | `orchestrator-session.ts` consumed by `src/index.ts:9` and `src/__tests__/orchestrator-session.spec.ts`. `types.ts` widely imported but changes are additive. Orchestrator-session test checks `customTools.length === 4` which must become 5. |
-| Edge case coverage | 15/20 | Spec lists 6 error scenarios. SKILL.md covers re-entry semantics, stale tasks, branch recovery. Gaps: streaming behavior during long phases, partial phase failure with multiple specs, filesystem permission errors. |
-| Test strategy | 18/20 | bun:test framework with `mock.module()` pattern. `bunfig.toml` preloads `mocks.ts` for global I/O boundary mocks. `pipeline-tool.spec.ts` is a near-identical analog. Commands: `bun run typecheck && bun test`. |
+| Edge case coverage   | 15/20 | Spec lists 6 error scenarios. SKILL.md covers re-entry semantics, stale tasks, branch recovery. Gaps: streaming behavior during long phases, partial phase failure with multiple specs, filesystem permission errors.                          |
+| Test strategy        | 18/20 | bun:test framework with `mock.module()` pattern. `bunfig.toml` preloads `mocks.ts` for global I/O boundary mocks. `pipeline-tool.spec.ts` is a near-identical analog. Commands: `bun run typecheck && bun test`.                               |
 
 ## Key Patterns
 
