@@ -66,7 +66,7 @@ describe('loadConfig', () => {
       CONFIG_PATH,
       JSON.stringify({
         models: {
-          default: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+          default: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
           reviewer: { provider: 'google', model: 'gemini-2.5-pro' },
         },
       }),
@@ -120,7 +120,7 @@ describe('getModelForAgent', () => {
     } catch {}
 
     const result = await getModelForAgent('implementer');
-    expect(result).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' });
+    expect(result).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
   });
 
   it('uses role-specific config when available', async () => {
@@ -128,7 +128,7 @@ describe('getModelForAgent', () => {
       CONFIG_PATH,
       JSON.stringify({
         models: {
-          default: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+          default: { provider: 'anthropic', model: 'claude-sonnet-4-6' },
           reviewer: { provider: 'google', model: 'gemini-2.5-pro' },
         },
       }),
@@ -178,7 +178,7 @@ describe('getModelForAgent', () => {
     );
 
     const result = await getModelForAgent('implementer');
-    expect(result).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' });
+    expect(result).toEqual({ provider: 'anthropic', model: 'claude-sonnet-4-6' });
   });
 
   it('handles orchestrator role', async () => {

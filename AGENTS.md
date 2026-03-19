@@ -17,7 +17,7 @@ echo "$SESSION"
 | Repo                   | Path                        | Purpose                                              | Stack   |
 | ---------------------- | --------------------------- | ---------------------------------------------------- | ------- |
 | cli                    | `../cli/main`               | WorkOS CLI — AuthKit installers, resource management | TS/pnpm |
-| skills                 | `../skills`                 | Claude Code plugin — WorkOS integration skills       | TS/pnpm |
+| skills                 | `../skills`                 | WorkOS integration skills                            | TS/pnpm |
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management                | TS/pnpm |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK                           | TS/pnpm |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                                  | TS/pnpm |

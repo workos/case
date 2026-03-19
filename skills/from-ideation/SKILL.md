@@ -20,7 +20,7 @@ Parse the argument as a path to an ideation folder containing `contract.md` and 
 ls ./docs/ideation/*/contract.md 2>/dev/null
 ```
 
-If multiple found, use `AskUserQuestion` to select one. If none found, report error.
+If multiple found, use `ask_user_question` to select one. If none found, report error.
 
 ## Pipeline Overview
 
@@ -113,7 +113,7 @@ One branch. One PR. Phases commit sequentially. Verification and review cover th
    bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh {repo-name}
    ```
 
-   - **FAIL**: Report to user via `AskUserQuestion`. Do not proceed.
+   - **FAIL**: Report to user via `ask_user_question`. Do not proceed.
    - **PASS**: Continue
 
 3. Update task JSON:
@@ -183,7 +183,7 @@ bash /Users/nicknisi/Developer/case/scripts/task-status.sh {task.json} agent imp
 4. Parse `AGENT_RESULT` from response (see Subagent Output Contract above)
 
 5. **If failed**:
-   - Report to user via `AskUserQuestion`:
+   - Report to user via `ask_user_question`:
      ```
      "Phase {N} implementer failed: {error summary}"
      Options: "Retry this phase" | "Skip and continue" | "Abort"
@@ -285,10 +285,10 @@ Run verification, review, and PR creation covering the **combined diff** from al
 5. **If failed**:
    - Check if `src/` files changed: `git diff --name-only main | grep "^src/"`
    - **If src/ changed** (verification mandatory — hook will block):
-     Use `AskUserQuestion`: "Verification failed: `{summary}`"
+     Use `ask_user_question`: "Verification failed: `{summary}`"
      Options: "Fix and re-verify" | "Abort"
    - **If NO src/ changed** (verification optional):
-     Use `AskUserQuestion`: "Verification failed: `{summary}`"
+     Use `ask_user_question`: "Verification failed: `{summary}`"
      Options: "Fix and re-verify" | "Skip verification" | "Abort"
    - "Abort": go to Step 8 (Retrospective) with outcome "failed" and failed agent "verifier"
 6. **If completed**: Continue to 5b
@@ -303,7 +303,7 @@ Run verification, review, and PR creation covering the **combined diff** from al
      - Target repo path
 3. Parse `AGENT_RESULT`
 4. **If "blocked"** (critical findings):
-   Use `AskUserQuestion`: "Reviewer found `{N}` critical finding(s): `{details}`"
+   Use `ask_user_question`: "Reviewer found `{N}` critical finding(s): `{details}`"
    Options: "Re-implement and re-review" | "Override and continue" | "Abort"
    - "Re-implement": go back to Step 3 for the affected phase, then re-run verifier and reviewer
    - "Override": continue to 5c (note: pre-PR hook still requires `.case-reviewed`)
@@ -328,7 +328,7 @@ Run verification, review, and PR creation covering the **combined diff** from al
      - **Contract reference**: `{ideation-folder}/contract.md`
      - **Phases implemented**: list of all phases with spec paths and commit hashes
 4. Parse `AGENT_RESULT`
-5. **If failed**: Report to user via `AskUserQuestion`, suggest which steps to re-run. Go to Step 8.
+5. **If failed**: Report to user via `ask_user_question`, suggest which steps to re-run. Go to Step 8.
 6. **If completed**: Continue to Step 6
 
 ## Closer Pre-PR Checklist (mandatory)
@@ -444,7 +444,7 @@ This task was created by /case:from-ideation. Resume with:
 
 Same rules as the main `/case` skill:
 
-- **Always use `AskUserQuestion`** when asking questions
+- **Always use `ask_user_question`** when asking questions
 - **Always work in feature branches** — never commit to main
 - **Always use conventional commits** — `type(scope): description`
 - **Always open PRs** via `gh pr create`

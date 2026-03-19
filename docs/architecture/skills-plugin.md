@@ -4,7 +4,7 @@
 
 ## Overview
 
-The skills repo is a Claude Code plugin that provides WorkOS integration skills. It ships curated knowledge (AuthKit installation guides, API references, migration guides) to coding agents so they produce correct WorkOS implementations.
+The skills repo provides WorkOS integration skills. It ships curated knowledge (AuthKit installation guides, API references, migration guides) to coding agents so they produce correct WorkOS implementations.
 
 ## Plugin Structure
 

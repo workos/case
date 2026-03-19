@@ -287,7 +287,7 @@ cp tasks/templates/bug-fix.md tasks/active/authkit-nextjs-1-fix-cookie-bug.md
 # Edit the file — fill in {placeholders}
 
 # Hand it to an agent (use --worktree for isolation)
-claude --worktree -p "Execute the task in tasks/active/authkit-nextjs-1-fix-cookie-bug.md"
+ca --task tasks/active/authkit-nextjs-1-fix-cookie-bug.task.json
 ```
 
 ## Enforcement
@@ -392,7 +392,7 @@ scripts/
 | Repo                   | Path                        | Purpose                               |
 | ---------------------- | --------------------------- | ------------------------------------- |
 | cli                    | `../cli/main`               | WorkOS CLI                            |
-| skills                 | `../skills`                 | Claude Code skills plugin             |
+| skills                 | `../skills`                 | WorkOS integration skills             |
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK            |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                   |
@@ -423,10 +423,10 @@ bash scripts/entropy-scan.sh
 bash scripts/entropy-scan.sh --repo cli
 ```
 
-For ongoing monitoring during work sessions, use Claude Code's `/loop` integration:
+For ongoing monitoring, run entropy scans periodically:
 
-```
-/loop 30m bash scripts/entropy-scan.sh
+```bash
+bash scripts/entropy-scan.sh
 ```
 
 See [docs/conventions/entropy-management.md](docs/conventions/entropy-management.md) for recommended intervals and details on what gets checked.

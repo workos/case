@@ -22,7 +22,7 @@
       "type": "library",
       "path": "../skills",
       "remote": "git@github.com:workos/skills.git",
-      "description": "Claude Code plugin providing WorkOS integration skills",
+      "description": "WorkOS integration skills",
       "language": "typescript",
       "packageManager": "pnpm",
       "commands": {

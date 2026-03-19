@@ -19,7 +19,7 @@ bash scripts/entropy-scan.sh --repo cli
 
 ## Continuous Scanning with /loop
 
-During active work sessions, use Claude Code's `/loop` to scan periodically:
+During active work sessions, scan periodically:
 
 ```
 /loop 30m bash scripts/entropy-scan.sh

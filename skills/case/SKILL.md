@@ -19,7 +19,7 @@ Case uses a **six-agent pipeline** to prevent context pollution and enable self-
 
 | Agent                  | Responsibility                                                                 | Tools                               |
 | ---------------------- | ------------------------------------------------------------------------------ | ----------------------------------- |
-| **Orchestrator** (you) | Parse issue, create task, baseline smoke test, spawn subagents                 | AskUserQuestion, Agent, Read, Bash  |
+| **Orchestrator** (you) | Parse issue, create task, baseline smoke test, spawn subagents                 | ask_user_question, Agent, Read, Bash  |
 | **Implementer**        | Write code, run unit tests, commit (with WIP checkpoints), read repo learnings | Read, Edit, Write, Bash, Glob, Grep |
 | **Verifier**           | Manual testing with Playwright, evidence markers, screenshots                  | Read, Bash, Glob, Grep              |
 | **Reviewer**           | Review diff against golden principles, classify findings, gate PR creation     | Read, Bash, Glob, Grep              |
@@ -76,7 +76,7 @@ Parse the arguments passed to `/case`. The argument determines the workflow:
 1. Try the Linear MCP tools first (available via claude.ai integration):
    - Use `mcp__claude_ai_Linear__get_issue` with the issue ID
    - Read title, description, comments, status, and assignee
-2. If Linear MCP tools are not available, ask the user to paste the issue details using `AskUserQuestion`
+2. If Linear MCP tools are not available, ask the user to paste the issue details using `ask_user_question`
 3. Determine the target repo from the issue content or current working directory
 4. Run the **Orchestrator Flow** below (steps 0-7)
 
@@ -174,7 +174,7 @@ _(Already done in the Arguments section above)_
    bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
    ```
 
-   - If FAIL: Report broken baseline to user via `AskUserQuestion`. Do not spawn implementer. **Go to step 9 (Retrospective)** with outcome "failed" and failed agent "orchestrator/baseline".
+   - If FAIL: Report broken baseline to user via `ask_user_question`. Do not spawn implementer. **Go to step 9 (Retrospective)** with outcome "failed" and failed agent "orchestrator/baseline".
    - If PASS: continue
 
 4. Append to task file progress log:
@@ -264,7 +264,7 @@ One targeted retry is worth more than three identical retries. Analyze the failu
 
 ### Step 4c: Surface Implementer Failure to User
 
-Report the failure to user via `AskUserQuestion`:
+Report the failure to user via `ask_user_question`:
 
 - Include both the original error and the retry result (if retry was attempted)
 - Options: "Re-run with guidance" | "Abort"
@@ -281,11 +281,11 @@ Report the failure to user via `AskUserQuestion`:
 5. If `status == "failed"`:
    - Check if `src/` files changed: `git diff --name-only main | grep "^src/"`
    - **If src/ changed** (verification mandatory — closer must verify):
-     Use `AskUserQuestion`: "Verification failed: `<summary>`"
+     Use `ask_user_question`: "Verification failed: `<summary>`"
      Options: "Fix and re-verify" | "Abort"
      If "Abort": **go to step 9 (Retrospective)** with outcome "failed" and failed agent "verifier".
    - **If NO src/ changed** (verification optional):
-     Use `AskUserQuestion`: "Verification failed: `<summary>`"
+     Use `ask_user_question`: "Verification failed: `<summary>`"
      Options: "Fix and re-verify" | "Skip verification" | "Abort"
      If "Abort": **go to step 9 (Retrospective)** with outcome "failed" and failed agent "verifier".
 6. If `status == "completed"`: continue to step 6
@@ -301,7 +301,7 @@ Report the failure to user via `AskUserQuestion`:
 3. Wait for completion
 4. Parse `AGENT_RESULT` from response
 5. If `status == "blocked"` (critical findings):
-   - Report critical findings to user via `AskUserQuestion`:
+   - Report critical findings to user via `ask_user_question`:
      "Reviewer found `<N>` critical finding(s): `<details>`"
      Options: "Re-implement and re-review" | "Override and continue" | "Abort"
      If "Re-implement and re-review": **go to step 4 (Implementer)** to address the findings, then re-run verifier and reviewer.
@@ -372,14 +372,14 @@ bash /Users/nicknisi/Developer/case/scripts/bootstrap.sh <repo-name>
 The bootstrap script runs the repo's `setup`, `build`, `test`, `typecheck`, and `lint` commands (from `projects.json`). If any fail:
 
 - **Stop the orchestrator.** Do not spawn the implementer.
-- Report the failure to the user via `AskUserQuestion`
+- Report the failure to the user via `ask_user_question`
 - Suggest fixing the baseline before retrying `/case`
 
 This is embedded in Step 3 of the Orchestrator Flow but documented here for clarity.
 
 ## Rules
 
-- **Always use `AskUserQuestion` tool when asking the user questions.** Do not ask questions in plain text. The tool provides structured options and ensures the user can respond clearly.
+- **Always use `ask_user_question` tool when asking the user questions.** Do not ask questions in plain text. The tool provides structured options and ensures the user can respond clearly.
 - **Always work in feature branches.** Never commit directly to main. Use `claude --worktree` or create a branch before starting work.
 - **Always use conventional commits.** Format: `type(scope): description`. Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`. Use `!` for breaking changes (e.g., `feat!:`). See `../../docs/conventions/commits.md` for details.
 - **Always open pull requests.** Never push directly to main. Use `gh pr create` to open a PR for review. The `gh` CLI is available and authenticated.

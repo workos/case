@@ -5,8 +5,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 ## Rules
 
-- **Always use `AskUserQuestion` tool** when asking questions. Never ask questions in plain text.
-- **Always work in feature branches.** Never commit to main. Use `claude --worktree` for isolated work.
+- **Always work in feature branches.** Never commit to main.
 - **Always use conventional commits.** `type(scope): description`. See `docs/conventions/commits.md`.
 - **Always open pull requests.** Never push to main. Use `gh pr create`.
 - **PR titles use conventional commit format.** e.g., `fix(session): handle expired cookies`.
@@ -28,7 +27,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 - Playbooks for recurring operations
 - Task files and templates
 - Enforcement scripts (check.sh, bootstrap.sh)
-- The /case Claude Code plugin skill
+- Pipeline orchestrator (TypeScript)
 
 **In individual repos:**
 

@@ -1,2 +1,3 @@
 [test]
 preload = ["./src/__tests__/mocks.ts"]
+root = "./src/__tests__"
