@@ -82,29 +82,29 @@ Three ways to run Case:
 
 ```bash
 # 1. Interactive mode — conversational TUI with Pi, can discuss before executing
-xcase --agent              # freeform planning / ideation session
-xcase --agent 1234         # start working on GitHub issue #1234
+ca --agent              # freeform planning / ideation session
+ca --agent 1234         # start working on GitHub issue #1234
 # In interactive mode, say "go" to quick-build, or "execute docs/ideation/foo/" for existing specs
 
 # 2. Batch mode — detect repo, fetch issue, run full pipeline
-xcase 1234                 # GitHub issue
-xcase DX-1234              # Linear issue
-xcase                      # resume active task via .case-active marker
+ca 1234                 # GitHub issue
+ca DX-1234              # Linear issue
+ca                      # resume active task via .case-active marker
 
 # 3. Task mode — run pipeline for an existing task file
-xcase --task tasks/active/cli-1-issue-53.task.json
-xcase --task tasks/active/cli-1-issue-53.task.json --mode unattended
-xcase --task tasks/active/cli-1-issue-53.task.json --dry-run
+ca --task tasks/active/cli-1-issue-53.task.json
+ca --task tasks/active/cli-1-issue-53.task.json --mode unattended
+ca --task tasks/active/cli-1-issue-53.task.json --dry-run
 ```
 
 Override the model for all agents in a single run:
 
 ```bash
-xcase --model claude-opus-4-5 1234
-xcase --model gemini-2.5-pro --agent 1234
+ca --model claude-opus-4-5 1234
+ca --model gemini-2.5-pro --agent 1234
 ```
 
-The `/case` skill dispatches to the orchestrator automatically. You can also invoke `xcase` directly.
+The `/case` skill dispatches to the orchestrator automatically. You can also invoke `ca` directly.
 
 ### Architecture
 
@@ -255,10 +255,10 @@ Start a conversational session with the case orchestrator:
 
 ```bash
 # Freeform — discuss, plan, explore before running anything
-xcase --agent
+ca --agent
 
 # Issue-directed — fetches the issue and presents context
-xcase --agent 1234
+ca --agent 1234
 ```
 
 The session starts with the same detection as batch mode — it identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
