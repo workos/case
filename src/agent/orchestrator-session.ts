@@ -52,7 +52,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     cwd,
     agentDir,
     settingsManager,
-    appendSystemPrompt: buildOrchestratorSystemPrompt(options.caseRoot),
+    appendSystemPrompt: buildOrchestratorSystemPrompt(options.caseRoot) + `\n\n## Current Session Context\n\n${contextBriefing}`,
     extensionFactories: [minimalStatusline(cwd)],
   });
   await resourceLoader.reload();
@@ -81,7 +81,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
 
   const interactive = new InteractiveMode(session, {
     modelFallbackMessage,
-    initialMessage: contextBriefing,
+    initialMessage: 'Go ahead and greet me briefly and tell me what you can help with.',
   });
   await interactive.run();
 }
