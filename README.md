@@ -82,8 +82,9 @@ Three ways to run Case:
 
 ```bash
 # 1. Interactive mode — conversational TUI with Pi, can discuss before executing
-xcase --agent              # freeform planning session
+xcase --agent              # freeform planning / ideation session
 xcase --agent 1234         # start working on GitHub issue #1234
+# In interactive mode, say "go" to quick-build, or "execute docs/ideation/foo/" for existing specs
 
 # 2. Batch mode — detect repo, fetch issue, run full pipeline
 xcase 1234                 # GitHub issue
@@ -120,8 +121,10 @@ src/
     config.ts             Per-agent model config (~/.config/case/config.json)
     tool-sets.ts          Scoped Pi tools per agent role (read-only vs full write)
     prompt-loader.ts      Load agent .md prompts, strip frontmatter
+    from-ideation.ts      Execute ideation contracts: load → phases → verify → review → close
     tools/
       pipeline-tool.ts    Pi tool: run the case pipeline from interactive session
+      from-ideation-tool.ts Pi tool: execute ideation contracts through the pipeline
       issue-tool.ts       Pi tool: fetch issues from GitHub/Linear
       task-tool.ts        Pi tool: create task files
       baseline-tool.ts    Pi tool: run bootstrap.sh
