@@ -127,6 +127,28 @@ export interface SpawnAgentResult {
   durationMs: number;
 }
 
+// --- From-Ideation ---
+
+export interface FromIdeationOptions {
+  ideationFolder: string;
+  caseRoot: string;
+  repoName: string;
+  repoPath: string;
+  /** Specific phase to execute (default: all) */
+  phase?: number;
+  /** Called with progress updates during execution */
+  onProgress?: (message: string) => void;
+}
+
+export interface PhaseResult {
+  phase: number;
+  specFile: string;
+  status: 'completed' | 'failed' | 'skipped';
+  commit: string | null;
+  summary: string;
+  error: string | null;
+}
+
 // --- Standalone CLI ---
 
 /** Normalized issue context from GitHub, Linear, or freeform text. */
@@ -175,7 +197,7 @@ export interface TaskCreateRequest {
   repo: string;
   title: string;
   description: string;
-  issueType?: 'github' | 'linear' | 'freeform';
+  issueType?: 'github' | 'linear' | 'freeform' | 'ideation';
   issue?: string;
   mode?: PipelineMode;
   trigger: TriggerSource;

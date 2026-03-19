@@ -107,15 +107,16 @@ describe('startOrchestratorSession', () => {
     mockFindTaskByMarker.mockResolvedValue(null);
   });
 
-  it('creates session with four custom tools', async () => {
+  it('creates session with five custom tools', async () => {
     await startOrchestratorSession({ caseRoot: '/case', mode: 'attended' });
 
     expect(mockCreateAgentSession).toHaveBeenCalledTimes(1);
     const opts = mockCreateAgentSession.mock.calls[0][0];
-    expect(opts.customTools).toHaveLength(4);
+    expect(opts.customTools).toHaveLength(5);
 
     const toolNames = opts.customTools.map((t: { name: string }) => t.name);
     expect(toolNames).toContain('run_pipeline');
+    expect(toolNames).toContain('run_from_ideation');
     expect(toolNames).toContain('fetch_issue');
     expect(toolNames).toContain('create_task');
     expect(toolNames).toContain('run_baseline');

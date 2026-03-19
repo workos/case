@@ -16,6 +16,7 @@ import { createPipelineTool } from './tools/pipeline-tool.js';
 import { createIssueTool } from './tools/issue-tool.js';
 import { createTaskTool } from './tools/task-tool.js';
 import { createBaselineTool } from './tools/baseline-tool.js';
+import { createFromIdeationTool } from './tools/from-ideation-tool.js';
 
 export interface OrchestratorSessionOptions {
   caseRoot: string;
@@ -56,6 +57,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     resourceLoader,
     customTools: [
       createPipelineTool(options.caseRoot),
+      createFromIdeationTool(options.caseRoot),
       createIssueTool(options.caseRoot),
       createTaskTool(options.caseRoot),
       createBaselineTool(options.caseRoot),
@@ -123,19 +125,38 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
 function buildOrchestratorSystemPrompt(caseRoot: string): string {
   return `You are the Case orchestrator — an interactive agent for managing WorkOS OSS repos.
 
-## What you can do
+## Tools
 
-- **Discuss & plan**: Talk through approaches, review code, answer questions about the codebase.
-- **Run the pipeline**: Use \`run_pipeline\` to execute the full agent pipeline (implement → verify → review → close) for a task file.
-- **Fetch issues**: Use \`fetch_issue\` to get context from GitHub or Linear.
-- **Create tasks**: Use \`create_task\` to set up task files for pipeline execution.
-- **Check baselines**: Use \`run_baseline\` to verify a repo meets conventions.
+- \`run_pipeline\` — Run the agent pipeline (implement → verify → review → close) for a task file.
+- \`run_from_ideation\` — Execute an ideation contract through the pipeline. All phases on one branch, one PR.
+- \`fetch_issue\` — Get context from GitHub or Linear.
+- \`create_task\` — Set up task files for pipeline execution.
+- \`run_baseline\` — Verify a repo meets conventions.
 
-## When to run the pipeline vs discuss
+## Flows
 
-- If the user provides an issue number or asks to "fix", "implement", or "work on" something → fetch the issue, create a task, run the pipeline.
-- If the user asks "how should we approach this?" or "what do you think about..." → discuss first.
-- If the user says "run it" or "go" → run the pipeline.
+### Quick flow
+When the user says "go", "build this", or "let's do it" after discussing an idea:
+1. Judge scope: small fix (1-3 files) → write a spec only. Multi-concern or architectural → write contract + specs.
+2. Write artifacts to \`docs/ideation/{slug}/\` using the write tool.
+3. Call \`run_from_ideation\` with the ideation folder path.
+
+### Ideation flow
+When the user wants to plan first ("let's think about...", "how should we..."):
+1. Brainstorm and ask clarifying questions.
+2. Write artifacts incrementally — contract.md first, then spec files.
+3. Present for approval before executing.
+4. Call \`run_from_ideation\` when approved.
+
+### Issue flow
+When the user provides an issue number or says "fix", "implement", "work on":
+1. Fetch the issue with \`fetch_issue\`.
+2. Create a task with \`create_task\`.
+3. Run with \`run_pipeline\`.
+
+### Pre-existing artifacts
+When the user says "execute docs/ideation/foo/":
+Call \`run_from_ideation\` directly with that path.
 
 ## Key context
 
