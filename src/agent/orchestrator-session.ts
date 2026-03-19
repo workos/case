@@ -11,7 +11,7 @@ import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { getModelForAgent } from './config.js';
 import { detectRepo } from '../entry/repo-detector.js';
 import { detectArgumentType, fetchIssue } from '../entry/issue-fetcher.js';
-import { findTaskByIssue, findTaskByMarker } from '../entry/task-scanner.js';
+import { findTaskByIssue } from '../entry/task-scanner.js';
 import { createPipelineTool } from './tools/pipeline-tool.js';
 import { createIssueTool } from './tools/issue-tool.js';
 import { createTaskTool } from './tools/task-tool.js';
