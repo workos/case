@@ -51,7 +51,7 @@ graph TD
 
 Steps 0-3 (issue parsing, task creation, branch setup) are handled by the CLI orchestrator. Steps 4-9 (implement through retrospective) are handled by the **programmatic orchestrator** — a TypeScript `while`/`switch` loop that makes phase transitions deterministic rather than LLM-interpreted.
 
-All agents run as [Pi](https://github.com/nicknisi/pi) sessions — the orchestrator as an interactive session with a TUI, sub-agents as batch sessions. Each agent role can use a different model/provider via `~/.config/case/config.json`.
+All agents run as [Pi](https://shittycodingagent.ai/) sessions — the orchestrator as an interactive session with a TUI, sub-agents as batch sessions. Each agent role can use a different model/provider via `~/.config/case/config.json`.
 
 ### The Agents
 
