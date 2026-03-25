@@ -27,6 +27,12 @@ export interface OrchestratorSessionOptions {
 }
 
 export async function startOrchestratorSession(options: OrchestratorSessionOptions): Promise<void> {
+  // Suppress structured JSON logs in interactive mode — the TUI provides its own feedback.
+  // Preserve logging if CASE_DEBUG is explicitly set.
+  if (!process.env.CASE_DEBUG) {
+    process.env.CASE_QUIET = '1';
+  }
+
   const cwd = process.cwd();
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
