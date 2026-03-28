@@ -563,4 +563,87 @@ describe('runPipeline', () => {
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1: verifier'));
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
   });
+
+  it('tiny profile skips verify phase', async () => {
+    const tinyTask = { ...mockTask, profile: 'tiny' as const };
+    mockStoreRead.mockResolvedValue(tinyTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (verify skipped)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // 4 agents: implementer, reviewer, closer, retrospective (no verifier)
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(4);
+    // Second spawn should be reviewer, not verifier
+    const secondPrompt = mockSpawnAgent.mock.calls[1][0].prompt;
+    expect(secondPrompt).toContain('# reviewer');
+  });
+
+  it('standard profile runs all phases (backward compat)', async () => {
+    const standardTask = { ...mockTask, profile: 'standard' as const };
+    mockStoreRead.mockResolvedValue(standardTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    // 5 agents: all phases
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('task without profile field defaults to standard (all phases)', async () => {
+    // mockTask has no profile field — should default to standard
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('complex profile runs all phases (same as standard)', async () => {
+    const complexTask = { ...mockTask, profile: 'complex' as const };
+    mockStoreRead.mockResolvedValue(complexTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('tiny profile: retrospective still runs after all profiles', async () => {
+    const tinyTask = { ...mockTask, profile: 'tiny' as const };
+    mockStoreRead.mockResolvedValue(tinyTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Last spawn is retrospective
+    const lastCall = mockSpawnAgent.mock.calls[3][0];
+    expect(lastCall.agentName).toBe('retrospective');
+  });
 });

@@ -54,6 +54,7 @@ export async function createTask(
     issueType: request.issueType ?? 'freeform',
     branch: enrichment?.branch,
     mode: request.mode ?? 'attended',
+    profile: request.profile ?? 'standard',
     agents: {},
     tested: false,
     manualTested: false,

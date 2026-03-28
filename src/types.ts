@@ -19,6 +19,8 @@ export interface TaskJson {
   contractPath?: string | null;
   branch?: string;
   mode?: PipelineMode;
+  /** Pipeline profile — determines which phases run (default: 'standard') */
+  profile?: PipelineProfile;
   agents: Partial<Record<AgentName, AgentPhase>>;
   tested: boolean;
   manualTested: boolean;
@@ -94,6 +96,15 @@ export interface ReviewerRubric {
 export type Rubric = VerifierRubric | ReviewerRubric;
 
 export type PipelineMode = 'attended' | 'unattended';
+
+export type PipelineProfile = 'tiny' | 'standard' | 'complex';
+
+/** Which phases run for each profile. Order matters — pipeline executes in this order. */
+export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
+  tiny: ['implement', 'review', 'close', 'retrospective'],
+  standard: ['implement', 'verify', 'review', 'close', 'retrospective'],
+  complex: ['implement', 'verify', 'review', 'close', 'retrospective'],
+};
 
 export type PipelinePhase = 'implement' | 'verify' | 'review' | 'close' | 'retrospective' | 'complete' | 'abort';
 
@@ -263,6 +274,7 @@ export interface TaskCreateRequest {
   issueType?: 'github' | 'linear' | 'freeform' | 'ideation';
   issue?: string;
   mode?: PipelineMode;
+  profile?: PipelineProfile;
   trigger: TriggerSource;
   autoStart?: boolean;
   checkCommand?: string;

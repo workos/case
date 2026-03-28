@@ -47,6 +47,12 @@
       "default": "attended",
       "description": "Pipeline execution mode. Attended = human monitors and can intervene. Unattended = autonomous with auto-abort on failure."
     },
+    "profile": {
+      "type": "string",
+      "enum": ["tiny", "standard", "complex"],
+      "default": "standard",
+      "description": "Pipeline profile — determines which phases run. tiny = skip verify (docs/config), standard = all phases (default), complex = all phases with done contract required."
+    },
     "agents": {
       "type": "object",
       "description": "Tracking for each agent phase in the multi-agent pipeline",

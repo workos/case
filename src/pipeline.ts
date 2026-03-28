@@ -1,4 +1,5 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, RevisionRequest } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, PipelineProfile, RevisionRequest } from './types.js';
+import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { determineEntryPhase } from './state/transitions.js';
 import { createNotifier, formatDuration, type Notifier } from './notify.js';
@@ -41,7 +42,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   };
 
   const task = await store.read();
-  let currentPhase: PipelinePhase = determineEntryPhase(task);
+  const profile = task.profile ?? 'standard';
+  const allowedPhases = new Set(PROFILE_PHASES[profile]);
+  let currentPhase: PipelinePhase = determineEntryPhase(task, profile);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
   let revisionCycles = 0;
@@ -59,6 +62,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   log.info('pipeline started', { phase: currentPhase, mode: config.mode, task: task.id, runId: metrics.runId });
 
   while (currentPhase !== 'complete' && currentPhase !== 'abort') {
+    // Skip phases not in this profile
+    if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective') {
+      const skipped = currentPhase;
+      currentPhase = nextPhaseInProfile(currentPhase, profile);
+      log.phase(skipped, 'skipped-by-profile', { profile });
+      continue;
+    }
+
     log.phase(currentPhase, 'entering');
     const phaseAgent = PHASE_AGENT_MAP[currentPhase];
     if (phaseAgent) {
@@ -293,6 +304,17 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   } else {
     notifier.send('Pipeline completed successfully.');
   }
+}
+
+/** Given a phase that was skipped, determine the next phase to try. */
+function nextPhaseInProfile(skippedPhase: PipelinePhase, profile: PipelineProfile): PipelinePhase {
+  const phases = PROFILE_PHASES[profile];
+  const ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
+  const skippedIdx = ORDER.indexOf(skippedPhase);
+  for (let i = skippedIdx + 1; i < ORDER.length; i++) {
+    if (phases.includes(ORDER[i])) return ORDER[i];
+  }
+  return 'complete';
 }
 
 async function handleFailure(
