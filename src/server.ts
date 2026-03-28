@@ -175,7 +175,7 @@ async function handleStartTask(idx: number, caseRoot: string, pendingTasks: Task
     return Response.json({ error: 'Task index out of range' }, { status: 404 });
   }
 
-  const request = pendingTasks.splice(idx, 1)[0];
+  const request = pendingTasks[idx];
 
   let created;
   try {
@@ -183,6 +183,9 @@ async function handleStartTask(idx: number, caseRoot: string, pendingTasks: Task
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
   }
+
+  // Only remove from queue after successful creation
+  pendingTasks.splice(idx, 1);
 
   dispatchPipeline(caseRoot, created.taskJsonPath).catch((err) => {
     log.error('pipeline dispatch failed', { taskId: created.taskId, error: String(err) });
