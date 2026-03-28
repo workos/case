@@ -33,11 +33,21 @@ export interface TaskEnrichment {
  * - `branch` field in JSON
  * - Richer markdown with issue reference and labels
  */
+const DONE_CONTRACT_FIELDS = ['verificationScenarios', 'nonGoals', 'edgeCases', 'evidenceExpectations'] as const;
+
 export async function createTask(
   caseRoot: string,
   request: TaskCreateRequest,
   enrichment?: TaskEnrichment,
 ): Promise<TaskCreateResult> {
+  // Complex profile requires all done contract sections
+  if (request.profile === 'complex') {
+    const missing = DONE_CONTRACT_FIELDS.filter((f) => !request[f]);
+    if (missing.length > 0) {
+      throw new Error(`complex profile requires done contract fields: ${missing.join(', ')}`);
+    }
+  }
+
   const taskId = generateTaskId(request.repo, request.title);
   const activeDir = resolve(caseRoot, 'tasks/active');
   await mkdir(activeDir, { recursive: true });

@@ -88,8 +88,10 @@ export class MetricsCollector {
     this.reviewerRubric = rubric;
   }
 
-  /** Record whether a revision cycle resolved the evaluator's findings. */
+  /** Record whether a revision cycle resolved the evaluator's findings.
+   *  Once set to false (budget exhausted), a later clean pass cannot overwrite to true. */
   setRevisionFixedIssues(fixed: boolean): void {
+    if (this.revisionFixedIssues === false && fixed) return;
     this.revisionFixedIssues = fixed;
   }
 

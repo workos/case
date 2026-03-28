@@ -28,20 +28,6 @@ export function createTaskTool(caseRoot: string) {
     promptSnippet: 'Create a new task for a repo',
     parameters: taskParams,
     execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
-      // Complex profile requires done contract sections
-      if (params.profile === 'complex') {
-        const missing = ['verificationScenarios', 'nonGoals', 'edgeCases', 'evidenceExpectations'].filter(
-          (f) => !params[f as keyof typeof params],
-        );
-        if (missing.length > 0) {
-          return {
-            content: [{ type: 'text', text: `Error: complex profile requires done contract fields: ${missing.join(', ')}` }],
-            isError: true,
-            details: null,
-          };
-        }
-      }
-
       const request: TaskCreateRequest = {
         repo: params.repo,
         title: params.title,
@@ -56,17 +42,24 @@ export function createTaskTool(caseRoot: string) {
         evidenceExpectations: params.evidenceExpectations,
       };
 
-      const result = await createTask(caseRoot, request);
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Task created: ${result.taskId}\n  JSON: ${result.taskJsonPath}\n  Spec: ${result.taskMdPath}`,
-          },
-        ],
-        details: result,
-      };
+      try {
+        const result = await createTask(caseRoot, request);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Task created: ${result.taskId}\n  JSON: ${result.taskJsonPath}\n  Spec: ${result.taskMdPath}`,
+            },
+          ],
+          details: result,
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+          details: null,
+        };
+      }
     },
   });
 }

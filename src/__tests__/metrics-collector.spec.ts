@@ -151,6 +151,20 @@ describe('MetricsCollector', () => {
     expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(false);
   });
 
+  it('revisionFixedIssues false is not overwritten by true', () => {
+    collector.setRevisionFixedIssues(false);
+    collector.setRevisionFixedIssues(true);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(false);
+  });
+
+  it('revisionFixedIssues true can be overwritten by false', () => {
+    collector.setRevisionFixedIssues(true);
+    collector.setRevisionFixedIssues(false);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(false);
+  });
+
   it('accumulates skipped phases', () => {
     collector.addSkippedPhase('verify');
     collector.addSkippedPhase('review');

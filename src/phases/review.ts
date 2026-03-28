@@ -66,7 +66,7 @@ export async function runReviewPhase(
   await store.setAgentPhase('reviewer', 'completed', 'now');
   previousResults.set('reviewer', result);
 
-  // Single pass through rubric categories: classify hard vs soft fails
+  // Rubric hard-category fails → abort
   if (result.rubric?.role === 'reviewer') {
     const hardFails = result.rubric.categories.filter(
       (c) => (c.category === 'principle-compliance' || c.category === 'scope-discipline') && c.verdict === 'fail',
@@ -75,7 +75,16 @@ export async function runReviewPhase(
       log.phase('review', 'rubric-hard-fail', { categories: hardFails.map((c) => c.category) });
       return { result, nextPhase: 'abort' };
     }
+  }
 
+  // Critical findings → abort (checked before soft fails so blocking issues always abort)
+  if (result.findings && result.findings.critical > 0) {
+    log.phase('review', 'critical-findings', { critical: result.findings.critical });
+    return { result, nextPhase: 'abort' };
+  }
+
+  // Soft-category fails → revision request (only reachable when no blocking issues exist)
+  if (result.rubric?.role === 'reviewer') {
     const softFails = result.rubric.categories.filter(
       (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
     );
@@ -84,12 +93,6 @@ export async function runReviewPhase(
       log.phase('review', 'completed-with-revision', { softFails: softFails.map((c) => c.category) });
       return { result, nextPhase: 'close', revision };
     }
-  }
-
-  // Critical findings → abort (pipeline decides attended/unattended behavior)
-  if (result.findings && result.findings.critical > 0) {
-    log.phase('review', 'critical-findings', { critical: result.findings.critical });
-    return { result, nextPhase: 'abort' };
   }
 
   if (result.status === 'completed' || result.status === 'blocked') {

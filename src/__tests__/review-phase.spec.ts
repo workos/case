@@ -211,6 +211,29 @@ describe('runReviewPhase', () => {
     expect(output.revision!.failedCategories).toHaveLength(2);
   });
 
+  it('critical findings + soft-fail rubric → abort (not revision)', async () => {
+    const result: AgentResult = {
+      ...completedResult,
+      findings: { critical: 1, warnings: 0, info: 0, details: [] },
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+          { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+    };
+    mockSpawnAgent.mockResolvedValue({ raw: '', result, durationMs: 100 });
+
+    const store = makeMockStore();
+    const output = await runReviewPhase(makeConfig(), store as any, new Map());
+
+    expect(output.nextPhase).toBe('abort');
+    expect(output.revision).toBeUndefined();
+  });
+
   it('critical findings → abort (not revision)', async () => {
     const result: AgentResult = {
       ...completedResult,
