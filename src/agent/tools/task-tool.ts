@@ -9,6 +9,10 @@ const taskParams = Type.Object({
   description: Type.String({ description: 'Task description' }),
   issue: Type.Optional(Type.String({ description: 'Issue identifier' })),
   issueType: Type.Optional(Type.Union([Type.Literal('github'), Type.Literal('linear'), Type.Literal('freeform')])),
+  verificationScenarios: Type.Optional(Type.String({ description: 'Markdown list of scenarios the verifier will test' })),
+  nonGoals: Type.Optional(Type.String({ description: 'What is explicitly NOT in scope for this task' })),
+  edgeCases: Type.Optional(Type.String({ description: 'Edge cases the implementer should consider' })),
+  evidenceExpectations: Type.Optional(Type.String({ description: 'What evidence proves the fix works (screenshots, test output, etc.)' })),
 });
 
 export function createTaskTool(caseRoot: string): ToolDefinition<typeof taskParams> {
@@ -26,6 +30,10 @@ export function createTaskTool(caseRoot: string): ToolDefinition<typeof taskPara
         issue: params.issue,
         issueType: params.issueType ?? 'freeform',
         trigger: { type: 'cli', user: 'local' },
+        verificationScenarios: params.verificationScenarios,
+        nonGoals: params.nonGoals,
+        edgeCases: params.edgeCases,
+        evidenceExpectations: params.evidenceExpectations,
       };
 
       const result = await createTask(caseRoot, request);

@@ -114,5 +114,24 @@ function buildTaskMarkdown(request: TaskCreateRequest, taskJson: TaskJson, issue
     '',
   );
 
+  // Done contract sections (skip for ideation tasks — contract subsumes this)
+  if (request.issueType !== 'ideation') {
+    if (request.verificationScenarios) {
+      lines.push('## Verification Scenarios', '', request.verificationScenarios, '');
+    }
+    if (request.nonGoals) {
+      lines.push('## Non-Goals', '', request.nonGoals, '');
+    }
+    if (request.edgeCases) {
+      lines.push('## Edge Cases', '', request.edgeCases, '');
+    }
+    if (request.evidenceExpectations) {
+      lines.push('## Evidence Expectations', '', request.evidenceExpectations, '');
+    }
+  }
+
+  // Progress Log always at the end
+  lines.push('## Progress Log', '', '<!-- Agents append entries below. Do not edit existing entries. -->', '');
+
   return lines.filter((line) => line !== false).join('\n');
 }

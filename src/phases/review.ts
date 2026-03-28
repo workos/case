@@ -65,6 +65,17 @@ export async function runReviewPhase(
   await store.setAgentPhase('reviewer', 'completed', 'now');
   previousResults.set('reviewer', result);
 
+  // Rubric hard-category fails → abort
+  if (result.rubric?.role === 'reviewer') {
+    const hardFails = result.rubric.categories.filter(
+      (c) => (c.category === 'principle-compliance' || c.category === 'scope-discipline') && c.verdict === 'fail',
+    );
+    if (hardFails.length > 0) {
+      log.phase('review', 'rubric-hard-fail', { categories: hardFails.map((c) => c.category) });
+      return { result, nextPhase: 'abort' };
+    }
+  }
+
   // Critical findings → abort (pipeline decides attended/unattended behavior)
   if (result.findings && result.findings.critical > 0) {
     log.phase('review', 'critical-findings', { critical: result.findings.critical });

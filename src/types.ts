@@ -44,6 +44,8 @@ export interface AgentResult {
     prNumber: number | null;
   };
   findings?: ReviewFindings;
+  /** Structured rubric from evaluator agents (verifier/reviewer) */
+  rubric?: Rubric;
   error: string | null;
 }
 
@@ -59,6 +61,37 @@ export interface ReviewFindings {
     line: number | null;
   }>;
 }
+
+export type RubricVerdict = 'pass' | 'fail' | 'na';
+
+export interface RubricCategory {
+  /** Category name (e.g., "reproduced-scenario") */
+  category: string;
+  /** Binary verdict */
+  verdict: RubricVerdict;
+  /** Finding text when verdict is fail; brief note when pass/na */
+  detail: string;
+}
+
+/**
+ * Verifier rubric — behavioral truth.
+ * Categories: reproduced-scenario, exercised-changed-path, evidence-proves-change, edge-case-checked
+ */
+export interface VerifierRubric {
+  role: 'verifier';
+  categories: RubricCategory[];
+}
+
+/**
+ * Reviewer rubric — architectural truth.
+ * Categories: principle-compliance, test-sufficiency, scope-discipline, pattern-fit
+ */
+export interface ReviewerRubric {
+  role: 'reviewer';
+  categories: RubricCategory[];
+}
+
+export type Rubric = VerifierRubric | ReviewerRubric;
 
 export type PipelineMode = 'attended' | 'unattended';
 
@@ -211,6 +244,15 @@ export interface TaskCreateRequest {
   checkCommand?: string;
   checkBaseline?: number;
   checkTarget?: number;
+
+  /** Verification scenarios the verifier will test (done contract) */
+  verificationScenarios?: string;
+  /** What is explicitly NOT in scope (done contract) */
+  nonGoals?: string;
+  /** Edge cases to consider (done contract) */
+  edgeCases?: string;
+  /** What evidence proves the fix works (done contract) */
+  evidenceExpectations?: string;
 }
 
 // --- Wave 5: Scanners ---
