@@ -1,6 +1,6 @@
 import type { ProjectEntry, ServerConfig, TaskCreateRequest } from './types.js';
 import { loadProjects } from './config.js';
-import { createTask } from './entry/task-factory.js';
+import { createTask, TaskValidationError } from './entry/task-factory.js';
 import { parseGitHubEvent, verifyWebhookSignature } from './entry/github-webhook.js';
 import { startScanners } from './entry/scanners/index.js';
 import { buildPipelineConfig } from './config.js';
@@ -165,7 +165,10 @@ async function handleCreateTask(req: Request, caseRoot: string): Promise<Respons
   try {
     created = await createTask(caseRoot, request);
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+    if (err instanceof TaskValidationError) {
+      return Response.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
   }
   return Response.json({ taskId: created.taskId, path: created.taskJsonPath }, { status: 201 });
 }
@@ -181,7 +184,10 @@ async function handleStartTask(idx: number, caseRoot: string, pendingTasks: Task
   try {
     created = await createTask(caseRoot, request);
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+    if (err instanceof TaskValidationError) {
+      return Response.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
   }
 
   // Only remove from queue after successful creation

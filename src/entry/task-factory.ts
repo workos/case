@@ -33,6 +33,13 @@ export interface TaskEnrichment {
  * - `branch` field in JSON
  * - Richer markdown with issue reference and labels
  */
+export class TaskValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TaskValidationError';
+  }
+}
+
 const DONE_CONTRACT_FIELDS = ['verificationScenarios', 'nonGoals', 'edgeCases', 'evidenceExpectations'] as const;
 
 export async function createTask(
@@ -44,7 +51,7 @@ export async function createTask(
   if (request.profile === 'complex') {
     const missing = DONE_CONTRACT_FIELDS.filter((f) => !request[f]);
     if (missing.length > 0) {
-      throw new Error(`complex profile requires done contract fields: ${missing.join(', ')}`);
+      throw new TaskValidationError(`complex profile requires done contract fields: ${missing.join(', ')}`);
     }
   }
 
