@@ -28,6 +28,20 @@ export function createTaskTool(caseRoot: string) {
     promptSnippet: 'Create a new task for a repo',
     parameters: taskParams,
     execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+      // Complex profile requires done contract sections
+      if (params.profile === 'complex') {
+        const missing = ['verificationScenarios', 'nonGoals', 'edgeCases', 'evidenceExpectations'].filter(
+          (f) => !params[f as keyof typeof params],
+        );
+        if (missing.length > 0) {
+          return {
+            content: [{ type: 'text', text: `Error: complex profile requires done contract fields: ${missing.join(', ')}` }],
+            isError: true,
+            details: null,
+          };
+        }
+      }
+
       const request: TaskCreateRequest = {
         repo: params.repo,
         title: params.title,

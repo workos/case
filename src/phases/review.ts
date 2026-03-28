@@ -1,8 +1,9 @@
-import type { AgentName, AgentResult, PhaseOutput, PipelineConfig, RevisionRequest } from '../types.js';
+import type { AgentName, AgentResult, PhaseOutput, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
+import { buildRevisionRequest } from './revision.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -65,7 +66,7 @@ export async function runReviewPhase(
   await store.setAgentPhase('reviewer', 'completed', 'now');
   previousResults.set('reviewer', result);
 
-  // Rubric hard-category fails → abort
+  // Single pass through rubric categories: classify hard vs soft fails
   if (result.rubric?.role === 'reviewer') {
     const hardFails = result.rubric.categories.filter(
       (c) => (c.category === 'principle-compliance' || c.category === 'scope-discipline') && c.verdict === 'fail',
@@ -74,30 +75,21 @@ export async function runReviewPhase(
       log.phase('review', 'rubric-hard-fail', { categories: hardFails.map((c) => c.category) });
       return { result, nextPhase: 'abort' };
     }
+
+    const softFails = result.rubric.categories.filter(
+      (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
+    );
+    if (softFails.length > 0) {
+      const revision = buildRevisionRequest('reviewer', softFails);
+      log.phase('review', 'completed-with-revision', { softFails: softFails.map((c) => c.category) });
+      return { result, nextPhase: 'close', revision };
+    }
   }
 
   // Critical findings → abort (pipeline decides attended/unattended behavior)
   if (result.findings && result.findings.critical > 0) {
     log.phase('review', 'critical-findings', { critical: result.findings.critical });
     return { result, nextPhase: 'abort' };
-  }
-
-  // Check for soft-category fails (test-sufficiency, pattern-fit) → revision request
-  if (result.rubric?.role === 'reviewer') {
-    const softFails = result.rubric.categories.filter(
-      (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
-    );
-    if (softFails.length > 0) {
-      const revision: RevisionRequest = {
-        source: 'reviewer',
-        failedCategories: softFails,
-        summary: `Reviewer found ${softFails.length} soft issue(s): ${softFails.map((f) => f.category).join(', ')}`,
-        suggestedFocus: softFails.map((f) => f.detail),
-        cycle: 0, // Pipeline sets the actual cycle number
-      };
-      log.phase('review', 'completed-with-revision', { softFails: softFails.map((c) => c.category) });
-      return { result, nextPhase: 'close', revision };
-    }
   }
 
   if (result.status === 'completed' || result.status === 'blocked') {

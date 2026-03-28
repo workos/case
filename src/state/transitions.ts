@@ -1,5 +1,5 @@
 import type { PipelinePhase, PipelineProfile, TaskJson } from '../types.js';
-import { PROFILE_PHASES } from '../types.js';
+import { PHASE_ORDER, PROFILE_PHASES } from '../types.js';
 
 /**
  * Determine which pipeline phase to enter based on current task state and profile.
@@ -19,12 +19,7 @@ export function determineEntryPhase(task: TaskJson, profile?: PipelineProfile): 
   if (allowedPhases.has(rawPhase)) return rawPhase;
 
   // Otherwise, find the next allowed phase
-  const ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
-  const rawIdx = ORDER.indexOf(rawPhase);
-  for (let i = rawIdx; i < ORDER.length; i++) {
-    if (allowedPhases.has(ORDER[i])) return ORDER[i];
-  }
-  return 'implement'; // Fallback
+  return findNextAllowedPhase(rawPhase, allowedPhases) ?? 'implement';
 }
 
 /**
@@ -72,4 +67,13 @@ function determineRawEntryPhase(task: TaskJson): PipelinePhase {
       // Fallback for unknown states
       return 'implement';
   }
+}
+
+/** Find the next phase in PHASE_ORDER that is in the allowed set, starting from (and including) the given phase. */
+export function findNextAllowedPhase(from: PipelinePhase, allowed: Set<PipelinePhase>): PipelinePhase | undefined {
+  const idx = PHASE_ORDER.indexOf(from);
+  for (let i = idx + 1; i < PHASE_ORDER.length; i++) {
+    if (allowed.has(PHASE_ORDER[i])) return PHASE_ORDER[i];
+  }
+  return undefined;
 }

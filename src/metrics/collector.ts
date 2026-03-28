@@ -98,6 +98,26 @@ export class MetricsCollector {
     this.skippedPhases.push(phase);
   }
 
+  /** Return a read-only snapshot of metrics collected so far (pre-finalization). */
+  snapshot(): {
+    revisionCycles: number;
+    humanOverrides: number;
+    profile: PipelineProfile;
+    evaluatorEffectiveness: EvaluatorEffectiveness;
+  } {
+    return {
+      revisionCycles: this.revisionCycles,
+      humanOverrides: this.humanOverrides,
+      profile: this.profile,
+      evaluatorEffectiveness: {
+        verifierRubric: this.verifierRubric,
+        reviewerRubric: this.reviewerRubric,
+        revisionFixedIssues: this.revisionFixedIssues,
+        skippedPhases: [...this.skippedPhases],
+      },
+    };
+  }
+
   /** Finalize and return the complete metrics for this run. */
   finalize(outcome: 'completed' | 'failed', failedAgent?: AgentName): RunMetrics {
     const completedAt = new Date().toISOString();
