@@ -161,7 +161,12 @@ async function handleCreateTask(req: Request, caseRoot: string): Promise<Respons
     request.trigger = { type: 'manual', description: 'Created via API' };
   }
 
-  const created = await createTask(caseRoot, request);
+  let created;
+  try {
+    created = await createTask(caseRoot, request);
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+  }
   return Response.json({ taskId: created.taskId, path: created.taskJsonPath }, { status: 201 });
 }
 
@@ -171,7 +176,13 @@ async function handleStartTask(idx: number, caseRoot: string, pendingTasks: Task
   }
 
   const request = pendingTasks.splice(idx, 1)[0];
-  const created = await createTask(caseRoot, request);
+
+  let created;
+  try {
+    created = await createTask(caseRoot, request);
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 400 });
+  }
 
   dispatchPipeline(caseRoot, created.taskJsonPath).catch((err) => {
     log.error('pipeline dispatch failed', { taskId: created.taskId, error: String(err) });
