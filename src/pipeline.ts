@@ -55,6 +55,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
   config.traceWriter = traceWriter;
 
+  // Track pipeline profile
+  metrics.setProfile(profile);
+
   // Load prompt versions for this run's metrics
   const promptVersions = await getCurrentPromptVersions(config.caseRoot);
   metrics.setPromptVersions(promptVersions);
@@ -65,6 +68,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     // Skip phases not in this profile
     if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective') {
       const skipped = currentPhase;
+      metrics.addSkippedPhase(skipped);
       currentPhase = nextPhaseInProfile(currentPhase, profile);
       log.phase(skipped, 'skipped-by-profile', { profile });
       continue;
@@ -121,6 +125,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'verify': {
         const output = await runVerifyPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
+        // Capture verifier rubric whenever available
+        if (output.result.rubric?.role === 'verifier') {
+          metrics.setVerifierRubric(output.result.rubric.categories);
+        }
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'failed');
           metrics.endPhase('failed');
@@ -157,12 +165,17 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           // Revision budget exhausted — proceed anyway (soft fails don't block)
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
           metrics.endPhase('completed');
+          metrics.setRevisionFixedIssues(false);
           notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
           log.phase('verify', 'revision-budget-exhausted', { cycles: revisionCycles });
           currentPhase = output.nextPhase;
         } else {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
           metrics.endPhase('completed');
+          // Clean pass after prior revision means the revision fixed the issues
+          if (revisionCycles > 0 && !output.revision) {
+            metrics.setRevisionFixedIssues(true);
+          }
           currentPhase = output.nextPhase;
         }
         break;
@@ -171,9 +184,12 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'review': {
         const output = await runReviewPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
-        // Capture review findings in metrics
+        // Capture review findings and rubric in metrics
         if (output.result.findings) {
           metrics.setReviewFindings(output.result.findings);
+        }
+        if (output.result.rubric?.role === 'reviewer') {
+          metrics.setReviewerRubric(output.result.rubric.categories);
         }
         if (output.nextPhase === 'abort') {
           // Hard fails — existing abort handling
@@ -187,6 +203,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           if (choice === 'Re-implement and re-review') {
             currentPhase = 'implement';
           } else if (choice === 'Override and continue') {
+            metrics.addHumanOverride();
             currentPhase = 'close';
           } else {
             failedAgent = 'reviewer';
@@ -212,12 +229,17 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           // Budget exhausted — proceed (soft fails are warnings, not blockers)
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');
+          metrics.setRevisionFixedIssues(false);
           notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
           log.phase('review', 'revision-budget-exhausted', { cycles: revisionCycles });
           currentPhase = 'close';
         } else {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');
+          // Clean pass after prior revision means the revision fixed the issues
+          if (revisionCycles > 0 && !output.revision) {
+            metrics.setRevisionFixedIssues(true);
+          }
           currentPhase = output.nextPhase;
         }
         break;

@@ -96,4 +96,90 @@ describe('MetricsCollector', () => {
     const metrics = collector.finalize('completed');
     expect(metrics.revisionCycles).toBe(0);
   });
+
+  it('records pipeline profile', () => {
+    collector.setProfile('complex');
+    const metrics = collector.finalize('completed');
+    expect(metrics.profile).toBe('complex');
+  });
+
+  it('defaults profile to standard', () => {
+    const metrics = collector.finalize('completed');
+    expect(metrics.profile).toBe('standard');
+  });
+
+  it('tracks human overrides', () => {
+    collector.addHumanOverride();
+    collector.addHumanOverride();
+    const metrics = collector.finalize('completed');
+    expect(metrics.humanOverrides).toBe(2);
+  });
+
+  it('defaults humanOverrides to 0', () => {
+    const metrics = collector.finalize('completed');
+    expect(metrics.humanOverrides).toBe(0);
+  });
+
+  it('records verifier rubric', () => {
+    const rubric = [
+      { category: 'reproduced-scenario', verdict: 'pass' as const, detail: 'OK' },
+      { category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing null check' },
+    ];
+    collector.setVerifierRubric(rubric);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.verifierRubric).toEqual(rubric);
+  });
+
+  it('records reviewer rubric', () => {
+    const rubric = [
+      { category: 'scope-discipline', verdict: 'pass' as const, detail: 'In scope' },
+    ];
+    collector.setReviewerRubric(rubric);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.reviewerRubric).toEqual(rubric);
+  });
+
+  it('records revisionFixedIssues true', () => {
+    collector.setRevisionFixedIssues(true);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(true);
+  });
+
+  it('records revisionFixedIssues false', () => {
+    collector.setRevisionFixedIssues(false);
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(false);
+  });
+
+  it('accumulates skipped phases', () => {
+    collector.addSkippedPhase('verify');
+    collector.addSkippedPhase('review');
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness.skippedPhases).toEqual(['verify', 'review']);
+  });
+
+  it('defaults evaluatorEffectiveness to empty/null values', () => {
+    const metrics = collector.finalize('completed');
+    expect(metrics.evaluatorEffectiveness).toEqual({
+      verifierRubric: null,
+      reviewerRubric: null,
+      revisionFixedIssues: null,
+      skippedPhases: [],
+    });
+  });
+
+  it('finalize includes all new fields in output', () => {
+    collector.setProfile('tiny');
+    collector.addHumanOverride();
+    collector.setVerifierRubric([{ category: 'test', verdict: 'pass', detail: 'ok' }]);
+    collector.setRevisionFixedIssues(true);
+    collector.addSkippedPhase('verify');
+
+    const metrics = collector.finalize('completed');
+    expect(metrics.profile).toBe('tiny');
+    expect(metrics.humanOverrides).toBe(1);
+    expect(metrics.evaluatorEffectiveness.verifierRubric).toHaveLength(1);
+    expect(metrics.evaluatorEffectiveness.revisionFixedIssues).toBe(true);
+    expect(metrics.evaluatorEffectiveness.skippedPhases).toEqual(['verify']);
+  });
 });

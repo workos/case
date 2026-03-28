@@ -257,6 +257,29 @@ export interface RunMetrics {
   promptVersions: Record<string, string>;
   /** Number of revision cycles executed (verify→re-implement or review→re-implement) */
   revisionCycles: number;
+
+  /** Pipeline profile used for this run */
+  profile: PipelineProfile;
+
+  /** Number of times a human overrode an evaluator decision (attended mode) */
+  humanOverrides: number;
+
+  /** Evaluator effectiveness signals */
+  evaluatorEffectiveness: EvaluatorEffectiveness;
+}
+
+export interface EvaluatorEffectiveness {
+  /** Verifier rubric results (if verifier ran) */
+  verifierRubric: RubricCategory[] | null;
+
+  /** Reviewer rubric results (if reviewer ran) */
+  reviewerRubric: RubricCategory[] | null;
+
+  /** Did a revision cycle fix the evaluator's findings? (null if no revision) */
+  revisionFixedIssues: boolean | null;
+
+  /** Phases that were skipped due to profile */
+  skippedPhases: PipelinePhase[];
 }
 
 // --- Wave 5: Entry points ---

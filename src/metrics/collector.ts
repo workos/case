@@ -1,4 +1,4 @@
-import type { AgentName, PhaseMetrics, PipelinePhase, ReviewFindings, RunMetrics } from '../types.js';
+import type { AgentName, EvaluatorEffectiveness, PhaseMetrics, PipelinePhase, PipelineProfile, ReviewFindings, RubricCategory, RunMetrics } from '../types.js';
 
 /**
  * Collects per-phase timing and structured metrics during a pipeline run.
@@ -13,6 +13,12 @@ export class MetricsCollector {
   private ciFirstPush: boolean | null = null;
   private promptVersions: Record<string, string> = {};
   private revisionCycles = 0;
+  private profile: PipelineProfile = 'standard';
+  private humanOverrides = 0;
+  private verifierRubric: RubricCategory[] | null = null;
+  private reviewerRubric: RubricCategory[] | null = null;
+  private revisionFixedIssues: boolean | null = null;
+  private skippedPhases: PipelinePhase[] = [];
 
   constructor() {
     this.runId = crypto.randomUUID();
@@ -62,6 +68,36 @@ export class MetricsCollector {
     this.revisionCycles++;
   }
 
+  /** Set the pipeline profile for this run. */
+  setProfile(profile: PipelineProfile): void {
+    this.profile = profile;
+  }
+
+  /** Record that a human overrode an evaluator decision. */
+  addHumanOverride(): void {
+    this.humanOverrides++;
+  }
+
+  /** Record verifier rubric results. */
+  setVerifierRubric(rubric: RubricCategory[]): void {
+    this.verifierRubric = rubric;
+  }
+
+  /** Record reviewer rubric results. */
+  setReviewerRubric(rubric: RubricCategory[]): void {
+    this.reviewerRubric = rubric;
+  }
+
+  /** Record whether a revision cycle resolved the evaluator's findings. */
+  setRevisionFixedIssues(fixed: boolean): void {
+    this.revisionFixedIssues = fixed;
+  }
+
+  /** Record a phase skipped by profile. */
+  addSkippedPhase(phase: PipelinePhase): void {
+    this.skippedPhases.push(phase);
+  }
+
   /** Finalize and return the complete metrics for this run. */
   finalize(outcome: 'completed' | 'failed', failedAgent?: AgentName): RunMetrics {
     const completedAt = new Date().toISOString();
@@ -78,6 +114,14 @@ export class MetricsCollector {
       reviewFindings: this.reviewFindings,
       promptVersions: this.promptVersions,
       revisionCycles: this.revisionCycles,
+      profile: this.profile,
+      humanOverrides: this.humanOverrides,
+      evaluatorEffectiveness: {
+        verifierRubric: this.verifierRubric,
+        reviewerRubric: this.reviewerRubric,
+        revisionFixedIssues: this.revisionFixedIssues,
+        skippedPhases: this.skippedPhases,
+      },
     };
   }
 }

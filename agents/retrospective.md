@@ -51,6 +51,13 @@ Check each dimension:
 - Did the verifier fail and trigger a fix-and-retry loop?
 - What did the verifier catch that the implementer missed? Is there a pattern the implementer should have followed?
 
+**Revision loops**
+
+- How many evaluator→implementer revision cycles occurred? (Check `revisionCycles` in run metrics)
+- What did the evaluator catch? Was the done contract unclear? Was the fix approach wrong?
+- Did the revision cycle resolve the evaluator's findings? (Check `evaluatorEffectiveness.revisionFixedIssues`)
+- Were there human overrides? High override counts suggest the evaluator is too strict.
+
 **Evidence gates**
 
 - Did the closer fail pre-flight checks?
@@ -79,6 +86,9 @@ For each finding, classify where the fix belongs:
 | Agent prompt insufficient          | `agents/`                   | "Implementer should read example app .env before starting"    |
 | Pipeline logic too strict/lenient  | `src/phases/`               | "close phase should also verify build passes"                 |
 | Target repo CLAUDE.md missing info | Target repo's `CLAUDE.md`   | "Add cookie configuration section"                            |
+| Revision loop on same category 3+ times | `agents/implementer.md` | "Add explicit reminder to check edge cases before committing" |
+| Revision didn't fix the issue      | `agents/verifier.md` or `agents/reviewer.md` | "Evaluator feedback was too vague — make rubric detail more prescriptive" |
+| High human override rate           | `agents/reviewer.md`        | "Reviewer is too strict on pattern-fit for this repo type"    |
 | No improvement needed              | —                           | Pipeline worked as designed                                   |
 
 ### 4. Propose Amendments (staged, not direct)
