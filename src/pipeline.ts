@@ -109,6 +109,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let revisionCycles = pendingRevision?.cycle ?? 0;
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
+  // Restore persisted revision count so resumed runs log accurate metrics.
+  metrics.setRevisionCycles(revisionCycles);
+
   // Per-run trace writer for tool-level observability
   const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
   config.traceWriter = traceWriter;

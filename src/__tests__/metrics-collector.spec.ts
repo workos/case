@@ -97,6 +97,18 @@ describe('MetricsCollector', () => {
     expect(metrics.revisionCycles).toBe(0);
   });
 
+  it('restores revisionCycles from a resumed run', () => {
+    collector.setRevisionCycles(2);
+    const metrics = collector.finalize('completed');
+    expect(metrics.revisionCycles).toBe(2);
+  });
+
+  it('normalizes restored revisionCycles to a non-negative integer', () => {
+    collector.setRevisionCycles(-1.8);
+    const metrics = collector.finalize('completed');
+    expect(metrics.revisionCycles).toBe(0);
+  });
+
   it('records pipeline profile', () => {
     collector.setProfile('complex');
     const metrics = collector.finalize('completed');

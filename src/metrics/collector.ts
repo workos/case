@@ -68,6 +68,11 @@ export class MetricsCollector {
     this.revisionCycles++;
   }
 
+  /** Restore the revision cycle counter when resuming a persisted revision loop. */
+  setRevisionCycles(count: number): void {
+    this.revisionCycles = Math.max(0, Math.trunc(count));
+  }
+
   /** Set the pipeline profile for this run. */
   setProfile(profile: PipelineProfile): void {
     this.profile = profile;

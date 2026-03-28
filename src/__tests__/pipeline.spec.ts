@@ -817,6 +817,34 @@ describe('runPipeline', () => {
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
   });
 
+  it('resumed run writes restored revisionCycles to metrics', async () => {
+    const taskWithRevision = {
+      ...mockTask,
+      status: 'verifying' as const,
+      agents: { verifier: { started: '2026-03-14', completed: '2026-03-14', status: 'completed' as const } },
+      pendingRevision: {
+        source: 'verifier' as const,
+        failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing check' }],
+        summary: 'Verifier found 1 issue(s)',
+        suggestedFocus: ['Missing check'],
+        cycle: 1,
+      },
+    };
+    mockStoreRead.mockResolvedValue(taskWithRevision);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    const writtenMetrics = mockWriteRunMetrics.mock.calls[0][3];
+    expect(writtenMetrics.revisionCycles).toBe(1);
+  });
+
   it('complex profile runs all phases (same as standard)', async () => {
     const complexTask = { ...mockTask, profile: 'complex' as const };
     mockStoreRead.mockResolvedValue(complexTask);
