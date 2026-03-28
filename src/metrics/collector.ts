@@ -12,6 +12,7 @@ export class MetricsCollector {
   private reviewFindings: ReviewFindings | null = null;
   private ciFirstPush: boolean | null = null;
   private promptVersions: Record<string, string> = {};
+  private revisionCycles = 0;
 
   constructor() {
     this.runId = crypto.randomUUID();
@@ -56,6 +57,11 @@ export class MetricsCollector {
     this.promptVersions = versions;
   }
 
+  /** Increment the revision cycle counter. */
+  addRevisionCycle(): void {
+    this.revisionCycles++;
+  }
+
   /** Finalize and return the complete metrics for this run. */
   finalize(outcome: 'completed' | 'failed', failedAgent?: AgentName): RunMetrics {
     const completedAt = new Date().toISOString();
@@ -71,6 +77,7 @@ export class MetricsCollector {
       ciFirstPush: this.ciFirstPush,
       reviewFindings: this.reviewFindings,
       promptVersions: this.promptVersions,
+      revisionCycles: this.revisionCycles,
     };
   }
 }

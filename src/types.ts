@@ -106,6 +106,8 @@ export interface PipelineConfig {
   caseRoot: string;
   maxRetries: number;
   dryRun: boolean;
+  /** Max evaluator→implementer revision cycles (default: 2) */
+  maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
   onAgentHeartbeat?: (elapsedMs: number) => void;
   /** Per-run trace writer for tool-level observability. */
@@ -132,9 +134,29 @@ export interface FailureAnalysis {
   retryViable: boolean;
 }
 
+/** Structured revision request from evaluator (verifier/reviewer) when fixable issues are found */
+export interface RevisionRequest {
+  /** Which evaluator triggered the revision */
+  source: 'verifier' | 'reviewer';
+  /** Which rubric categories failed */
+  failedCategories: Array<{
+    category: string;
+    verdict: RubricVerdict;
+    detail: string;
+  }>;
+  /** Human-readable summary of what needs fixing */
+  summary: string;
+  /** Specific files or areas to focus on */
+  suggestedFocus: string[];
+  /** Which revision cycle this is (1-indexed) */
+  cycle: number;
+}
+
 export interface PhaseOutput {
   result: AgentResult;
   nextPhase: PipelinePhase;
+  /** Structured revision request when evaluator found fixable issues */
+  revision?: RevisionRequest;
 }
 
 export interface AgentModelConfig {
@@ -222,6 +244,8 @@ export interface RunMetrics {
   ciFirstPush: boolean | null;
   reviewFindings: ReviewFindings | null;
   promptVersions: Record<string, string>;
+  /** Number of revision cycles executed (verify→re-implement or review→re-implement) */
+  revisionCycles: number;
 }
 
 // --- Wave 5: Entry points ---

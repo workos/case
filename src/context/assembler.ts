@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { AgentName, AgentResult, PipelineConfig, TaskJson } from '../types.js';
+import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
 
 /**
@@ -17,13 +17,41 @@ export async function assemblePrompt(
   task: TaskJson,
   repoContext: RepoContext,
   previousResults: Map<AgentName, AgentResult>,
+  revision?: RevisionRequest,
 ): Promise<string> {
   const templatePath = resolve(config.caseRoot, `agents/${role}.md`);
   const template = await Bun.file(templatePath).text();
 
   const contextBlock = buildContextBlock(role, config, task, repoContext, previousResults);
 
-  return `${template}\n\n${contextBlock}`;
+  let prompt = `${template}\n\n${contextBlock}`;
+
+  // Prepend revision context for implementer re-entry
+  if (role === 'implementer' && revision) {
+    prompt = buildRevisionContext(revision) + '\n\n' + prompt;
+  }
+
+  return prompt;
+}
+
+function buildRevisionContext(revision: RevisionRequest): string {
+  const lines = [
+    `## REVISION CONTEXT — ${revision.source} found fixable issues (cycle ${revision.cycle})`,
+    '',
+    `**Source:** ${revision.source}`,
+    `**Summary:** ${revision.summary}`,
+    '',
+    '**Failed categories:**',
+    ...revision.failedCategories.map((c) => `- **${c.category}** (${c.verdict}): ${c.detail}`),
+    '',
+    '**Suggested focus:**',
+    ...revision.suggestedFocus.map((f) => `- ${f}`),
+    '',
+    'Address these specific issues. Do NOT redo the entire implementation.',
+    'Make targeted fixes, re-run validation, and commit.',
+    '',
+  ];
+  return lines.join('\n');
 }
 
 function buildContextBlock(

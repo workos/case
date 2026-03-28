@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, RevisionRequest } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { determineEntryPhase } from './state/transitions.js';
 import { createNotifier, formatDuration, type Notifier } from './notify.js';
@@ -44,6 +44,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let currentPhase: PipelinePhase = determineEntryPhase(task);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
+  let revisionCycles = 0;
+  let pendingRevision: RevisionRequest | null = null;
+  const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
   // Per-run trace writer for tool-level observability
   const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
@@ -72,7 +75,8 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
     switch (currentPhase) {
       case 'implement': {
-        const output = await runImplementPhase(config, store, previousResults);
+        const output = await runImplementPhase(config, store, previousResults, pendingRevision ?? undefined);
+        pendingRevision = null; // Clear after passing
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'failed');
@@ -123,6 +127,28 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             outcome = 'failed';
             currentPhase = 'retrospective';
           }
+        } else if (output.revision && revisionCycles < maxRevisionCycles) {
+          // Evaluator completed but found fixable issues — revision loop
+          notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
+          metrics.endPhase('completed');
+          pendingRevision = output.revision;
+          revisionCycles++;
+          pendingRevision.cycle = revisionCycles;
+          metrics.addRevisionCycle();
+          notifier.send(`Revision cycle ${revisionCycles}: verifier found fixable issues, re-implementing`);
+          log.phase('verify', 'revision-requested', {
+            cycle: revisionCycles,
+            source: 'verifier',
+            failedCategories: output.revision.failedCategories.map((c) => c.category),
+          });
+          currentPhase = 'implement';
+        } else if (output.revision && revisionCycles >= maxRevisionCycles) {
+          // Revision budget exhausted — proceed anyway (soft fails don't block)
+          notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
+          metrics.endPhase('completed');
+          notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
+          log.phase('verify', 'revision-budget-exhausted', { cycles: revisionCycles });
+          currentPhase = output.nextPhase;
         } else {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
           metrics.endPhase('completed');
@@ -139,6 +165,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           metrics.setReviewFindings(output.result.findings);
         }
         if (output.nextPhase === 'abort') {
+          // Hard fails — existing abort handling
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'failed');
           metrics.endPhase('failed');
           const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
@@ -155,6 +182,28 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             outcome = 'failed';
             currentPhase = 'retrospective';
           }
+        } else if (output.revision && revisionCycles < maxRevisionCycles) {
+          // Soft fails — revision loop
+          notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
+          metrics.endPhase('completed');
+          pendingRevision = output.revision;
+          revisionCycles++;
+          pendingRevision.cycle = revisionCycles;
+          metrics.addRevisionCycle();
+          notifier.send(`Revision cycle ${revisionCycles}: reviewer found fixable issues, re-implementing`);
+          log.phase('review', 'revision-requested', {
+            cycle: revisionCycles,
+            source: 'reviewer',
+            failedCategories: output.revision.failedCategories.map((c) => c.category),
+          });
+          currentPhase = 'implement';
+        } else if (output.revision && revisionCycles >= maxRevisionCycles) {
+          // Budget exhausted — proceed (soft fails are warnings, not blockers)
+          notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
+          metrics.endPhase('completed');
+          notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
+          log.phase('review', 'revision-budget-exhausted', { cycles: revisionCycles });
+          currentPhase = 'close';
         } else {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');

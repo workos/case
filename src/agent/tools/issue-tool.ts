@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import { defineTool } from './define-tool.js';
 import { fetchIssue } from '../../entry/issue-fetcher.js';
 
 const issueParams = Type.Object({
@@ -8,8 +8,8 @@ const issueParams = Type.Object({
   repoRemote: Type.Optional(Type.String({ description: 'Git remote URL for GitHub issues' })),
 });
 
-export function createIssueTool(_caseRoot: string): ToolDefinition<typeof issueParams> {
-  return {
+export function createIssueTool(_caseRoot: string) {
+  return defineTool({
     name: 'fetch_issue',
     label: 'Issue',
     description: 'Fetch issue details from GitHub, Linear, or create from freeform text',
@@ -22,5 +22,5 @@ export function createIssueTool(_caseRoot: string): ToolDefinition<typeof issueP
         details: context,
       };
     },
-  };
+  });
 }

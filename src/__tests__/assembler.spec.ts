@@ -180,4 +180,47 @@ describe('assemblePrompt', () => {
     expect(prompt).toContain('# Implementer Template');
     expect(prompt).not.toContain('Repo Learnings');
   });
+
+  it('revision context prepended to implementer prompt', async () => {
+    const revision = {
+      source: 'verifier' as const,
+      failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing null check' }],
+      summary: 'Verifier found 1 issue(s): edge-case-checked',
+      suggestedFocus: ['Missing null check'],
+      cycle: 1,
+    };
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map(), revision);
+
+    expect(prompt).toContain('REVISION CONTEXT');
+    expect(prompt).toContain('verifier');
+    expect(prompt).toContain('edge-case-checked');
+    expect(prompt).toContain('Missing null check');
+    expect(prompt).toContain('Do NOT redo the entire implementation');
+    // Revision context comes BEFORE the template
+    const revisionIdx = prompt.indexOf('REVISION CONTEXT');
+    const templateIdx = prompt.indexOf('# Implementer Template');
+    expect(revisionIdx).toBeLessThan(templateIdx);
+  });
+
+  it('no revision context when revision param is undefined', async () => {
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
+
+    expect(prompt).not.toContain('REVISION CONTEXT');
+  });
+
+  it('revision context NOT applied to non-implementer roles', async () => {
+    const revision = {
+      source: 'verifier' as const,
+      failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing null check' }],
+      summary: 'test',
+      suggestedFocus: ['test'],
+      cycle: 1,
+    };
+
+    const prompt = await assemblePrompt('verifier', makeConfig(), makeTask(), emptyRepoContext, new Map(), revision);
+
+    expect(prompt).toContain('# Verifier Template');
+    expect(prompt).not.toContain('REVISION CONTEXT');
+  });
 });

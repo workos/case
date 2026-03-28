@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import { defineTool } from './define-tool.js';
 import { runPipeline } from '../../pipeline.js';
 import { buildPipelineConfig } from '../../config.js';
 
@@ -9,8 +9,8 @@ const pipelineParams = Type.Object({
   dryRun: Type.Optional(Type.Boolean({ description: 'Skip agent spawning' })),
 });
 
-export function createPipelineTool(_caseRoot: string): ToolDefinition<typeof pipelineParams> {
-  return {
+export function createPipelineTool(_caseRoot: string) {
+  return defineTool({
     name: 'run_pipeline',
     label: 'Pipeline',
     description: 'Run the case agent pipeline (implement → verify → review → close → retrospective) for a task',
@@ -37,5 +37,5 @@ export function createPipelineTool(_caseRoot: string): ToolDefinition<typeof pip
         details: { taskJsonPath: params.taskJsonPath },
       };
     },
-  };
+  });
 }

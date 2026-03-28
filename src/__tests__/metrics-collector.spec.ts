@@ -84,4 +84,16 @@ describe('MetricsCollector', () => {
     expect(metrics.startedAt).toBeTruthy();
     expect(metrics.completedAt).toBeTruthy();
   });
+
+  it('tracks revision cycles', () => {
+    collector.addRevisionCycle();
+    collector.addRevisionCycle();
+    const metrics = collector.finalize('completed');
+    expect(metrics.revisionCycles).toBe(2);
+  });
+
+  it('defaults revisionCycles to 0', () => {
+    const metrics = collector.finalize('completed');
+    expect(metrics.revisionCycles).toBe(0);
+  });
 });

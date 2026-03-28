@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PhaseOutput, PipelineConfig } from '../types.js';
+import type { AgentName, AgentResult, PhaseOutput, PipelineConfig, RevisionRequest } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
@@ -80,6 +80,24 @@ export async function runReviewPhase(
   if (result.findings && result.findings.critical > 0) {
     log.phase('review', 'critical-findings', { critical: result.findings.critical });
     return { result, nextPhase: 'abort' };
+  }
+
+  // Check for soft-category fails (test-sufficiency, pattern-fit) → revision request
+  if (result.rubric?.role === 'reviewer') {
+    const softFails = result.rubric.categories.filter(
+      (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
+    );
+    if (softFails.length > 0) {
+      const revision: RevisionRequest = {
+        source: 'reviewer',
+        failedCategories: softFails,
+        summary: `Reviewer found ${softFails.length} soft issue(s): ${softFails.map((f) => f.category).join(', ')}`,
+        suggestedFocus: softFails.map((f) => f.detail),
+        cycle: 0, // Pipeline sets the actual cycle number
+      };
+      log.phase('review', 'completed-with-revision', { softFails: softFails.map((c) => c.category) });
+      return { result, nextPhase: 'close', revision };
+    }
   }
 
   if (result.status === 'completed' || result.status === 'blocked') {
