@@ -6,6 +6,7 @@ import { loadSystemPrompt } from './prompt-loader.js';
 import { getModelForAgent } from './config.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
 import { createLogger } from '../util/logger.js';
+import { sanitizeForTrace } from '../tracing/sanitize.js';
 import type { AgentModelConfig, SpawnAgentOptions, SpawnAgentResult } from '../types.js';
 
 const log = createLogger();
@@ -48,14 +49,45 @@ export async function spawnAgent(options: SpawnAgentOptions): Promise<SpawnAgent
     streamFn: streamSimple,
   });
 
-  // Collect full response text from streaming events
+  // Collect full response text from streaming events and trace tool calls
   let responseText = '';
+  const toolTimers = new Map<string, number>();
+
   agent.subscribe((event) => {
     if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
       responseText += event.assistantMessageEvent.delta;
     }
-    if (event.type === 'tool_execution_start' && options.onHeartbeat) {
-      options.onHeartbeat(Date.now() - start);
+    if (event.type === 'tool_execution_start') {
+      if (options.onHeartbeat) options.onHeartbeat(Date.now() - start);
+      toolTimers.set(event.toolCallId, Date.now());
+      if (options.traceWriter && options.phase) {
+        options.traceWriter.write({
+          ts: new Date().toISOString(),
+          phase: options.phase,
+          agent: options.agentName,
+          event: 'tool_start',
+          toolCallId: event.toolCallId,
+          tool: event.toolName,
+          args: sanitizeForTrace(event.args),
+        });
+      }
+    }
+    if (event.type === 'tool_execution_end') {
+      const toolStart = toolTimers.get(event.toolCallId);
+      toolTimers.delete(event.toolCallId);
+      if (options.traceWriter && options.phase) {
+        options.traceWriter.write({
+          ts: new Date().toISOString(),
+          phase: options.phase,
+          agent: options.agentName,
+          event: 'tool_end',
+          toolCallId: event.toolCallId,
+          tool: event.toolName,
+          durationMs: toolStart ? Date.now() - toolStart : 0,
+          isError: event.isError,
+          result: sanitizeForTrace(event.result),
+        });
+      }
     }
   });
 

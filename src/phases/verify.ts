@@ -52,6 +52,8 @@ export async function runVerifyPhase(
     agentName: 'verifier',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
+    traceWriter: config.traceWriter,
+    phase: 'verify',
   });
 
   if (result.status === 'completed') {

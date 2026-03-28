@@ -10,6 +10,7 @@ import { runRetrospectivePhase } from './phases/retrospective.js';
 import { MetricsCollector } from './metrics/collector.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
+import { TraceWriter } from './tracing/writer.js';
 import { createLogger } from './util/logger.js';
 
 const log = createLogger();
@@ -44,6 +45,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
 
+  // Per-run trace writer for tool-level observability
+  const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
+  config.traceWriter = traceWriter;
+
   // Load prompt versions for this run's metrics
   const promptVersions = await getCurrentPromptVersions(config.caseRoot);
   metrics.setPromptVersions(promptVersions);
@@ -56,6 +61,12 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     if (phaseAgent) {
       metrics.startPhase(currentPhase, phaseAgent);
       notifier.phaseStart(currentPhase, phaseAgent);
+      traceWriter.write({
+        ts: new Date().toISOString(),
+        phase: currentPhase,
+        agent: phaseAgent,
+        event: 'phase_start',
+      });
     }
     const phaseStartMs = Date.now();
 
@@ -180,6 +191,12 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
       case 'retrospective': {
         metrics.startPhase('retrospective', 'retrospective');
+        traceWriter.write({
+          ts: new Date().toISOString(),
+          phase: currentPhase,
+          agent: 'retrospective',
+          event: 'phase_start',
+        });
         const retroStart = Date.now();
         await runRetrospectivePhase(config, store, previousResults, outcome, failedAgent);
         notifier.phaseEnd(currentPhase, 'retrospective', Date.now() - retroStart, 'completed');
@@ -187,6 +204,19 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         currentPhase = outcome === 'completed' ? 'complete' : 'abort';
         break;
       }
+    }
+
+    // Flush trace events after each phase
+    if (phaseAgent) {
+      traceWriter.write({
+        ts: new Date().toISOString(),
+        phase: currentPhase === 'complete' || currentPhase === 'abort' ? 'retrospective' : currentPhase,
+        agent: phaseAgent,
+        event: 'phase_end',
+        outcome: outcome === 'failed' && failedAgent ? 'failed' : 'completed',
+        durationMs: Date.now() - phaseStartMs,
+      });
+      await traceWriter.flush();
     }
   }
 
@@ -198,11 +228,15 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     parentTaskId: task.contractPath,
   });
 
+  // Final trace flush
+  await traceWriter.flush();
+
   log.info('pipeline finished', {
     outcome,
     failedAgent,
     runId: runMetrics.runId,
     totalDurationMs: runMetrics.totalDurationMs,
+    traceFile: traceWriter.path,
   });
 
   if (outcome === 'failed') {
