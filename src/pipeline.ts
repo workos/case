@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, PipelineProfile, RevisionRequest } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, PipelineProfile, RevisionRequest, TaskStatus } from './types.js';
 import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { determineEntryPhase, findNextAllowedPhase } from './state/transitions.js';
@@ -15,6 +15,64 @@ import { TraceWriter } from './tracing/writer.js';
 import { createLogger } from './util/logger.js';
 
 const log = createLogger();
+
+/** Map pipeline phase to the task status that phase sets on entry. */
+const PHASE_TO_STATUS: Partial<Record<PipelinePhase, TaskStatus>> = {
+  implement: 'implementing',
+  verify: 'verifying',
+  review: 'reviewing',
+  close: 'closing',
+};
+
+/** Mirrors task-status.sh TRANSITIONS — valid status transitions. */
+const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  active: ['implementing'],
+  implementing: ['verifying', 'active'],
+  verifying: ['reviewing', 'closing', 'implementing'],
+  reviewing: ['closing', 'verifying'],
+  closing: ['pr-opened', 'verifying'],
+  'pr-opened': ['pr-opened', 'merged'],
+  merged: [],
+};
+
+/**
+ * Walk the task status through intermediate states to reach the target phase's status.
+ * Uses BFS on STATUS_TRANSITIONS to find the shortest path, then applies each step.
+ * Needed when the pipeline skips phases or loops back (e.g. tiny profile, revision loops).
+ */
+async function walkStatusToPhase(store: TaskStore, targetPhase: PipelinePhase): Promise<void> {
+  const targetStatus = PHASE_TO_STATUS[targetPhase];
+  if (!targetStatus) return; // retrospective, complete, abort don't have status
+
+  const currentStatus = await store.readStatus();
+  if (currentStatus === targetStatus) return;
+
+  // BFS to find shortest path from current → target
+  const queue: TaskStatus[][] = [[currentStatus]];
+  const visited = new Set<TaskStatus>([currentStatus]);
+
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    const tail = path[path.length - 1];
+
+    for (const next of STATUS_TRANSITIONS[tail] ?? []) {
+      if (next === targetStatus) {
+        // Apply each intermediate transition (skip the starting status)
+        for (const status of [...path.slice(1), next]) {
+          await store.setStatus(status);
+        }
+        return;
+      }
+      if (!visited.has(next)) {
+        visited.add(next);
+        queue.push([...path, next]);
+      }
+    }
+  }
+
+  // No path found — log and let the phase's own setStatus attempt (and fail) naturally
+  log.error('no status path found', { from: currentStatus, to: targetStatus });
+}
 
 const PHASE_AGENT_MAP: Record<string, AgentName | 'retrospective'> = {
   implement: 'implementer',
@@ -104,6 +162,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       log.phase(skipped, 'skipped-by-profile', { profile });
       continue;
     }
+
+    // Walk task status through intermediate transitions before entering the phase.
+    // Needed when the pipeline skips phases (tiny profile) or loops back (revision, re-implement).
+    await walkStatusToPhase(store, currentPhase);
 
     log.phase(currentPhase, 'entering');
     const phaseAgent = PHASE_AGENT_MAP[currentPhase];

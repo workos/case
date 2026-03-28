@@ -12,12 +12,13 @@ import { join } from 'node:path';
 
 // Pipeline-specific mocks (not shared — only pipeline uses these)
 const mockStoreRead = mock();
+const mockStoreReadStatus = mock();
 const mockStoreSetStatus = mock();
 const mockStoreSetAgentPhase = mock();
 const mockStoreSetField = mock();
 const MockTaskStore = mock(() => ({
   read: mockStoreRead,
-  readStatus: mock(),
+  readStatus: mockStoreReadStatus,
   setStatus: mockStoreSetStatus,
   setAgentPhase: mockStoreSetAgentPhase,
   setField: mockStoreSetField,
@@ -133,15 +134,18 @@ describe('runPipeline', () => {
 
     // Reset pipeline-specific mocks
     mockStoreRead.mockReset();
+    mockStoreReadStatus.mockReset();
     mockStoreSetStatus.mockReset();
     mockStoreSetAgentPhase.mockReset();
     mockStoreSetField.mockReset();
     mockNotifierSend.mockReset();
     mockNotifierAskUser.mockReset();
 
-    // Defaults
+    // Defaults — track status so walkStatusToPhase can read the current value
+    let currentStatus = 'active';
     mockStoreRead.mockResolvedValue(mockTask);
-    mockStoreSetStatus.mockResolvedValue(undefined);
+    mockStoreReadStatus.mockImplementation(() => Promise.resolve(currentStatus));
+    mockStoreSetStatus.mockImplementation((s: string) => { currentStatus = s; return Promise.resolve(undefined); });
     mockStoreSetAgentPhase.mockResolvedValue(undefined);
     mockStoreSetField.mockResolvedValue(undefined);
     mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
@@ -581,6 +585,48 @@ describe('runPipeline', () => {
     // Second spawn should be reviewer, not verifier
     const secondPrompt = mockSpawnAgent.mock.calls[1][0].prompt;
     expect(secondPrompt).toContain('# reviewer');
+    // walkStatusToPhase should walk implementing → verifying → reviewing
+    const statusCalls = mockStoreSetStatus.mock.calls.map((c: any) => c[0]);
+    expect(statusCalls).toContain('verifying');
+    expect(statusCalls).toContain('reviewing');
+  });
+
+  it('reviewer revision walks status reviewing → verifying → implementing', async () => {
+    const reviewerSoftFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+          { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Verify the revision loop fired (8 spawns, not 5)
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    // walkStatusToPhase should walk through intermediate statuses.
+    // The full status sequence should include verifying and implementing after the first reviewing.
+    const statusCalls = mockStoreSetStatus.mock.calls.map((c: any) => c[0]);
+    // After the first review (soft-fail), the pipeline walks reviewing → verifying → implementing
+    const firstReviewIdx = statusCalls.indexOf('reviewing');
+    const afterFirstReview = statusCalls.slice(firstReviewIdx + 1);
+    expect(afterFirstReview).toContain('verifying');
+    expect(afterFirstReview).toContain('implementing');
   });
 
   it('standard profile runs all phases (backward compat)', async () => {
