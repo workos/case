@@ -34,6 +34,10 @@ export function determineEntryPhase(task: TaskJson, profile?: PipelineProfile): 
  *   pr-opened / merged  -> complete
  */
 function determineRawEntryPhase(task: TaskJson): PipelinePhase {
+  // A persisted revision means an evaluator requested fixes before the process exited.
+  // Always resume at implement so the revision is applied.
+  if (task.pendingRevision) return 'implement';
+
   switch (task.status) {
     case 'active':
       return 'implement';

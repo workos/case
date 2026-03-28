@@ -83,7 +83,13 @@ export async function runReviewPhase(
     return { result, nextPhase: 'abort' };
   }
 
-  // Soft-category fails → revision request (only reachable when no blocking issues exist)
+  // Agent failure → abort (checked before soft-fail so operational errors aren't masked)
+  if (result.status !== 'completed' && result.status !== 'blocked') {
+    log.phase('review', 'failed', { error: result.error });
+    return { result, nextPhase: 'abort' };
+  }
+
+  // Soft-category fails → revision request (only reachable when agent completed without blocking issues)
   if (result.rubric?.role === 'reviewer') {
     const softFails = result.rubric.categories.filter(
       (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
@@ -95,11 +101,6 @@ export async function runReviewPhase(
     }
   }
 
-  if (result.status === 'completed' || result.status === 'blocked') {
-    log.phase('review', 'completed');
-    return { result, nextPhase: 'close' };
-  }
-
-  log.phase('review', 'failed', { error: result.error });
-  return { result, nextPhase: 'abort' };
+  log.phase('review', 'completed');
+  return { result, nextPhase: 'close' };
 }

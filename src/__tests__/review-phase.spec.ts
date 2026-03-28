@@ -248,6 +248,39 @@ describe('runReviewPhase', () => {
     expect(output.revision).toBeUndefined();
   });
 
+  it('failed reviewer with soft-fail rubric → abort (not revision)', async () => {
+    const result: AgentResult = {
+      status: 'failed',
+      summary: 'Reviewer crashed',
+      artifacts: {
+        commit: null,
+        filesChanged: [],
+        testsPassed: null,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs more tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+          { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+      error: 'Process exited unexpectedly',
+    };
+    mockSpawnAgent.mockResolvedValue({ raw: '', result, durationMs: 100 });
+
+    const store = makeMockStore();
+    const output = await runReviewPhase(makeConfig(), store as any, new Map());
+
+    expect(output.nextPhase).toBe('abort');
+    expect(output.revision).toBeUndefined();
+  });
+
   it('dry-run → skip, no revision', async () => {
     const store = makeMockStore();
     const output = await runReviewPhase(makeConfig({ dryRun: true }), store as any, new Map());

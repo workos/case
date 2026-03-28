@@ -106,7 +106,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
   let revisionCycles = 0;
-  let pendingRevision: RevisionRequest | null = null;
+  let pendingRevision: RevisionRequest | null = task.pendingRevision ?? null;
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
   // Per-run trace writer for tool-level observability
@@ -123,14 +123,15 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   log.info('pipeline started', { phase: currentPhase, mode: config.mode, task: task.id, runId: metrics.runId });
 
   /** Handle the revision/budget-exhausted/clean-pass branching shared by verify and review. */
-  function handleRevisionOutcome(
+  async function handleRevisionOutcome(
     output: import('./types.js').PhaseOutput,
     source: 'verifier' | 'reviewer',
-  ): PipelinePhase {
+  ): Promise<PipelinePhase> {
     if (output.revision && revisionCycles < maxRevisionCycles) {
       pendingRevision = output.revision;
       revisionCycles++;
       pendingRevision.cycle = revisionCycles;
+      await store.setPendingRevision(pendingRevision);
       metrics.addRevisionCycle();
       notifier.send(`Revision cycle ${revisionCycles}: ${source} found fixable issues, re-implementing`);
       log.phase(source === 'verifier' ? 'verify' : 'review', 'revision-requested', {
@@ -184,9 +185,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     switch (currentPhase) {
       case 'implement': {
         const output = await runImplementPhase(config, store, previousResults, pendingRevision ?? undefined);
-        pendingRevision = null; // Clear after passing
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
+          // Keep pendingRevision intact — retry should receive the same evaluator context
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'failed');
           metrics.endPhase('failed', config.maxRetries > 0);
           const choice = await handleFailure(notifier, config, 'implementer', output.result, [
@@ -204,6 +205,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             currentPhase = 'retrospective';
           }
         } else {
+          // Implementer succeeded — clear revision state (in-memory and persisted)
+          pendingRevision = null;
+          await store.setPendingRevision(null);
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
           metrics.endPhase('completed');
           // Track CI first-push from implementer result
@@ -242,7 +246,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         } else {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
           metrics.endPhase('completed');
-          currentPhase = handleRevisionOutcome(output, 'verifier');
+          currentPhase = await handleRevisionOutcome(output, 'verifier');
         }
         break;
       }
@@ -279,7 +283,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         } else {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');
-          currentPhase = handleRevisionOutcome(output, 'reviewer');
+          currentPhase = await handleRevisionOutcome(output, 'reviewer');
         }
         break;
       }

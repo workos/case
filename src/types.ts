@@ -30,6 +30,8 @@ export interface TaskJson {
   checkCommand?: string | null;
   checkBaseline?: number | null;
   checkTarget?: number | null;
+  /** Persisted revision request — ensures crash/restart resumes at implement with evaluator context */
+  pendingRevision?: RevisionRequest | null;
 }
 
 /** Matches SKILL.md Subagent Output Contract */
