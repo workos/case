@@ -42,6 +42,8 @@ export async function runImplementPhase(
     agentName: 'implementer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
+    traceWriter: config.traceWriter,
+    phase: 'implement',
   });
 
   if (result.status === 'completed') {
@@ -123,6 +125,8 @@ async function attemptRetry(
     agentName: 'implementer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
+    traceWriter: config.traceWriter,
+    phase: 'implement',
   });
 
   if (retryResult.status === 'completed') {

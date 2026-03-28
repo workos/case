@@ -53,6 +53,8 @@ export async function runReviewPhase(
     agentName: 'reviewer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
+    traceWriter: config.traceWriter,
+    phase: 'review',
   });
 
   await store.setAgentPhase(

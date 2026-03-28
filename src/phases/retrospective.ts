@@ -71,6 +71,8 @@ export async function runRetrospectivePhase(
       agentName: 'retrospective',
       caseRoot: config.caseRoot,
       onHeartbeat: config.onAgentHeartbeat,
+      traceWriter: config.traceWriter,
+      phase: 'retrospective',
     });
     log.phase('retrospective', 'completed');
   } catch (err) {

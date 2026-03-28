@@ -75,6 +75,8 @@ export interface PipelineConfig {
   dryRun: boolean;
   /** Called periodically with elapsed ms while an agent is running. */
   onAgentHeartbeat?: (elapsedMs: number) => void;
+  /** Per-run trace writer for tool-level observability. */
+  traceWriter?: import('./tracing/writer.js').TraceWriter;
 }
 
 export interface ProjectEntry {
@@ -119,6 +121,10 @@ export interface SpawnAgentOptions {
   model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;
+  /** Trace writer for per-run observability. */
+  traceWriter?: import('./tracing/writer.js').TraceWriter;
+  /** Current pipeline phase (used for trace events). */
+  phase?: PipelinePhase;
 }
 
 export interface SpawnAgentResult {

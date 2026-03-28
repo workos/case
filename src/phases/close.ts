@@ -54,6 +54,8 @@ export async function runClosePhase(
     agentName: 'closer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
+    traceWriter: config.traceWriter,
+    phase: 'close',
   });
 
   if (result.status === 'completed') {
