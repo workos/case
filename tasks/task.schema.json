@@ -104,6 +104,13 @@
       "type": ["number", "null"],
       "default": null,
       "description": "Target value for checkCommand. Task succeeds when checkCommand output >= checkTarget."
+    },
+    "pendingRevision": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/revisionRequest" }
+      ],
+      "description": "Persisted evaluator revision request. Present when an evaluator found fixable issues and the pipeline was interrupted before the implementer could address them. Cleared after successful re-implementation."
     }
   },
   "additionalProperties": false,
@@ -125,6 +132,41 @@
           "type": "string",
           "enum": ["pending", "running", "completed", "failed"],
           "description": "Current agent phase status"
+        }
+      },
+      "additionalProperties": false
+    },
+    "revisionRequest": {
+      "type": "object",
+      "required": ["source", "failedCategories", "summary", "suggestedFocus", "cycle"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["verifier", "reviewer"],
+          "description": "Which evaluator triggered the revision"
+        },
+        "failedCategories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["category", "verdict", "detail"],
+            "properties": {
+              "category": { "type": "string" },
+              "verdict": { "type": "string", "enum": ["pass", "fail", "na"] },
+              "detail": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "summary": { "type": "string" },
+        "suggestedFocus": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cycle": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Which revision cycle this is (1-indexed)"
         }
       },
       "additionalProperties": false

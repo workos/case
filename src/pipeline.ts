@@ -105,8 +105,8 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let currentPhase: PipelinePhase = determineEntryPhase(task, profile);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
-  let revisionCycles = 0;
   let pendingRevision: RevisionRequest | null = task.pendingRevision ?? null;
+  let revisionCycles = pendingRevision?.cycle ?? 0;
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
   // Per-run trace writer for tool-level observability

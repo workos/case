@@ -778,6 +778,45 @@ describe('runPipeline', () => {
     expect(firstPrompt).toContain('edge-case-checked');
   });
 
+  it('resumed run respects persisted cycle count toward revision budget', async () => {
+    // Task already used 1 of 1 revision cycle before crash
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Still failing' }],
+      },
+    };
+    const taskWithRevision = {
+      ...mockTask,
+      status: 'verifying' as const,
+      agents: { verifier: { started: '2026-03-14', completed: '2026-03-14', status: 'completed' as const } },
+      pendingRevision: {
+        source: 'verifier' as const,
+        failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing check' }],
+        summary: 'Verifier found 1 issue(s)',
+        suggestedFocus: ['Missing check'],
+        cycle: 1,
+      },
+    };
+    mockStoreRead.mockResolvedValue(taskWithRevision);
+
+    // maxRevisionCycles=1: the persisted cycle=1 means the budget is already used.
+    // After implementer succeeds, the verifier fails again → budget exhausted (not a fresh cycle 1).
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fails again, budget exhausted)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ maxRevisionCycles: 1 }));
+
+    // Should NOT loop back to implement — budget was already exhausted
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+  });
+
   it('complex profile runs all phases (same as standard)', async () => {
     const complexTask = { ...mockTask, profile: 'complex' as const };
     mockStoreRead.mockResolvedValue(complexTask);
