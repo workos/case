@@ -21,6 +21,7 @@ echo "$SESSION"
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management                | TS/pnpm |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK                           | TS/pnpm |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                                  | TS/pnpm |
+| workos-node            | `../workos-node`            | WorkOS Node.js SDK                                   | TS/pnpm |
 
 Full metadata (commands, remotes, language): `projects.json`
 
@@ -49,7 +50,7 @@ Lifecycle: `tasks/active/` → `tasks/done/` (moved after PR merge)
 
 ### From Ideation
 
-Use `/case:from-ideation <folder>` to execute an ideation contract. Reads `contract.md` + spec files from the folder, creates a task, runs each phase's implementer sequentially, then verifier → reviewer → closer for one PR. See `skills/from-ideation/SKILL.md`.
+Use `ca --from-ideation <folder>` to execute an ideation contract. Reads `contract.md` + spec files from the folder, creates a task, runs each phase's implementer sequentially, then verifier → reviewer → closer for one PR. See `src/agent/from-ideation.ts`.
 
 ## Working in a Target Repo
 

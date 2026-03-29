@@ -511,7 +511,7 @@ Case's orchestration layer is currently SKILL.md — prose that Claude Code inte
 
 - **Agent `.md` prompts** — excellent for defining role, tools, constraints, and style. These become prompt templates the orchestrator loads.
 - **Hooks** (pre-commit, pre-push, pre-PR) — perfect as enforcement gates. They run inside the agent's session and block bad actions mechanically. No reason to move these.
-- **Skills** — entry points for human-initiated work in the CLI. Keep `/case` and `/case:from-ideation` as CLI shortcuts that invoke the orchestrator.
+- **Skills** — all skills (`/case`, `/case:from-ideation`, `security-auditor`) were removed in favor of the `ca` CLI and the Pi-based pipeline.
 - **Learnings files** — knowledge agents read at start. Simple, effective, no runtime dependency.
 
 #### What moves to a programmatic orchestrator (Agent SDK, or similar)

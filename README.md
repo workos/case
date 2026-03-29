@@ -10,14 +10,7 @@ Inspired by [harness engineering](https://openai.com/index/harness-engineering/)
 
 ### Use with an issue
 
-In Claude Code, from any target repo directory:
-
-```
-/case 34          # GitHub issue
-/case DX-1234     # Linear issue
-```
-
-Or from the terminal using the `ca` CLI directly:
+From any target repo directory:
 
 ```bash
 ca 34             # GitHub issue
@@ -30,8 +23,8 @@ The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`) w
 
 Re-run the same command. The orchestrator detects the existing `.task.json` and resumes from the last completed agent phase.
 
-```
-/case 34          # resumes where it left off — doesn't recreate the task
+```bash
+ca 34             # resumes where it left off — doesn't recreate the task
 ```
 
 ### Interactive mode
@@ -62,7 +55,7 @@ Case uses a **six-agent pipeline** where each agent has a focused context window
 
 ```mermaid
 graph TD
-    A["Engineer: /case 34"] --> B["Orchestrator"]
+    A["Engineer: ca 34"] --> B["Orchestrator"]
     B --> C{Parse argument}
     C -->|GitHub issue| D["Fetch issue via gh CLI"]
     C -->|Linear issue| E["Fetch issue via Linear MCP"]
@@ -163,7 +156,7 @@ ca --model claude-opus-4-5 1234
 ca --model gemini-2.5-pro --agent 1234
 ```
 
-The `/case` skill dispatches to the orchestrator automatically. You can also invoke `ca` directly.
+The `ca` CLI is the entry point for all Case operations.
 
 ### Architecture
 
@@ -339,7 +332,7 @@ Agents verify their work using:
 - **Reviewer agent** — reviews the diff against golden principles and conventions. Critical findings block PR creation; warnings and info are posted as PR comments.
 - **Test credentials** — `~/.config/case/credentials` for sign-in flow testing.
 - **Chrome DevTools MCP** — secondary, for interactive debugging only.
-- **Security auditor** — runs automatically for auth/session changes via the pre-PR checklist.
+
 
 ## Verifying Repos
 
@@ -357,9 +350,6 @@ bash scripts/bootstrap.sh cli
 ## What's in the Harness
 
 ```
-case/                               /case skill (orchestrator + pipeline)
-from-ideation/                      /execute-spec skill (ideation → pipeline)
-security-auditor/                   Security audit (auto-invoked, not user-facing)
 agents/
   implementer.md                    Subagent: code + unit tests (WIP checkpoints, reads learnings)
   verifier.md                       Subagent: Playwright testing + evidence + rubric scoring
