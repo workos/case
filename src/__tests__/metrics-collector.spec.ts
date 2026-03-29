@@ -194,6 +194,52 @@ describe('MetricsCollector', () => {
     });
   });
 
+  it('records approval decision with time', () => {
+    collector.setApprovalDecision('approved', 1500);
+    const metrics = collector.finalize('completed');
+    expect(metrics.approvalDecision).toBe('approved');
+    expect(metrics.approvalTimeMs).toBe(1500);
+  });
+
+  it('records approval decision without time', () => {
+    collector.setApprovalDecision('skipped');
+    const metrics = collector.finalize('completed');
+    expect(metrics.approvalDecision).toBe('skipped');
+    expect(metrics.approvalTimeMs).toBeNull();
+  });
+
+  it('records all approval decision types', () => {
+    for (const decision of ['approved', 'revised', 'rejected', 'skipped'] as const) {
+      const c = new MetricsCollector();
+      c.setApprovalDecision(decision, 100);
+      const metrics = c.finalize('completed');
+      expect(metrics.approvalDecision).toBe(decision);
+    }
+  });
+
+  it('defaults approvalDecision to null', () => {
+    const metrics = collector.finalize('completed');
+    expect(metrics.approvalDecision).toBeNull();
+    expect(metrics.approvalTimeMs).toBeNull();
+    expect(metrics.humanRevisionCycles).toBe(0);
+  });
+
+  it('tracks human revision cycles', () => {
+    collector.addHumanRevisionCycle();
+    collector.addHumanRevisionCycle();
+    const metrics = collector.finalize('completed');
+    expect(metrics.humanRevisionCycles).toBe(2);
+  });
+
+  it('tracks human revision cycles separately from total', () => {
+    collector.addRevisionCycle();
+    collector.addRevisionCycle();
+    collector.addHumanRevisionCycle();
+    const metrics = collector.finalize('completed');
+    expect(metrics.revisionCycles).toBe(2);
+    expect(metrics.humanRevisionCycles).toBe(1);
+  });
+
   it('finalize includes all new fields in output', () => {
     collector.setProfile('tiny');
     collector.addHumanOverride();

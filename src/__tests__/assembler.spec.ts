@@ -203,6 +203,32 @@ describe('assemblePrompt', () => {
     expect(revisionIdx).toBeLessThan(templateIdx);
   });
 
+  it('human revision context uses different format than agent revision', async () => {
+    const revision = {
+      source: 'human' as const,
+      failedCategories: [],
+      summary: 'Please fix the button alignment on the login page',
+      suggestedFocus: [],
+      cycle: 2,
+    };
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map(), revision);
+
+    // Human feedback uses distinct header — no "REVISION CONTEXT" or rubric table
+    expect(prompt).toContain('Human Feedback (Approval Gate)');
+    expect(prompt).toContain('cycle 2');
+    expect(prompt).toContain('Please fix the button alignment on the login page');
+    expect(prompt).toContain('Make targeted changes only');
+    // Should NOT contain agent-style formatting
+    expect(prompt).not.toContain('REVISION CONTEXT');
+    expect(prompt).not.toContain('Failed categories:');
+    expect(prompt).not.toContain('Suggested focus:');
+    // Revision context comes before the template
+    const feedbackIdx = prompt.indexOf('Human Feedback');
+    const templateIdx = prompt.indexOf('# Implementer Template');
+    expect(feedbackIdx).toBeLessThan(templateIdx);
+  });
+
   it('no revision context when revision param is undefined', async () => {
     const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 

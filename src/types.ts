@@ -316,6 +316,15 @@ export interface RunMetrics {
   /** Number of times a human overrode an evaluator decision (attended mode) */
   humanOverrides: number;
 
+  /** Approval gate decision (null if gate not reached) */
+  approvalDecision: 'approved' | 'revised' | 'rejected' | 'skipped' | null;
+
+  /** Time spent in the approval gate (ms), null if gate not reached */
+  approvalTimeMs: number | null;
+
+  /** Revision cycles triggered by human feedback (subset of revisionCycles) */
+  humanRevisionCycles: number;
+
   /** Evaluator effectiveness signals */
   evaluatorEffectiveness: EvaluatorEffectiveness;
 }

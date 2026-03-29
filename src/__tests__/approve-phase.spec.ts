@@ -126,6 +126,9 @@ describe('runApprovePhase', () => {
     expect(output.revision).toBeDefined();
     expect(output.revision!.source).toBe('human');
     expect(output.revision!.summary).toBe('Fix the error handling');
+    expect(output.revision!.failedCategories).toEqual([]);
+    expect(output.revision!.suggestedFocus).toEqual([]);
+    expect(output.revision!.cycle).toBe(0);
   });
 
   it('revise with manualEdit → verify', async () => {

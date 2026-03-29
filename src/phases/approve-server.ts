@@ -18,6 +18,13 @@ export async function runApprovalServer(
     resolveDecision = res;
   });
 
+  // Second promise for manual edit mode — resolved when /api/ready is hit
+  let resolveReady: () => void;
+  const readyPromise = new Promise<void>((res) => {
+    resolveReady = res;
+  });
+  let waitingForReady = false;
+
   // Validate screenshot paths are absolute and within allowed directories
   const validScreenshots = new Set(
     evidence.screenshots.filter((p) => resolve(p) === p),
@@ -64,10 +71,21 @@ export async function runApprovalServer(
           }
           log.phase('approve', `decision: ${body.decision}`);
           resolveDecision!(body);
-          return Response.json({ status: 'accepted' });
+          // Tell the UI whether to wait for /api/ready
+          return Response.json({ status: 'accepted', waitForReady: !!body.manualEdit });
         } catch {
           return Response.json({ error: 'Invalid JSON' }, { status: 400 });
         }
+      }
+
+      // Ready endpoint — signals manual edit is complete
+      if (req.method === 'POST' && url.pathname === '/api/ready') {
+        if (!waitingForReady) {
+          return Response.json({ error: 'Not in manual edit mode' }, { status: 409 });
+        }
+        log.phase('approve', 'manual edit ready signal received');
+        resolveReady!();
+        return Response.json({ status: 'accepted' });
       }
 
       return Response.json({ error: 'Not found' }, { status: 404 });
@@ -85,8 +103,16 @@ export async function runApprovalServer(
     log.phase('approve', 'failed to open browser — navigate manually');
   }
 
-  // Wait for decision, then shut down
+  // Wait for decision
   const decision = await decisionPromise;
+
+  // Manual edit: keep server alive until /api/ready
+  if (decision.manualEdit) {
+    waitingForReady = true;
+    log.phase('approve', 'manual-edit-mode — waiting for ready signal');
+    await readyPromise;
+  }
+
   server.stop();
   log.phase('approve', 'server stopped');
 

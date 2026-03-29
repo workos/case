@@ -26,6 +26,9 @@ export class MetricsCollector {
   private reviewerRubric: RubricCategory[] | null = null;
   private revisionFixedIssues: boolean | null = null;
   private skippedPhases: PipelinePhase[] = [];
+  private approvalDecision: 'approved' | 'revised' | 'rejected' | 'skipped' | null = null;
+  private approvalTimeMs: number | null = null;
+  private humanRevisionCycles = 0;
 
   constructor() {
     this.runId = crypto.randomUUID();
@@ -114,6 +117,17 @@ export class MetricsCollector {
     }
   }
 
+  /** Record the approval gate decision and time spent in the gate. */
+  setApprovalDecision(decision: 'approved' | 'revised' | 'rejected' | 'skipped', timeMs?: number): void {
+    this.approvalDecision = decision;
+    if (timeMs !== undefined) this.approvalTimeMs = timeMs;
+  }
+
+  /** Increment the human-triggered revision cycle counter. */
+  addHumanRevisionCycle(): void {
+    this.humanRevisionCycles++;
+  }
+
   private buildEvaluatorEffectiveness(): EvaluatorEffectiveness {
     return {
       verifierRubric: this.verifierRubric ? [...this.verifierRubric] : null,
@@ -151,6 +165,9 @@ export class MetricsCollector {
       revisionCycles: this.revisionCycles,
       profile: this.profile,
       humanOverrides: this.humanOverrides,
+      approvalDecision: this.approvalDecision,
+      approvalTimeMs: this.approvalTimeMs,
+      humanRevisionCycles: this.humanRevisionCycles,
       evaluatorEffectiveness: this.buildEvaluatorEffectiveness(),
     };
   }

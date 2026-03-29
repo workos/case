@@ -954,4 +954,155 @@ describe('runPipeline', () => {
     expect(mockSpawnAgent).not.toHaveBeenCalled();
     expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
   });
+
+  it('approve: text feedback → implement → verify → review → approve → close', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (initial)
+      // First approve: revise with text feedback
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (re-entry)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (re-entry)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (re-entry)
+      // Second approve: approve
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunApprovalServer
+      .mockResolvedValueOnce({ decision: 'revise', feedback: 'Fix the error handling' })
+      .mockResolvedValueOnce({ decision: 'approve' });
+
+    await runPipeline(makeConfig({ approve: true }));
+
+    // 8 agent spawns: initial 3 + re-entry 3 + closer + retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    expect(mockRunApprovalServer).toHaveBeenCalledTimes(2);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Human requested changes'));
+
+    // Metrics should include approval and human revision
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.approvalDecision).toBe('approved');
+    expect(metrics.humanRevisionCycles).toBe(1);
+    expect(metrics.revisionCycles).toBe(1);
+  });
+
+  it('approve: manual edit → verify → review → approve → close', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (initial)
+      // First approve: manual edit → re-entry at verify
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (re-entry)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (re-entry)
+      // Second approve: approve
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunApprovalServer
+      .mockResolvedValueOnce({ decision: 'revise', manualEdit: true })
+      .mockResolvedValueOnce({ decision: 'approve' });
+
+    await runPipeline(makeConfig({ approve: true }));
+
+    // 7 spawns: initial 3 + re-entry 2 (skips implement) + closer + retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(7);
+    expect(mockRunApprovalServer).toHaveBeenCalledTimes(2);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Manual edit complete'));
+
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.approvalDecision).toBe('approved');
+    expect(metrics.humanRevisionCycles).toBe(1);
+  });
+
+  it('skipped approve gate sets approvalDecision to skipped', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig({ approve: false }));
+
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.approvalDecision).toBe('skipped');
+    expect(metrics.approvalTimeMs).toBeNull();
+    expect(metrics.humanRevisionCycles).toBe(0);
+  });
+
+  it('approve: rejected sets approvalDecision to rejected', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunApprovalServer.mockResolvedValueOnce({ decision: 'reject' });
+
+    await runPipeline(makeConfig({ approve: true }));
+
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.approvalDecision).toBe('rejected');
+    expect(metrics.approvalTimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('tracks human revision cycle counts through approve gate', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      // Approve #1: revise (text feedback) → cycle 1
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      // Approve #2: approve
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunApprovalServer
+      .mockResolvedValueOnce({ decision: 'revise', feedback: 'Fix A' })
+      .mockResolvedValueOnce({ decision: 'approve' });
+
+    await runPipeline(makeConfig({ approve: true, maxRevisionCycles: 2 }));
+
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.revisionCycles).toBe(1);
+    expect(metrics.humanRevisionCycles).toBe(1);
+    expect(metrics.approvalDecision).toBe('approved');
+  });
+
+  it('human revision beyond maxRevisionCycles is blocked — proceeds to close', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      // Approve #1: revise → cycle 1
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      // Approve #2: revise again → budget exhausted (maxRevisionCycles=1), should proceed to close
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunApprovalServer
+      .mockResolvedValueOnce({ decision: 'revise', feedback: 'Fix A' })
+      .mockResolvedValueOnce({ decision: 'revise', feedback: 'Fix B' }); // Should be blocked by budget
+
+    await runPipeline(makeConfig({ approve: true, maxRevisionCycles: 1 }));
+
+    // Budget enforced — second revise did NOT trigger re-implement
+    // 8 spawns: initial 3 + re-entry 3 + closer + retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+
+    const metricsCall = mockWriteRunMetrics.mock.calls[0];
+    const metrics = metricsCall[3];
+    expect(metrics.revisionCycles).toBe(1);
+    expect(metrics.humanRevisionCycles).toBe(1);
+  });
 });

@@ -35,6 +35,18 @@ export async function assemblePrompt(
 }
 
 function buildRevisionContext(revision: RevisionRequest): string {
+  if (revision.source === 'human') {
+    const lines = [
+      `## Human Feedback (Approval Gate) — cycle ${revision.cycle}`,
+      '',
+      revision.summary,
+      '',
+      'Address the feedback above. Make targeted changes only.',
+      '',
+    ];
+    return lines.join('\n');
+  }
+
   const lines = [
     `## REVISION CONTEXT — ${revision.source} found fixable issues (cycle ${revision.cycle})`,
     '',

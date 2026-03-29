@@ -115,6 +115,10 @@ ${CSS}
     <button class="btn btn-revise-submit" onclick="submitRevision()">Submit Feedback</button>
   </div>
   <div id="status-message" class="status-message hidden"></div>
+  <div id="manual-edit-panel" class="manual-edit-panel hidden">
+    <p>Editing mode &mdash; make your changes in your editor, then click Ready.</p>
+    <button class="btn btn-approve" onclick="signalReady()">Ready</button>
+  </div>
 </footer>
 
 <script>
@@ -350,6 +354,8 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-sur
 .status-message { margin-top: 8px; text-align: center; font-size: 13px; }
 .status-message.success { color: var(--green); }
 .status-message.error { color: var(--red); }
+.manual-edit-panel { margin-top: 12px; text-align: center; }
+.manual-edit-panel p { margin-bottom: 8px; color: var(--yellow); font-size: 14px; }
 `;
 
 // --- Inlined JS ---
@@ -401,6 +407,16 @@ async function send(body) {
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.waitForReady) {
+          // Manual edit mode — show waiting state
+          document.querySelector('.actions').classList.add('hidden');
+          document.getElementById('revise-panel').classList.add('hidden');
+          statusEl.classList.add('hidden');
+          document.getElementById('manual-edit-panel').classList.remove('hidden');
+          submitted = false; // allow Ready button to work
+          return;
+        }
         statusEl.textContent = 'Decision submitted. You can close this tab.';
         statusEl.classList.add('success');
         return;
@@ -414,6 +430,41 @@ async function send(body) {
   statusEl.classList.add('error');
   submitted = false;
   btns.forEach(b => b.disabled = false);
+}
+
+async function signalReady() {
+  if (submitted) return;
+  submitted = true;
+  const panel = document.getElementById('manual-edit-panel');
+  const readyBtn = panel.querySelector('.btn');
+  readyBtn.disabled = true;
+
+  const statusEl = document.getElementById('status-message');
+  statusEl.classList.remove('hidden', 'success', 'error');
+  statusEl.textContent = 'Signaling ready...';
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(API + '/api/ready', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (res.ok) {
+        panel.classList.add('hidden');
+        statusEl.textContent = 'Ready signal sent. Pipeline resuming. You can close this tab.';
+        statusEl.classList.add('success');
+        return;
+      }
+    } catch (e) {
+      if (attempt < 2) continue;
+    }
+  }
+
+  statusEl.textContent = 'Failed to signal ready. Check the terminal.';
+  statusEl.classList.add('error');
+  submitted = false;
+  readyBtn.disabled = false;
 }
 `;
 }

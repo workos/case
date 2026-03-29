@@ -32,7 +32,7 @@ const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   implementing: ['verifying', 'active'],
   verifying: ['reviewing', 'closing', 'implementing'],
   reviewing: ['closing', 'approving', 'verifying'],
-  approving: ['closing', 'implementing'],
+  approving: ['closing', 'implementing', 'verifying'],
   closing: ['pr-opened', 'verifying'],
   'pr-opened': ['pr-opened', 'merged'],
   merged: [],
@@ -294,6 +294,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         // Flag-gated: skip if --approve not set or unattended mode
         if (!config.approve || config.mode === 'unattended') {
           log.phase('approve', 'skipped', { approve: config.approve, mode: config.mode });
+          metrics.setApprovalDecision('skipped');
           currentPhase = 'close';
           break;
         }
@@ -302,11 +303,22 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         const approveElapsed = Date.now() - phaseStartMs;
 
         if (approveOutput.nextPhase === 'abort') {
+          metrics.setApprovalDecision('rejected', approveElapsed);
           notifier.phaseEnd('approve', 'human', approveElapsed, 'failed');
           outcome = 'failed';
           currentPhase = 'retrospective';
+        } else if ((approveOutput.nextPhase === 'implement' || approveOutput.nextPhase === 'verify') && revisionCycles >= maxRevisionCycles) {
+          // Revision budget exhausted — proceed to close
+          metrics.setApprovalDecision('revised', approveElapsed);
+          metrics.setRevisionFixedIssues(false);
+          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
+          notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding to close.`);
+          log.phase('approve', 'revision-budget-exhausted', { cycles: revisionCycles });
+          currentPhase = 'close';
         } else if (approveOutput.nextPhase === 'implement' && approveOutput.revision) {
-          // Request Changes — feed revision back through the revision loop
+          // Text feedback — feed revision back through the revision loop
+          metrics.setApprovalDecision('revised', approveElapsed);
+          metrics.addHumanRevisionCycle();
           pendingRevision = approveOutput.revision;
           revisionCycles++;
           pendingRevision.cycle = revisionCycles;
@@ -316,7 +328,19 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
           notifier.send(`Human requested changes (cycle ${revisionCycles}): re-implementing`);
           currentPhase = 'implement';
+        } else if (approveOutput.nextPhase === 'verify') {
+          // Manual edit — human edited files, re-enter at verify
+          metrics.setApprovalDecision('revised', approveElapsed);
+          metrics.addHumanRevisionCycle();
+          metrics.addHumanOverride();
+          revisionCycles++;
+          metrics.addRevisionCycle();
+          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
+          notifier.send(`Manual edit complete (cycle ${revisionCycles}): re-verifying`);
+          currentPhase = 'verify';
         } else {
+          // Approved — proceed to close
+          metrics.setApprovalDecision('approved', approveElapsed);
           notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
           currentPhase = approveOutput.nextPhase;
         }

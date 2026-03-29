@@ -47,6 +47,9 @@ export async function writeRunMetrics(
       profile: metrics.profile,
       revisionCycles: metrics.revisionCycles,
       humanOverrides: metrics.humanOverrides,
+      approvalDecision: metrics.approvalDecision,
+      approvalTimeMs: metrics.approvalTimeMs,
+      humanRevisionCycles: metrics.humanRevisionCycles,
       evaluatorEffectiveness: metrics.evaluatorEffectiveness,
     },
   };
