@@ -18,7 +18,7 @@ graph TD
     C -->|Linear issue| E["Fetch issue via Linear MCP"]
     C -->|No args| F["Resume or load context"]
 
-    D --> G["Create task file + .task.json"]
+    D --> G["Create task file + .task.json\n(profile + done contract)"]
     E --> G
     G --> H["mkdir -p .case && echo task-id > .case/active"]
     H --> I["Baseline smoke test"]
@@ -29,17 +29,24 @@ graph TD
     J --> K{"Result"}
     K -->|failed + retryViable| J2["Retry with failure analysis"]
     J2 -->|failed| RETRO
-    J2 -->|completed| L["Verify"]
+    J2 -->|completed| L{"Profile?"}
     K -->|completed| L
     K -->|failed + !retryViable| RETRO
 
-    L --> M{"Result"}
-    M -->|failed| RETRO
-    M -->|completed| N["Review"]
+    L -->|tiny| N["Review"]
+    L -->|standard/complex| M["Verify"]
 
-    N --> O{"Result"}
-    O -->|critical findings| RETRO
-    O -->|passed| P["Close"]
+    M --> MR{"Rubric"}
+    MR -->|hard fail| RETRO
+    MR -->|soft fail + budget left| J
+    MR -->|soft fail + budget exhausted| N
+    MR -->|pass| N
+
+    N --> O{"Rubric"}
+    O -->|hard fail| RETRO
+    O -->|soft fail + budget left| J
+    O -->|soft fail + budget exhausted| P["Close"]
+    O -->|pass| P
 
     P --> Q{"Result"}
     Q -->|failed| RETRO
@@ -49,20 +56,20 @@ graph TD
     RETRO --> S["Propose amendments + update learnings"]
 ```
 
-Steps 0-3 (issue parsing, task creation, branch setup) are handled by the CLI orchestrator. Steps 4-9 (implement through retrospective) are handled by the **programmatic orchestrator** — a TypeScript `while`/`switch` loop that makes phase transitions deterministic rather than LLM-interpreted.
+Steps 0-3 (issue parsing, task creation, branch setup) are handled by the CLI orchestrator. Steps 4-9 (implement through retrospective) are handled by the **programmatic orchestrator** — a TypeScript `while`/`switch` loop that makes phase transitions deterministic rather than LLM-interpreted. The pipeline supports **revision loops** — when an evaluator (verifier/reviewer) finds fixable issues via rubric scoring, it automatically feeds structured feedback back to the implementer (up to 2 cycles by default).
 
 All agents run as [Pi](https://shittycodingagent.ai/) sessions — the orchestrator as an interactive session with a TUI, sub-agents as batch sessions. Each agent role can use a different model/provider via `~/.config/case/config.json`.
 
 ### The Agents
 
-| Agent             | Responsibility                                                                   | Never does                     |
-| ----------------- | -------------------------------------------------------------------------------- | ------------------------------ |
-| **Orchestrator**  | Parse issue, create task, smoke test, dispatch agents                            | Write code, run Playwright     |
-| **Implementer**   | Write fix, run unit tests, commit (with WIP checkpoints), read repo learnings    | Start example apps, create PRs |
-| **Verifier**      | Test the specific fix with Playwright, create evidence                           | Edit code, commit              |
-| **Reviewer**      | Review diff against golden principles, classify findings, gate PR creation       | Edit code, commit, run tests   |
-| **Closer**        | Create PR with thorough description, satisfy hooks, post review comments         | Edit code, run tests           |
-| **Retrospective** | Analyze the run, propose harness improvements, apply per-repo learnings directly | Edit target repo code          |
+| Agent             | Responsibility                                                                                          | Never does                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| **Orchestrator**  | Parse issue, create task (with profile + done contract), smoke test, dispatch agents                     | Write code, run Playwright     |
+| **Implementer**   | Write fix, run unit tests, commit (with WIP checkpoints), read repo learnings, address revision feedback | Start example apps, create PRs |
+| **Verifier**      | Test the specific fix with Playwright, create evidence, score rubric (pass/fail per category)            | Edit code, commit              |
+| **Reviewer**      | Review diff against golden principles, score rubric (hard/soft categories), gate PR creation             | Edit code, commit, run tests   |
+| **Closer**        | Create PR with thorough description, satisfy hooks, post review comments                                 | Edit code, run tests           |
+| **Retrospective** | Analyze the run (incl. revision loops + metrics), propose improvements, apply per-repo learnings         | Edit target repo code          |
 
 ## Programmatic Orchestrator
 
@@ -72,6 +79,8 @@ The pipeline's flow control (Steps 4-9) runs as a TypeScript program rather than
 | ---------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
 | Phase transitions      | LLM reads a table and decides                          | `switch(currentPhase)` returns `nextPhase`            |
 | Retry cap              | Doom-loop hook fires after 3 identical failures        | `maxRetries: 1` checked before spawning               |
+| Revision loops         | Not supported — abort or ask human                     | Rubric soft-fails loop back to implementer (max 2)    |
+| Pipeline profiles      | All tasks run the same phases                          | `tiny` / `standard` / `complex` skip or add phases    |
 | Resume after interrupt | LLM reads status table, hopefully picks the right step | `determineEntryPhase(task)` returns the correct phase |
 | Context per agent      | LLM decides what to include                            | `assemblePrompt()` gives each role only what it needs |
 | Attended vs unattended | Not supported                                          | `--mode unattended` auto-aborts on failure            |
@@ -111,10 +120,11 @@ The `/case` skill dispatches to the orchestrator automatically. You can also inv
 ```
 src/
   index.ts                CLI entry point (run, create, serve, --agent)
-  pipeline.ts             Core while/switch loop (Steps 4-9)
+  pipeline.ts             Core while/switch loop (Steps 4-9) with revision loops + profile skip
+  server.ts               HTTP service (webhooks, task API, scanner dispatch)
   notify.ts               Attended (readline) vs unattended (auto-abort) notifier
   config.ts               Loads projects.json, resolves paths, builds PipelineConfig
-  types.ts                TaskJson, AgentResult, PipelineConfig, AgentModelConfig, etc.
+  types.ts                TaskJson, AgentResult, PipelineConfig, Rubric, RevisionRequest, etc.
   agent/
     pi-runner.ts          Spawn Pi batch sessions per agent role
     orchestrator-session.ts  Interactive Pi session for --agent mode
@@ -123,43 +133,59 @@ src/
     prompt-loader.ts      Load agent .md prompts, strip frontmatter
     from-ideation.ts      Execute ideation contracts: load → phases → verify → review → close
     tools/
+      define-tool.ts      Tool definition helper (schema + execute)
       pipeline-tool.ts    Pi tool: run the case pipeline from interactive session
       from-ideation-tool.ts Pi tool: execute ideation contracts through the pipeline
       issue-tool.ts       Pi tool: fetch issues from GitHub/Linear
-      task-tool.ts        Pi tool: create task files
+      task-tool.ts        Pi tool: create task files (with profile + done contract)
       baseline-tool.ts    Pi tool: run bootstrap.sh
   entry/
     cli-orchestrator.ts   Steps 0-3: detect repo, fetch issue, create task, baseline
     issue-fetcher.ts      GitHub (gh CLI) and Linear (GraphQL) issue fetching
+    github-webhook.ts     Parse + verify GitHub webhook events
     repo-detector.ts      Auto-detect target repo from cwd
-    task-factory.ts       Create .md + .task.json pairs
+    task-factory.ts       Create .md + .task.json pairs (done contract rendering)
     task-scanner.ts       Find existing tasks for re-entry
+    scanners/             CI, stale-docs, and dependency scanners
   state/
     task-store.ts         Reads JSON directly, writes through task-status.sh
-    transitions.ts        Deterministic re-entry from any task state
+    transitions.ts        Deterministic re-entry from any task state (profile-aware)
   context/
     prefetch.ts           Parallel repo context gathering (session, learnings, commits)
-    assembler.ts          Role-specific prompt assembly per agent
+    assembler.ts          Role-specific prompt assembly per agent (incl. revision context)
   phases/
     implement.ts          Spawn implementer + intelligent retry (max 1)
-    verify.ts             Spawn verifier (no retries — needs human judgment)
-    review.ts             Spawn reviewer, check for critical findings
+    verify.ts             Spawn verifier, score rubric, build revision request on fail
+    review.ts             Spawn reviewer, rubric gate (hard → abort, soft → revision)
+    revision.ts           Build structured RevisionRequest from failed rubric categories
     close.ts              Spawn closer, extract PR URL
-    retrospective.ts      Spawn retrospective (awaited, runs to completion)
+    retrospective.ts      Spawn retrospective with metrics snapshot
+  metrics/
+    collector.ts          Per-run metrics collection (phases, rubrics, revision cycles)
+    writer.ts             Write finalized RunMetrics to JSONL
+  tracing/
+    writer.ts             Per-run trace events (tool-level observability)
+    types.ts              Trace event schema
+    sanitize.ts           Sanitize sensitive data from traces
+  versioning/
+    prompt-tracker.ts     Track agent prompt versions across runs
   util/
     parse-agent-result.ts Extract AGENT_RESULT JSON from agent output
     run-script.ts         Safe execFile wrapper (no shell injection)
     logger.ts             Structured JSON-lines to stderr
+    slugify.ts            URL-safe slug generation
+    parse-jsonl.ts        Parse JSONL files
 ```
 
 ### Context Isolation
 
 Each agent receives only what it needs — not everything:
 
-- **Implementer**: task + issue + playbook + working memory + repo learnings + check fields
+- **Implementer**: task + issue + playbook + working memory + repo learnings + check fields + revision feedback (when looping)
 - **Verifier**: task + repo path (deliberately minimal — fresh-context testing)
 - **Reviewer**: task + repo path (reads golden principles itself)
 - **Closer**: task + repo + verifier AGENT_RESULT + reviewer AGENT_RESULT
+- **Retrospective**: task + all AGENT_RESULTs + metrics snapshot (rubrics, revision cycles, overrides)
 
 ## Model Configuration
 
@@ -223,7 +249,7 @@ From any target repo:
 /case DX-1234
 ```
 
-The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`), runs a baseline smoke test, then spawns implementer → verifier → reviewer → closer → retrospective. Hooks enforce evidence mechanically.
+The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`) with a profile and optional done contract, runs a baseline smoke test, then spawns the pipeline. The default `standard` profile runs implementer → verifier → reviewer → closer → retrospective; `tiny` skips verification. Evaluator rubric failures can trigger automatic revision loops back to the implementer.
 
 ### Resume an interrupted run
 
@@ -262,6 +288,8 @@ From there you can discuss approaches, ask questions, or tell the orchestrator t
 ## Task Tracking
 
 Tasks use a **hybrid format**: human-readable Markdown + a JSON companion for machine-touched fields. Task templates include a **mission summary block** at the top — a one-line "what + why", target repo, and primary acceptance criterion — so agents can orient quickly without reading the full task.
+
+Each task has a **profile** (`tiny | standard | complex`) that determines which pipeline phases run. Non-trivial tasks can include a **done contract** — verification scenarios, non-goals, edge cases, and evidence expectations — so implementer and verifier share the same definition of "done".
 
 ```
 tasks/active/authkit-nextjs-1-issue-53.md         # human-readable
@@ -329,28 +357,32 @@ bash scripts/bootstrap.sh cli
 ## What's in the Harness
 
 ```
-skills/
-  case/SKILL.md                     /case skill (orchestrator + pipeline)
-  security-auditor/SKILL.md         Security audit (auto-invoked, not user-facing)
+case/                               /case skill (orchestrator + pipeline)
+from-ideation/                      /execute-spec skill (ideation → pipeline)
+security-auditor/                   Security audit (auto-invoked, not user-facing)
 agents/
   implementer.md                    Subagent: code + unit tests (WIP checkpoints, reads learnings)
-  verifier.md                       Subagent: Playwright testing + evidence
-  reviewer.md                       Subagent: diff review against golden principles
+  verifier.md                       Subagent: Playwright testing + evidence + rubric scoring
+  reviewer.md                       Subagent: diff review + rubric scoring (hard/soft categories)
   closer.md                         Subagent: PR creation + hook satisfaction + review comments
-  retrospective.md                  Subagent: apply harness improvements + maintain learnings
+  retrospective.md                  Subagent: analyze run + revision loops + maintain learnings
 src/                                Programmatic orchestrator (TypeScript)
   index.ts                          CLI entry point (--agent, --model, --task)
-  pipeline.ts                       Core while/switch loop (Steps 4-9)
+  pipeline.ts                       Core while/switch loop (Steps 4-9) + revision loops
+  server.ts                         HTTP service (webhooks, task API, scanners)
   agent/                            Pi-based agent infrastructure
     pi-runner.ts                    Spawn Pi batch sessions per role
     orchestrator-session.ts         Interactive Pi session (--agent mode)
     config.ts                       Per-agent model config
     tools/                          Orchestrator tools (pipeline, issue, task, baseline)
-  entry/                            CLI orchestrator (Steps 0-3)
-  phases/                           One module per pipeline phase
-  context/                          Role-specific prompt assembly
-  state/                            Task store + re-entry logic
-  util/                             Parser, script runner, logger
+  entry/                            CLI orchestrator (Steps 0-3) + webhook + scanners
+  phases/                           One module per pipeline phase + revision
+  context/                          Role-specific prompt assembly (incl. revision context)
+  state/                            Task store + re-entry logic (profile-aware)
+  metrics/                          Per-run metrics collection + JSONL writer
+  tracing/                          Per-run trace events for observability
+  versioning/                       Prompt version tracking across runs
+  util/                             Parser, script runner, logger, slugify
 config.schema.json                  JSON Schema for ~/.config/case/config.json
 
 AGENTS.md                           Entry point for agents (project landscape)
@@ -378,6 +410,8 @@ scripts/
   check.sh                          Convention enforcement across repos
   bootstrap.sh                      Per-repo readiness verification
   task-status.sh                    Read/update task JSON with transition validation
+  analyze-failure.sh                Analyze agent failures for retry decisions
+  snapshot-agent.sh                 Snapshot agent state for debugging
   mark-tested.sh                    Evidence-based test marker (rejects bare touch)
   mark-manual-tested.sh             Evidence-based manual test marker
   mark-reviewed.sh                  Review evidence marker (requires critical: 0)
@@ -396,6 +430,7 @@ scripts/
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK            |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                   |
+| workos-node            | `../workos-node`            | WorkOS Node.js SDK                    |
 
 The manifest (`projects.json`) and all tooling are designed to scale to 25+ repos. Add a new repo by appending to `projects.json`.
 
