@@ -10,40 +10,40 @@ Inspired by [harness engineering](https://openai.com/index/harness-engineering/)
 
 ### Use with an issue
 
-From any target repo:
+In Claude Code, from any target repo directory:
+
+```
+/case 34          # GitHub issue
+/case DX-1234     # Linear issue
+```
+
+Or from the terminal using the `ca` CLI directly:
 
 ```bash
-# GitHub issue
-/case 34
-
-# Linear issue
-/case DX-1234
+ca 34             # GitHub issue
+ca DX-1234        # Linear issue
 ```
 
 The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`) with a profile and optional done contract, runs a baseline smoke test, then spawns the pipeline. The default `standard` profile runs implementer → verifier → reviewer → closer → retrospective; `tiny` skips verification. Evaluator rubric failures can trigger automatic revision loops back to the implementer.
 
 ### Resume an interrupted run
 
-If a `/case` run is interrupted, re-run the same command. The orchestrator detects the existing `.task.json` and resumes from the last completed agent phase.
+Re-run the same command. The orchestrator detects the existing `.task.json` and resumes from the last completed agent phase.
 
-```bash
-# Resumes where it left off — doesn't recreate the task
-/case 34
+```
+/case 34          # resumes where it left off — doesn't recreate the task
 ```
 
 ### Interactive mode
 
-Start a conversational session with the case orchestrator:
+Start a conversational session with the case orchestrator via the `ca` CLI:
 
 ```bash
-# Freeform — discuss, plan, explore before running anything
-ca --agent
-
-# Issue-directed — fetches the issue and presents context
-ca --agent 1234
+ca --agent              # freeform — discuss, plan, explore before running anything
+ca --agent 1234         # issue-directed — fetches the issue and presents context
 ```
 
-The session starts with the same detection as batch mode — it identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
+The session identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
 
 ```
 Repo: cli (/path/to/cli)
@@ -54,7 +54,7 @@ Users cannot log in when cookies are disabled
 Ready to create a task and run the pipeline, or discuss first.
 ```
 
-From there you can discuss approaches, ask questions, or tell the orchestrator to run the pipeline. Tools for fetching issues, creating tasks, running baselines, and executing the pipeline are all available through conversation.
+From there you can discuss approaches, ask questions, or tell the orchestrator to run the pipeline.
 
 ## How It Works
 
