@@ -877,4 +877,76 @@ describe('runPipeline', () => {
     const lastCall = mockSpawnAgent.mock.calls[3][0];
     expect(lastCall.agentName).toBe('retrospective');
   });
+
+  // --- Approve gate tests ---
+
+  it('approve phase is skipped when config.approve is false (default)', async () => {
+    // Standard happy path — approve phase should be invisible
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ approve: false }));
+
+    // 5 agents, no approval prompt
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierAskUser).not.toHaveBeenCalledWith('Approve this work?', expect.anything());
+  });
+
+  it('approve phase is skipped in unattended mode even with approve: true', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ approve: true, mode: 'unattended' }));
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierAskUser).not.toHaveBeenCalledWith('Approve this work?', expect.anything());
+  });
+
+  it('approve: true in attended mode → user approves → proceeds to close', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockNotifierAskUser.mockResolvedValueOnce('Approve');
+
+    await runPipeline(makeConfig({ approve: true }));
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierAskUser).toHaveBeenCalledWith('Approve this work?', ['Approve', 'Request Changes', 'Reject']);
+    expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
+  });
+
+  it('approve: true → user rejects → abort → retrospective', async () => {
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockNotifierAskUser.mockResolvedValueOnce('Reject');
+
+    await runPipeline(makeConfig({ approve: true }));
+
+    // No closer spawned — aborted at approve
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(4);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('failed'));
+  });
+
+  it('dry-run skips approve phase', async () => {
+    await runPipeline(makeConfig({ dryRun: true, approve: true }));
+
+    expect(mockSpawnAgent).not.toHaveBeenCalled();
+    expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
+  });
 });

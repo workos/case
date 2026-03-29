@@ -1,5 +1,5 @@
 /** Status lifecycle — mirrors task-status.sh TRANSITIONS map */
-export type TaskStatus = 'active' | 'implementing' | 'verifying' | 'reviewing' | 'closing' | 'pr-opened' | 'merged';
+export type TaskStatus = 'active' | 'implementing' | 'verifying' | 'reviewing' | 'approving' | 'closing' | 'pr-opened' | 'merged';
 
 export type AgentName = 'orchestrator' | 'implementer' | 'verifier' | 'reviewer' | 'closer';
 
@@ -112,10 +112,10 @@ export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   complex: ['implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
-export type PipelinePhase = 'implement' | 'verify' | 'review' | 'close' | 'retrospective' | 'complete' | 'abort';
+export type PipelinePhase = 'implement' | 'verify' | 'review' | 'approve' | 'close' | 'retrospective' | 'complete' | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
-export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
+export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'approve', 'close', 'retrospective'];
 
 export interface PipelineConfig {
   mode: PipelineMode;
@@ -126,6 +126,8 @@ export interface PipelineConfig {
   caseRoot: string;
   maxRetries: number;
   dryRun: boolean;
+  /** Enable human approval gate between review and close */
+  approve?: boolean;
   /** Max evaluator→implementer revision cycles (default: 2) */
   maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
@@ -157,7 +159,7 @@ export interface FailureAnalysis {
 /** Structured revision request from evaluator (verifier/reviewer) when fixable issues are found */
 export interface RevisionRequest {
   /** Which evaluator triggered the revision */
-  source: 'verifier' | 'reviewer';
+  source: 'verifier' | 'reviewer' | 'human';
   /** Which rubric categories failed */
   failedCategories: RubricCategory[];
   /** Human-readable summary of what needs fixing */

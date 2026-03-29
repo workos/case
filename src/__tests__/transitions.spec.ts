@@ -134,4 +134,9 @@ describe('determineEntryPhase', () => {
     expect(determineEntryPhase(makeTask({ status: 'pr-opened' }), 'tiny')).toBe('complete');
     expect(determineEntryPhase(makeTask({ status: 'merged' }), 'tiny')).toBe('complete');
   });
+
+  // Approve gate tests
+  it('approving status -> approve phase', () => {
+    expect(determineEntryPhase(makeTask({ status: 'approving' as any }))).toBe('approve');
+  });
 });

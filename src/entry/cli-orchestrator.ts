@@ -14,6 +14,8 @@ export interface CliOrchestratorOptions {
   argument?: string;
   mode: PipelineMode;
   dryRun: boolean;
+  /** Enable human approval gate between review and close. */
+  approve?: boolean;
   /** Skip re-entry detection and create a fresh task. */
   fresh?: boolean;
   caseRoot: string;
@@ -31,7 +33,7 @@ export interface CliOrchestratorOptions {
  *   4. Dispatch to runPipeline()
  */
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
-  const { argument, mode, dryRun, fresh, caseRoot } = options;
+  const { argument, mode, dryRun, approve, fresh, caseRoot } = options;
 
   // --- Step 0: Detect repo ---
   process.stdout.write('Detecting repo...\n');
@@ -51,7 +53,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   }
 
   if (match) {
-    return resumeTask(match, detected.path, mode, dryRun);
+    return resumeTask(match, detected.path, mode, dryRun, approve);
   }
 
   // No existing task found — create new or exit
@@ -117,6 +119,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
     taskJsonPath: taskResult.taskJsonPath,
     mode,
     dryRun,
+    approve,
   });
 
   await runPipeline(config);
@@ -126,7 +129,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
  * Resume an existing task from the correct pipeline phase.
  * Handles terminal states (pr-opened, ideation) and branch recovery.
  */
-async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode, dryRun: boolean): Promise<void> {
+async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode, dryRun: boolean, approve?: boolean): Promise<void> {
   const { taskJson, taskJsonPath, entryPhase } = match;
 
   // Guard: task already has a PR open
@@ -154,6 +157,7 @@ async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode
     taskJsonPath,
     mode,
     dryRun,
+    approve,
   });
 
   process.stdout.write('Dispatching to pipeline...\n');

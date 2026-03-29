@@ -23,6 +23,7 @@ async function main() {
       agent: { type: 'boolean' },
       model: { type: 'string' },
       'dry-run': { type: 'boolean' },
+      approve: { type: 'boolean' },
       fresh: { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
       repo: { type: 'string' },
@@ -94,6 +95,7 @@ async function main() {
         mode: mode ?? 'attended',
         dryRun: (values['dry-run'] as boolean) ?? false,
         fresh: (values.fresh as boolean) ?? false,
+        approve: (values.approve as boolean) ?? false,
         caseRoot,
       });
       process.exit(0);
@@ -143,6 +145,7 @@ async function runTask(values: Record<string, unknown>) {
       taskJsonPath: taskPath,
       mode,
       dryRun: values['dry-run'] as boolean | undefined,
+      approve: values.approve as boolean | undefined,
     });
 
     await runPipeline(config);
@@ -263,6 +266,7 @@ Run options:
   --mode, -m <mode>         attended | unattended (default: attended)
   --model <id>              Override model for all agents (e.g., claude-opus-4-5)
   --dry-run                 Log phase transitions without spawning agents
+  --approve                 Enable human approval gate between review and close
   --fresh                   Skip re-entry detection, create a new task from scratch
 
 Create options:

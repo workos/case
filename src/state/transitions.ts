@@ -12,8 +12,8 @@ export function determineEntryPhase(task: TaskJson, profile?: PipelineProfile): 
   const allowedPhases = new Set(PROFILE_PHASES[resolvedProfile]);
   const rawPhase = determineRawEntryPhase(task);
 
-  // Terminal phases pass through regardless of profile
-  if (rawPhase === 'complete' || rawPhase === 'abort') return rawPhase;
+  // Terminal and flag-gated phases pass through regardless of profile
+  if (rawPhase === 'complete' || rawPhase === 'abort' || rawPhase === 'approve') return rawPhase;
 
   // If the raw phase is in the profile, use it
   if (allowedPhases.has(rawPhase)) return rawPhase;
@@ -59,6 +59,9 @@ function determineRawEntryPhase(task: TaskJson): PipelinePhase {
       if (rev?.status === 'completed') return 'close';
       return 'review';
     }
+
+    case 'approving':
+      return 'approve';
 
     case 'closing':
       return 'close';

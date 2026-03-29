@@ -7,9 +7,10 @@ const pipelineParams = Type.Object({
   taskJsonPath: Type.String({ description: 'Path to the .task.json file' }),
   mode: Type.Optional(Type.String({ description: 'attended or unattended' })),
   dryRun: Type.Optional(Type.Boolean({ description: 'Skip agent spawning' })),
+  approve: Type.Optional(Type.Boolean({ description: 'Enable human approval gate between review and close' })),
 });
 
-export function createPipelineTool(_caseRoot: string) {
+export function createPipelineTool(_caseRoot: string, defaults?: { approve?: boolean }) {
   return defineTool({
     name: 'run_pipeline',
     label: 'Pipeline',
@@ -21,6 +22,7 @@ export function createPipelineTool(_caseRoot: string) {
         taskJsonPath: params.taskJsonPath,
         mode: (params.mode as 'attended' | 'unattended') ?? 'attended',
         dryRun: params.dryRun ?? false,
+        approve: params.approve ?? defaults?.approve ?? false,
       });
 
       config.onAgentHeartbeat = (elapsedMs) => {

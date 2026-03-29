@@ -6,6 +6,7 @@ import { createNotifier, formatDuration, type Notifier } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
 import { runVerifyPhase } from './phases/verify.js';
 import { runReviewPhase } from './phases/review.js';
+import { runApprovePhase } from './phases/approve.js';
 import { runClosePhase } from './phases/close.js';
 import { runRetrospectivePhase } from './phases/retrospective.js';
 import { MetricsCollector } from './metrics/collector.js';
@@ -21,6 +22,7 @@ const PHASE_TO_STATUS: Partial<Record<PipelinePhase, TaskStatus>> = {
   implement: 'implementing',
   verify: 'verifying',
   review: 'reviewing',
+  approve: 'approving',
   close: 'closing',
 };
 
@@ -29,7 +31,8 @@ const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   active: ['implementing'],
   implementing: ['verifying', 'active'],
   verifying: ['reviewing', 'closing', 'implementing'],
-  reviewing: ['closing', 'verifying'],
+  reviewing: ['closing', 'approving', 'verifying'],
+  approving: ['closing', 'implementing'],
   closing: ['pr-opened', 'verifying'],
   'pr-opened': ['pr-opened', 'merged'],
   merged: [],
@@ -156,7 +159,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
   while (currentPhase !== 'complete' && currentPhase !== 'abort') {
     // Skip phases not in this profile
-    if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective') {
+    if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective' && currentPhase !== 'approve') {
       const skipped = currentPhase;
       metrics.addSkippedPhase(skipped);
       currentPhase = nextPhaseInProfile(currentPhase, allowedPhases);
@@ -269,7 +272,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             currentPhase = 'implement';
           } else if (choice === 'Override and continue') {
             metrics.addHumanOverride();
-            currentPhase = 'close';
+            currentPhase = 'approve';
           } else {
             failedAgent = 'reviewer';
             outcome = 'failed';
@@ -279,6 +282,43 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');
           currentPhase = await handleRevisionOutcome(output, 'reviewer');
+          // Route through approve gate (it handles skip logic if not enabled)
+          if (currentPhase === 'close') {
+            currentPhase = 'approve';
+          }
+        }
+        break;
+      }
+
+      case 'approve': {
+        // Flag-gated: skip if --approve not set or unattended mode
+        if (!config.approve || config.mode === 'unattended') {
+          log.phase('approve', 'skipped', { approve: config.approve, mode: config.mode });
+          currentPhase = 'close';
+          break;
+        }
+
+        const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
+        const approveElapsed = Date.now() - phaseStartMs;
+
+        if (approveOutput.nextPhase === 'abort') {
+          notifier.phaseEnd('approve', 'human', approveElapsed, 'failed');
+          outcome = 'failed';
+          currentPhase = 'retrospective';
+        } else if (approveOutput.nextPhase === 'implement' && approveOutput.revision) {
+          // Request Changes — feed revision back through the revision loop
+          pendingRevision = approveOutput.revision;
+          revisionCycles++;
+          pendingRevision.cycle = revisionCycles;
+          await store.setPendingRevision(pendingRevision);
+          metrics.addRevisionCycle();
+          metrics.addHumanOverride();
+          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
+          notifier.send(`Human requested changes (cycle ${revisionCycles}): re-implementing`);
+          currentPhase = 'implement';
+        } else {
+          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
+          currentPhase = approveOutput.nextPhase;
         }
         break;
       }
