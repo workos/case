@@ -6,6 +6,56 @@ A harness for orchestrating AI agent work across WorkOS open source projects.
 
 Inspired by [harness engineering](https://openai.com/index/harness-engineering/) and [effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — the discipline of designing environments that let AI agents operate reliably at scale. Humans steer. Agents execute. When agents struggle, fix the harness.
 
+## Quick Start
+
+### Use with an issue
+
+From any target repo:
+
+```bash
+# GitHub issue
+/case 34
+
+# Linear issue
+/case DX-1234
+```
+
+The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`) with a profile and optional done contract, runs a baseline smoke test, then spawns the pipeline. The default `standard` profile runs implementer → verifier → reviewer → closer → retrospective; `tiny` skips verification. Evaluator rubric failures can trigger automatic revision loops back to the implementer.
+
+### Resume an interrupted run
+
+If a `/case` run is interrupted, re-run the same command. The orchestrator detects the existing `.task.json` and resumes from the last completed agent phase.
+
+```bash
+# Resumes where it left off — doesn't recreate the task
+/case 34
+```
+
+### Interactive mode
+
+Start a conversational session with the case orchestrator:
+
+```bash
+# Freeform — discuss, plan, explore before running anything
+ca --agent
+
+# Issue-directed — fetches the issue and presents context
+ca --agent 1234
+```
+
+The session starts with the same detection as batch mode — it identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
+
+```
+Repo: cli (/path/to/cli)
+
+Issue: Fix login bug
+Users cannot log in when cookies are disabled
+
+Ready to create a task and run the pipeline, or discuss first.
+```
+
+From there you can discuss approaches, ask questions, or tell the orchestrator to run the pipeline. Tools for fetching issues, creating tasks, running baselines, and executing the pipeline are all available through conversation.
+
 ## How It Works
 
 Case uses a **six-agent pipeline** where each agent has a focused context window and a single responsibility. This prevents context pollution — the root cause of agents forgetting to test, gaming evidence markers, or skipping checklist items.
@@ -234,56 +284,6 @@ graph LR
     J -->|yes| K["Propose escalation to convention"]
     J -->|no| L["Done"]
 ```
-
-## Quick Start
-
-### Use with an issue
-
-From any target repo:
-
-```bash
-# GitHub issue
-/case 34
-
-# Linear issue
-/case DX-1234
-```
-
-The orchestrator fetches the issue, creates a task file (`.md` + `.task.json`) with a profile and optional done contract, runs a baseline smoke test, then spawns the pipeline. The default `standard` profile runs implementer → verifier → reviewer → closer → retrospective; `tiny` skips verification. Evaluator rubric failures can trigger automatic revision loops back to the implementer.
-
-### Resume an interrupted run
-
-If a `/case` run is interrupted, re-run the same command. The orchestrator detects the existing `.task.json` and resumes from the last completed agent phase.
-
-```bash
-# Resumes where it left off — doesn't recreate the task
-/case 34
-```
-
-### Interactive mode
-
-Start a conversational session with the case orchestrator:
-
-```bash
-# Freeform — discuss, plan, explore before running anything
-ca --agent
-
-# Issue-directed — fetches the issue and presents context
-ca --agent 1234
-```
-
-The session starts with the same detection as batch mode — it identifies the current repo, checks for active tasks, and fetches issue context. You see the full briefing before anything executes:
-
-```
-Repo: cli (/path/to/cli)
-
-Issue: Fix login bug
-Users cannot log in when cookies are disabled
-
-Ready to create a task and run the pipeline, or discuss first.
-```
-
-From there you can discuss approaches, ask questions, or tell the orchestrator to run the pipeline. Tools for fetching issues, creating tasks, running baselines, and executing the pipeline are all available through conversation.
 
 ## Task Tracking
 
