@@ -57,6 +57,7 @@ async function main() {
         caseRoot,
         argument: argument || undefined,
         mode: 'attended',
+        approve: values.approve as boolean | undefined,
       });
       process.exit(0);
     } catch (err) {
