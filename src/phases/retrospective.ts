@@ -1,16 +1,10 @@
-import type { AgentName, AgentResult, EvaluatorEffectiveness, PipelineConfig, PipelineProfile } from '../types.js';
+import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
+import type { MetricsSnapshot } from '../metrics/collector.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
-
-export interface RetrospectiveMetrics {
-  revisionCycles: number;
-  humanOverrides: number;
-  profile: PipelineProfile;
-  evaluatorEffectiveness: EvaluatorEffectiveness;
-}
 
 /**
  * Step 9: Always runs — on success AND failure.
@@ -22,7 +16,7 @@ export async function runRetrospectivePhase(
   previousResults: Map<AgentName, AgentResult>,
   outcome: 'completed' | 'failed',
   failedAgent?: AgentName,
-  metricsSnapshot?: RetrospectiveMetrics,
+  metricsSnapshot?: MetricsSnapshot,
 ): Promise<void> {
   log.phase('retrospective', 'started', { outcome, failedAgent });
 

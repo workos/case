@@ -63,7 +63,9 @@ export class TaskStore {
     }
   }
 
-  /** Persist or clear a pending revision request directly in the task JSON. */
+  /** Persist or clear a pending revision request directly in the task JSON.
+   *  Bypasses task-status.sh because that script has no subcommand for pendingRevision —
+   *  this field is pipeline-internal state, not a status transition. */
   async setPendingRevision(revision: import('../types.js').RevisionRequest | null): Promise<void> {
     const task = await this.read();
     if (revision) {

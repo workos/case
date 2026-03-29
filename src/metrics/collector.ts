@@ -1,5 +1,12 @@
 import type { AgentName, EvaluatorEffectiveness, PhaseMetrics, PipelinePhase, PipelineProfile, ReviewFindings, RubricCategory, RunMetrics } from '../types.js';
 
+export interface MetricsSnapshot {
+  revisionCycles: number;
+  humanOverrides: number;
+  profile: PipelineProfile;
+  evaluatorEffectiveness: EvaluatorEffectiveness;
+}
+
 /**
  * Collects per-phase timing and structured metrics during a pipeline run.
  * Created once at pipeline start, finalized at pipeline end.
@@ -100,28 +107,29 @@ export class MetricsCollector {
     this.revisionFixedIssues = fixed;
   }
 
-  /** Record a phase skipped by profile. */
+  /** Record a phase skipped by profile (deduplicated). */
   addSkippedPhase(phase: PipelinePhase): void {
-    this.skippedPhases.push(phase);
+    if (!this.skippedPhases.includes(phase)) {
+      this.skippedPhases.push(phase);
+    }
+  }
+
+  private buildEvaluatorEffectiveness(): EvaluatorEffectiveness {
+    return {
+      verifierRubric: this.verifierRubric ? [...this.verifierRubric] : null,
+      reviewerRubric: this.reviewerRubric ? [...this.reviewerRubric] : null,
+      revisionFixedIssues: this.revisionFixedIssues,
+      skippedPhases: [...this.skippedPhases],
+    };
   }
 
   /** Return a read-only snapshot of metrics collected so far (pre-finalization). */
-  snapshot(): {
-    revisionCycles: number;
-    humanOverrides: number;
-    profile: PipelineProfile;
-    evaluatorEffectiveness: EvaluatorEffectiveness;
-  } {
+  snapshot(): MetricsSnapshot {
     return {
       revisionCycles: this.revisionCycles,
       humanOverrides: this.humanOverrides,
       profile: this.profile,
-      evaluatorEffectiveness: {
-        verifierRubric: this.verifierRubric,
-        reviewerRubric: this.reviewerRubric,
-        revisionFixedIssues: this.revisionFixedIssues,
-        skippedPhases: [...this.skippedPhases],
-      },
+      evaluatorEffectiveness: this.buildEvaluatorEffectiveness(),
     };
   }
 
@@ -143,12 +151,7 @@ export class MetricsCollector {
       revisionCycles: this.revisionCycles,
       profile: this.profile,
       humanOverrides: this.humanOverrides,
-      evaluatorEffectiveness: {
-        verifierRubric: this.verifierRubric,
-        reviewerRubric: this.reviewerRubric,
-        revisionFixedIssues: this.revisionFixedIssues,
-        skippedPhases: this.skippedPhases,
-      },
+      evaluatorEffectiveness: this.buildEvaluatorEffectiveness(),
     };
   }
 }

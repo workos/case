@@ -97,6 +97,10 @@ export interface ReviewerRubric {
 
 export type Rubric = VerifierRubric | ReviewerRubric;
 
+/** Reviewer rubric categories classified by gate severity. */
+export const REVIEWER_HARD_CATEGORIES = ['principle-compliance', 'scope-discipline'] as const;
+export const REVIEWER_SOFT_CATEGORIES = ['test-sufficiency', 'pattern-fit'] as const;
+
 export type PipelineMode = 'attended' | 'unattended';
 
 export type PipelineProfile = 'tiny' | 'standard' | 'complex';
@@ -155,11 +159,7 @@ export interface RevisionRequest {
   /** Which evaluator triggered the revision */
   source: 'verifier' | 'reviewer';
   /** Which rubric categories failed */
-  failedCategories: Array<{
-    category: string;
-    verdict: RubricVerdict;
-    detail: string;
-  }>;
+  failedCategories: RubricCategory[];
   /** Human-readable summary of what needs fixing */
   summary: string;
   /** Specific files or areas to focus on */

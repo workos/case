@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, PipelineProfile, RevisionRequest, TaskStatus } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, RevisionRequest, TaskStatus } from './types.js';
 import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { determineEntryPhase, findNextAllowedPhase } from './state/transitions.js';
@@ -109,14 +109,11 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   let revisionCycles = pendingRevision?.cycle ?? 0;
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
-  // Restore persisted revision count so resumed runs log accurate metrics.
   metrics.setRevisionCycles(revisionCycles);
 
-  // Per-run trace writer for tool-level observability
   const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
   config.traceWriter = traceWriter;
 
-  // Track pipeline profile
   metrics.setProfile(profile);
 
   // Load prompt versions for this run's metrics
@@ -162,7 +159,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective') {
       const skipped = currentPhase;
       metrics.addSkippedPhase(skipped);
-      currentPhase = nextPhaseInProfile(currentPhase, profile);
+      currentPhase = nextPhaseInProfile(currentPhase, allowedPhases);
       log.phase(skipped, 'skipped-by-profile', { profile });
       continue;
     }
@@ -208,12 +205,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             currentPhase = 'retrospective';
           }
         } else {
-          // Implementer succeeded — clear revision state (in-memory and persisted)
           pendingRevision = null;
           await store.setPendingRevision(null);
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
           metrics.endPhase('completed');
-          // Track CI first-push from implementer result
           if (output.result.artifacts.testsPassed !== null) {
             metrics.setCiFirstPush(output.result.artifacts.testsPassed);
           }
@@ -225,7 +220,6 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'verify': {
         const output = await runVerifyPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
-        // Capture verifier rubric whenever available
         if (output.result.rubric?.role === 'verifier') {
           metrics.setVerifierRubric(output.result.rubric.categories);
         }
@@ -257,7 +251,6 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'review': {
         const output = await runReviewPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
-        // Capture review findings and rubric in metrics
         if (output.result.findings) {
           metrics.setReviewFindings(output.result.findings);
         }
@@ -265,7 +258,6 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           metrics.setReviewerRubric(output.result.rubric.categories);
         }
         if (output.nextPhase === 'abort') {
-          // Hard fails — existing abort handling
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'failed');
           metrics.endPhase('failed');
           const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
@@ -375,8 +367,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 }
 
 /** Given a phase that was skipped, determine the next phase to try. */
-function nextPhaseInProfile(skippedPhase: PipelinePhase, profile: PipelineProfile): PipelinePhase {
-  const allowed = new Set(PROFILE_PHASES[profile]);
+function nextPhaseInProfile(skippedPhase: PipelinePhase, allowed: Set<PipelinePhase>): PipelinePhase {
   return findNextAllowedPhase(skippedPhase, allowed) ?? 'complete';
 }
 

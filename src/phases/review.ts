@@ -1,4 +1,5 @@
 import type { AgentName, AgentResult, PhaseOutput, PipelineConfig } from '../types.js';
+import { REVIEWER_HARD_CATEGORIES, REVIEWER_SOFT_CATEGORIES } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
@@ -68,8 +69,9 @@ export async function runReviewPhase(
 
   // Rubric hard-category fails → abort
   if (result.rubric?.role === 'reviewer') {
+    const hardCategories = new Set<string>(REVIEWER_HARD_CATEGORIES);
     const hardFails = result.rubric.categories.filter(
-      (c) => (c.category === 'principle-compliance' || c.category === 'scope-discipline') && c.verdict === 'fail',
+      (c) => hardCategories.has(c.category) && c.verdict === 'fail',
     );
     if (hardFails.length > 0) {
       log.phase('review', 'rubric-hard-fail', { categories: hardFails.map((c) => c.category) });
@@ -91,8 +93,9 @@ export async function runReviewPhase(
 
   // Soft-category fails → revision request (only reachable when agent completed without blocking issues)
   if (result.rubric?.role === 'reviewer') {
+    const softCategories = new Set<string>(REVIEWER_SOFT_CATEGORIES);
     const softFails = result.rubric.categories.filter(
-      (c) => (c.category === 'test-sufficiency' || c.category === 'pattern-fit') && c.verdict === 'fail',
+      (c) => softCategories.has(c.category) && c.verdict === 'fail',
     );
     if (softFails.length > 0) {
       const revision = buildRevisionRequest('reviewer', softFails);

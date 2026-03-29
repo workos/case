@@ -145,6 +145,17 @@ async function handleGitHubWebhook(
   return Response.json({ action: 'ignored' });
 }
 
+async function safeCreateTask(caseRoot: string, request: TaskCreateRequest) {
+  try {
+    return { created: await createTask(caseRoot, request) };
+  } catch (err) {
+    if (err instanceof TaskValidationError) {
+      return { error: Response.json({ error: err.message }, { status: 400 }) };
+    }
+    throw err;
+  }
+}
+
 async function handleCreateTask(req: Request, caseRoot: string): Promise<Response> {
   let request: TaskCreateRequest;
   try {
@@ -161,16 +172,9 @@ async function handleCreateTask(req: Request, caseRoot: string): Promise<Respons
     request.trigger = { type: 'manual', description: 'Created via API' };
   }
 
-  let created;
-  try {
-    created = await createTask(caseRoot, request);
-  } catch (err) {
-    if (err instanceof TaskValidationError) {
-      return Response.json({ error: err.message }, { status: 400 });
-    }
-    throw err;
-  }
-  return Response.json({ taskId: created.taskId, path: created.taskJsonPath }, { status: 201 });
+  const result = await safeCreateTask(caseRoot, request);
+  if (result.error) return result.error;
+  return Response.json({ taskId: result.created.taskId, path: result.created.taskJsonPath }, { status: 201 });
 }
 
 async function handleStartTask(idx: number, caseRoot: string, pendingTasks: TaskCreateRequest[]): Promise<Response> {
@@ -180,15 +184,9 @@ async function handleStartTask(idx: number, caseRoot: string, pendingTasks: Task
 
   const request = pendingTasks[idx];
 
-  let created;
-  try {
-    created = await createTask(caseRoot, request);
-  } catch (err) {
-    if (err instanceof TaskValidationError) {
-      return Response.json({ error: err.message }, { status: 400 });
-    }
-    throw err;
-  }
+  const result = await safeCreateTask(caseRoot, request);
+  if (result.error) return result.error;
+  const created = result.created;
 
   // Only remove from queue after successful creation
   pendingTasks.splice(idx, 1);
