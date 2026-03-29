@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'bun:test';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { describe, it, expect, mock, beforeEach, beforeAll, afterAll } from 'bun:test';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mockSpawnAgent, mockRunScript } from './mocks.js';
@@ -11,8 +11,19 @@ import { mockSpawnAgent, mockRunScript } from './mocks.js';
  * error handling, and the tool wrapper.
  *
  * Uses real filesystem for ideation artifacts and task files.
- * Only spawnAgent and runScript are mocked (via the global preload).
+ * spawnAgent and runScript are mocked (via the global preload).
+ * runPipeline is mocked here — pipeline has its own tests.
  */
+
+// Mock pipeline — from-ideation delegates post-implementation to runPipeline
+const mockRunPipeline = mock();
+const mockBuildPipelineConfig = mock();
+mock.module('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
+mock.module('../config.js', () => ({
+  buildPipelineConfig: mockBuildPipelineConfig,
+  loadProjects: mock(() => Promise.resolve([])),
+  resolveRepoPath: mock((_: string, p: string) => p),
+}));
 
 const { loadContract, discoverSpecs, executeFromIdeation } = await import('../agent/from-ideation.js');
 const { createFromIdeationTool } = await import('../agent/tools/from-ideation-tool.js');
@@ -181,6 +192,8 @@ describe('executeFromIdeation', () => {
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
     mockRunScript.mockReset();
+    mockRunPipeline.mockReset();
+    mockBuildPipelineConfig.mockReset();
 
     // Create fresh dirs for each test
     const testId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -195,18 +208,23 @@ describe('executeFromIdeation', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 1 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: 'OK', stderr: '', exitCode: 0 });
+
+    // Pipeline mock: simulate writing PR URL to task JSON (like a real pipeline would)
+    mockBuildPipelineConfig.mockImplementation(async (opts: { taskJsonPath: string }) => ({
+      taskJsonPath: opts.taskJsonPath,
+      mode: 'attended',
+    }));
+    mockRunPipeline.mockImplementation(async (config: { taskJsonPath: string }) => {
+      const raw = await readFile(config.taskJsonPath, 'utf-8');
+      const task = JSON.parse(raw);
+      task.prUrl = 'https://github.com/org/repo/pull/1';
+      task.status = 'pr-opened';
+      await writeFile(config.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
+    });
   });
 
-  it('creates task, spawns implementer per phase, then verifier/reviewer/closer', async () => {
-    mockSpawnAgent
-      .mockResolvedValueOnce(mockAgentResult())
-      .mockResolvedValueOnce(mockAgentResult())
-      .mockResolvedValueOnce(mockAgentResult())
-      .mockResolvedValueOnce(
-        mockAgentResult({
-          artifacts: { ...mockAgentResult().result.artifacts, prUrl: 'https://github.com/org/repo/pull/1' },
-        }),
-      );
+  it('creates task, spawns implementer per phase, then delegates to pipeline', async () => {
+    mockSpawnAgent.mockResolvedValueOnce(mockAgentResult()); // implementer
 
     const result = await executeFromIdeation({
       ideationFolder,
@@ -215,14 +233,16 @@ describe('executeFromIdeation', () => {
       repoPath: '/repos/cli',
     });
 
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(4);
+    // Only implementer is spawned directly — pipeline handles verify/review/close
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(1);
+    expect(mockRunPipeline).toHaveBeenCalledTimes(1);
     expect(result.success).toBe(true);
     expect(result.phases).toHaveLength(1);
     expect(result.phases[0].status).toBe('completed');
     expect(result.prUrl).toBe('https://github.com/org/repo/pull/1');
   });
 
-  it('spawns implementer once per phase in multi-phase execution', async () => {
+  it('spawns implementer once per phase then delegates to pipeline', async () => {
     // Create a multi-phase ideation folder
     const testId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const multiFolder = await createIdeationFolder(`multi-${testId}`, {
@@ -231,17 +251,10 @@ describe('executeFromIdeation', () => {
       'spec-phase-2.md': '# Phase 2\n\nAdd the module.',
     });
 
-    // 2 implementer calls + verifier + reviewer + closer = 5 total
+    // 2 implementer calls only — pipeline handles the rest
     mockSpawnAgent
       .mockResolvedValueOnce(mockAgentResult({ summary: 'Phase 1 done' }))
-      .mockResolvedValueOnce(mockAgentResult({ summary: 'Phase 2 done' }))
-      .mockResolvedValueOnce(mockAgentResult()) // verifier
-      .mockResolvedValueOnce(mockAgentResult()) // reviewer
-      .mockResolvedValueOnce(
-        mockAgentResult({
-          artifacts: { ...mockAgentResult().result.artifacts, prUrl: 'https://pr/1' },
-        }),
-      );
+      .mockResolvedValueOnce(mockAgentResult({ summary: 'Phase 2 done' }));
 
     const result = await executeFromIdeation({
       ideationFolder: multiFolder,
@@ -250,7 +263,8 @@ describe('executeFromIdeation', () => {
       repoPath: '/repos/cli',
     });
 
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(2);
+    expect(mockRunPipeline).toHaveBeenCalledTimes(1);
     expect(result.success).toBe(true);
     expect(result.phases).toHaveLength(2);
     expect(result.phases[0].summary).toBe('Phase 1 done');
@@ -313,11 +327,7 @@ describe('executeFromIdeation', () => {
   });
 
   it('fires progress callback for each stage', async () => {
-    mockSpawnAgent.mockResolvedValue(
-      mockAgentResult({
-        artifacts: { ...mockAgentResult().result.artifacts, prUrl: 'https://pr' },
-      }),
-    );
+    mockSpawnAgent.mockResolvedValue(mockAgentResult());
 
     const progress: string[] = [];
     await executeFromIdeation({
@@ -331,9 +341,23 @@ describe('executeFromIdeation', () => {
     expect(progress).toContain('Loading contract...');
     expect(progress).toContain('Creating task...');
     expect(progress.some((p) => p.includes('Executing phase'))).toBe(true);
-    expect(progress).toContain('Running verifier...');
-    expect(progress).toContain('Running reviewer...');
-    expect(progress).toContain('Creating PR...');
+    expect(progress.some((p) => p.includes('Running pipeline'))).toBe(true);
+  });
+
+  it('passes approve option through to pipeline config', async () => {
+    mockSpawnAgent.mockResolvedValueOnce(mockAgentResult());
+
+    await executeFromIdeation({
+      ideationFolder,
+      caseRoot,
+      repoName: 'cli',
+      repoPath: '/repos/cli',
+      approve: true,
+    });
+
+    expect(mockBuildPipelineConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ approve: true }),
+    );
   });
 
   it('returns existing PR URL for re-entry when PR already exists', async () => {

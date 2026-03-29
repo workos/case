@@ -4,7 +4,9 @@ import { spawnAgent } from './pi-runner.js';
 import { createTask } from '../entry/task-factory.js';
 import { runScript } from '../util/run-script.js';
 import { loadSystemPrompt } from './prompt-loader.js';
-import type { FromIdeationOptions, PhaseResult, AgentResult, TaskCreateRequest, TaskJson } from '../types.js';
+import { buildPipelineConfig } from '../config.js';
+import { runPipeline } from '../pipeline.js';
+import type { FromIdeationOptions, PhaseResult, TaskCreateRequest, TaskJson } from '../types.js';
 
 interface ContractInfo {
   problemStatement: string;
@@ -223,46 +225,50 @@ export async function executeFromIdeation(options: FromIdeationOptions): Promise
     }
   }
 
-  // --- Post-implementation pipeline: verifier → reviewer → closer ---
-  onProgress?.('Running verifier...');
-  const verifierResult = await spawnPipelineAgent('verifier', taskJsonPath, repoPath, caseRoot);
-  if (verifierResult.status !== 'completed') {
-    return {
-      success: false,
-      phases,
-      prUrl: null,
-      error: `Verifier failed: ${verifierResult.error}`,
+  // --- Set task state so pipeline enters at verify ---
+  onProgress?.('Running pipeline (verify → review → close)...');
+  try {
+    const taskJsonRaw = await readFile(taskJsonPath, 'utf-8');
+    const taskJson = JSON.parse(taskJsonRaw) as TaskJson;
+    taskJson.status = 'implementing';
+    taskJson.agents = {
+      ...taskJson.agents,
+      implementer: {
+        started: new Date().toISOString(),
+        completed: new Date().toISOString(),
+        status: 'completed',
+      },
     };
+    await writeFile(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
+  } catch (err) {
+    return { success: false, phases, prUrl: null, error: `Failed to update task state: ${(err as Error).message}` };
   }
 
-  onProgress?.('Running reviewer...');
-  const reviewerResult = await spawnPipelineAgent('reviewer', taskJsonPath, repoPath, caseRoot);
-  if (reviewerResult.status === 'blocked') {
-    return {
-      success: false,
-      phases,
-      prUrl: null,
-      error: `Reviewer blocked: ${reviewerResult.summary}`,
-    };
+  // --- Delegate to pipeline for verify → review → [approve] → close → retrospective ---
+  try {
+    const config = await buildPipelineConfig({
+      taskJsonPath,
+      mode: 'attended',
+      approve: options.approve,
+    });
+    await runPipeline(config);
+  } catch (err) {
+    return { success: false, phases, prUrl: null, error: `Pipeline failed: ${(err as Error).message}` };
   }
 
-  onProgress?.('Creating PR...');
-  const closerResult = await spawnPipelineAgent('closer', taskJsonPath, repoPath, caseRoot);
-  if (closerResult.status !== 'completed') {
+  // --- Read final task state ---
+  try {
+    const finalRaw = await readFile(taskJsonPath, 'utf-8');
+    const finalTask = JSON.parse(finalRaw) as TaskJson;
     return {
-      success: false,
+      success: finalTask.prUrl != null,
       phases,
-      prUrl: null,
-      error: `Closer failed: ${closerResult.error}`,
+      prUrl: finalTask.prUrl,
+      error: finalTask.prUrl ? null : 'Pipeline completed but no PR was created',
     };
+  } catch {
+    return { success: true, phases, prUrl: null, error: null };
   }
-
-  return {
-    success: true,
-    phases,
-    prUrl: closerResult.artifacts.prUrl,
-    error: null,
-  };
 }
 
 // --- Internal helpers ---
@@ -334,51 +340,6 @@ ${specContent}`;
       status: 'failed',
       commit: null,
       summary: '',
-      error: (err as Error).message,
-    };
-  }
-}
-
-async function spawnPipelineAgent(
-  agentName: 'verifier' | 'reviewer' | 'closer',
-  taskJsonPath: string,
-  repoPath: string,
-  caseRoot: string,
-): Promise<AgentResult> {
-  const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
-
-  try {
-    const agentPrompt = await loadSystemPrompt(caseRoot, agentName);
-    const prompt = `${agentPrompt}
-
-## Task Context
-
-- **Task file**: ${taskMdPath}
-- **Task JSON**: ${taskJsonPath}
-- **Target repo**: ${repoPath}`;
-
-    const { result } = await spawnAgent({
-      prompt,
-      cwd: repoPath,
-      agentName,
-      caseRoot,
-      timeout: 600_000,
-    });
-
-    return result;
-  } catch (err) {
-    return {
-      status: 'failed',
-      summary: `${agentName} agent threw: ${(err as Error).message}`,
-      artifacts: {
-        commit: null,
-        filesChanged: [],
-        testsPassed: null,
-        screenshotUrls: [],
-        evidenceMarkers: [],
-        prUrl: null,
-        prNumber: null,
-      },
       error: (err as Error).message,
     };
   }

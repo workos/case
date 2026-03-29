@@ -74,7 +74,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     resourceLoader,
     customTools: [
       createPipelineTool(options.caseRoot, { approve: options.approve }),
-      createFromIdeationTool(options.caseRoot),
+      createFromIdeationTool(options.caseRoot, { approve: options.approve }),
       createIssueTool(options.caseRoot),
       createTaskTool(options.caseRoot),
       createBaselineTool(options.caseRoot),
@@ -247,7 +247,7 @@ function buildOrchestratorSystemPrompt(caseRoot: string): string {
 ## Tools
 
 - \`run_pipeline\` — Run the agent pipeline (implement → verify → review → [approve] → close) for a task file. Pass \`approve: true\` to enable the human approval gate.
-- \`run_from_ideation\` — Execute an ideation contract through the pipeline. All phases on one branch, one PR.
+- \`run_from_ideation\` — Execute an ideation contract through the pipeline. All phases on one branch, one PR. Inherits \`--approve\` from CLI flags.
 - \`fetch_issue\` — Get context from GitHub or Linear.
 - \`create_task\` — Set up task files for pipeline execution.
 - \`run_baseline\` — Verify a repo meets conventions.

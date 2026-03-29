@@ -260,6 +260,8 @@ export interface FromIdeationOptions {
   repoPath: string;
   /** Specific phase to execute (default: all) */
   phase?: number;
+  /** Enable human approval gate between review and close */
+  approve?: boolean;
   /** Called with progress updates during execution */
   onProgress?: (message: string) => void;
 }

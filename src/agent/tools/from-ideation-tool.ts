@@ -8,7 +8,7 @@ const fromIdeationParams = Type.Object({
   phase: Type.Optional(Type.Number({ description: 'Specific phase to execute (default: all)' })),
 });
 
-export function createFromIdeationTool(caseRoot: string) {
+export function createFromIdeationTool(caseRoot: string, defaults?: { approve?: boolean }) {
   return defineTool({
     name: 'run_from_ideation',
     label: 'From Ideation',
@@ -24,6 +24,7 @@ export function createFromIdeationTool(caseRoot: string) {
         repoName: detected.name,
         repoPath: detected.path,
         phase: params.phase,
+        approve: defaults?.approve,
         onProgress: (message) => {
           onUpdate?.({
             content: [{ type: 'text', text: message }],
