@@ -1,4 +1,11 @@
-import type { AgentName, PhaseMetrics, PipelinePhase, ReviewFindings, RunMetrics } from '../types.js';
+import type { AgentName, EvaluatorEffectiveness, PhaseMetrics, PipelinePhase, PipelineProfile, ReviewFindings, RubricCategory, RunMetrics } from '../types.js';
+
+export interface MetricsSnapshot {
+  revisionCycles: number;
+  humanOverrides: number;
+  profile: PipelineProfile;
+  evaluatorEffectiveness: EvaluatorEffectiveness;
+}
 
 /**
  * Collects per-phase timing and structured metrics during a pipeline run.
@@ -12,6 +19,13 @@ export class MetricsCollector {
   private reviewFindings: ReviewFindings | null = null;
   private ciFirstPush: boolean | null = null;
   private promptVersions: Record<string, string> = {};
+  private revisionCycles = 0;
+  private profile: PipelineProfile = 'standard';
+  private humanOverrides = 0;
+  private verifierRubric: RubricCategory[] | null = null;
+  private reviewerRubric: RubricCategory[] | null = null;
+  private revisionFixedIssues: boolean | null = null;
+  private skippedPhases: PipelinePhase[] = [];
 
   constructor() {
     this.runId = crypto.randomUUID();
@@ -56,6 +70,69 @@ export class MetricsCollector {
     this.promptVersions = versions;
   }
 
+  /** Increment the revision cycle counter. */
+  addRevisionCycle(): void {
+    this.revisionCycles++;
+  }
+
+  /** Restore the revision cycle counter when resuming a persisted revision loop. */
+  setRevisionCycles(count: number): void {
+    this.revisionCycles = Math.max(0, Math.trunc(count));
+  }
+
+  /** Set the pipeline profile for this run. */
+  setProfile(profile: PipelineProfile): void {
+    this.profile = profile;
+  }
+
+  /** Record that a human overrode an evaluator decision. */
+  addHumanOverride(): void {
+    this.humanOverrides++;
+  }
+
+  /** Record verifier rubric results. */
+  setVerifierRubric(rubric: RubricCategory[]): void {
+    this.verifierRubric = rubric;
+  }
+
+  /** Record reviewer rubric results. */
+  setReviewerRubric(rubric: RubricCategory[]): void {
+    this.reviewerRubric = rubric;
+  }
+
+  /** Record whether a revision cycle resolved the evaluator's findings.
+   *  Once set to false (budget exhausted), a later clean pass cannot overwrite to true. */
+  setRevisionFixedIssues(fixed: boolean): void {
+    if (this.revisionFixedIssues === false && fixed) return;
+    this.revisionFixedIssues = fixed;
+  }
+
+  /** Record a phase skipped by profile (deduplicated). */
+  addSkippedPhase(phase: PipelinePhase): void {
+    if (!this.skippedPhases.includes(phase)) {
+      this.skippedPhases.push(phase);
+    }
+  }
+
+  private buildEvaluatorEffectiveness(): EvaluatorEffectiveness {
+    return {
+      verifierRubric: this.verifierRubric ? [...this.verifierRubric] : null,
+      reviewerRubric: this.reviewerRubric ? [...this.reviewerRubric] : null,
+      revisionFixedIssues: this.revisionFixedIssues,
+      skippedPhases: [...this.skippedPhases],
+    };
+  }
+
+  /** Return a read-only snapshot of metrics collected so far (pre-finalization). */
+  snapshot(): MetricsSnapshot {
+    return {
+      revisionCycles: this.revisionCycles,
+      humanOverrides: this.humanOverrides,
+      profile: this.profile,
+      evaluatorEffectiveness: this.buildEvaluatorEffectiveness(),
+    };
+  }
+
   /** Finalize and return the complete metrics for this run. */
   finalize(outcome: 'completed' | 'failed', failedAgent?: AgentName): RunMetrics {
     const completedAt = new Date().toISOString();
@@ -71,6 +148,10 @@ export class MetricsCollector {
       ciFirstPush: this.ciFirstPush,
       reviewFindings: this.reviewFindings,
       promptVersions: this.promptVersions,
+      revisionCycles: this.revisionCycles,
+      profile: this.profile,
+      humanOverrides: this.humanOverrides,
+      evaluatorEffectiveness: this.buildEvaluatorEffectiveness(),
     };
   }
 }

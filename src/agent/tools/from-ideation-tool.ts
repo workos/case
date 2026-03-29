@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import { defineTool } from './define-tool.js';
 import { executeFromIdeation } from '../from-ideation.js';
 import { detectRepo } from '../../entry/repo-detector.js';
 
@@ -8,8 +8,8 @@ const fromIdeationParams = Type.Object({
   phase: Type.Optional(Type.Number({ description: 'Specific phase to execute (default: all)' })),
 });
 
-export function createFromIdeationTool(caseRoot: string): ToolDefinition<typeof fromIdeationParams> {
-  return {
+export function createFromIdeationTool(caseRoot: string) {
+  return defineTool({
     name: 'run_from_ideation',
     label: 'From Ideation',
     description: 'Execute an ideation contract through the case pipeline — all phases on one branch, one PR',
@@ -41,5 +41,5 @@ export function createFromIdeationTool(caseRoot: string): ToolDefinition<typeof 
         details: result,
       };
     },
-  };
+  });
 }

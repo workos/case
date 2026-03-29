@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { AgentName, AgentResult, FailureAnalysis, PhaseOutput, PipelineConfig } from '../types.js';
+import type { AgentName, AgentResult, FailureAnalysis, PhaseOutput, PipelineConfig, RevisionRequest } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
@@ -17,6 +17,7 @@ export async function runImplementPhase(
   config: PipelineConfig,
   store: TaskStore,
   previousResults: Map<AgentName, AgentResult>,
+  revision?: RevisionRequest,
 ): Promise<PhaseOutput> {
   // Update task state: implementing + agent running
   await store.setStatus('implementing');
@@ -33,7 +34,7 @@ export async function runImplementPhase(
   // Prefetch context and assemble prompt
   const task = await store.read();
   const repoContext = await prefetchRepoContext(config, 'implementer');
-  const prompt = await assemblePrompt('implementer', config, task, repoContext, previousResults);
+  const prompt = await assemblePrompt('implementer', config, task, repoContext, previousResults, revision);
 
   // Spawn implementer
   const { result } = await spawnAgent({

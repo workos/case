@@ -1,14 +1,14 @@
 import { resolve } from 'node:path';
 import { Type } from '@sinclair/typebox';
-import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
+import { defineTool } from './define-tool.js';
 import { runScript } from '../../util/run-script.js';
 
 const baselineParams = Type.Object({
   repoName: Type.String({ description: 'Repo name from projects.json to run bootstrap.sh against' }),
 });
 
-export function createBaselineTool(caseRoot: string): ToolDefinition<typeof baselineParams> {
-  return {
+export function createBaselineTool(caseRoot: string) {
+  return defineTool({
     name: 'run_baseline',
     label: 'Baseline',
     description: 'Run bootstrap.sh to verify a repo meets baseline conventions',
@@ -34,5 +34,5 @@ export function createBaselineTool(caseRoot: string): ToolDefinition<typeof base
         details: { passed, exitCode: result.exitCode },
       };
     },
-  };
+  });
 }

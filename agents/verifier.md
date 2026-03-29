@@ -344,13 +344,24 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier completed now
    ```
 
+### 5b. Score Rubric
+
+After testing, score each category honestly. `fail` means the evidence doesn't support this claim. `na` means the category genuinely doesn't apply (justify why in detail).
+
+| Category | Question | When to mark NA |
+|---|---|---|
+| `reproduced-scenario` | Did you reproduce the exact scenario from the issue? | Issue is a refactor with no user-visible behavior change |
+| `exercised-changed-path` | Did your test exercise the new/modified code path specifically? | Only config/docs changed (no src/ changes) |
+| `evidence-proves-change` | Would reverting the commit make your evidence look different? | No visual or behavioral difference to capture |
+| `edge-case-checked` | Did you test at least one edge case beyond the happy path? | Fix is trivially scoped (typo, import path) |
+
 ### 6. Output
 
 End your response with the structured result block:
 
 ```
 <<<AGENT_RESULT
-{"status":"completed","summary":"<one-line description of verification>","artifacts":{"commit":null,"filesChanged":[],"testsPassed":null,"screenshotUrls":["![after](https://...)"],"evidenceMarkers":["tested","manual-tested"],"prUrl":null,"prNumber":null},"error":null}
+{"status":"completed","summary":"<one-line description of verification>","rubric":{"role":"verifier","categories":[{"category":"reproduced-scenario","verdict":"pass|fail|na","detail":"<what was tested or why NA>"},{"category":"exercised-changed-path","verdict":"pass|fail|na","detail":"<evidence>"},{"category":"evidence-proves-change","verdict":"pass|fail|na","detail":"<before/after comparison>"},{"category":"edge-case-checked","verdict":"pass|fail|na","detail":"<what edge case was tested>"}]},"artifacts":{"commit":null,"filesChanged":[],"testsPassed":null,"screenshotUrls":["![after](https://...)"],"evidenceMarkers":["tested","manual-tested"],"prUrl":null,"prNumber":null},"error":null}
 AGENT_RESULT>>>
 ```
 

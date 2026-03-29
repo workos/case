@@ -44,6 +44,10 @@ export async function writeRunMetrics(
           }
         : null,
       phaseDurations: Object.fromEntries(metrics.phases.map((p) => [p.agent, p.durationMs])),
+      profile: metrics.profile,
+      revisionCycles: metrics.revisionCycles,
+      humanOverrides: metrics.humanOverrides,
+      evaluatorEffectiveness: metrics.evaluatorEffectiveness,
     },
   };
 

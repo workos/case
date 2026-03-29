@@ -126,6 +126,45 @@ AGENT_RESULT>>>`;
     expect(result.summary).toBe('real result');
   });
 
+  it('parses verifier rubric', () => {
+    const raw = `<<<AGENT_RESULT
+{"status":"completed","summary":"Verified","rubric":{"role":"verifier","categories":[{"category":"reproduced-scenario","verdict":"pass","detail":"OK"},{"category":"edge-case-checked","verdict":"fail","detail":"Missing null check"}]},"artifacts":{"commit":null,"filesChanged":[],"testsPassed":true,"screenshotUrls":[],"evidenceMarkers":["tested"],"prUrl":null,"prNumber":null},"error":null}
+AGENT_RESULT>>>`;
+
+    const result = parseAgentResult(raw);
+    expect(result.rubric?.role).toBe('verifier');
+    expect(result.rubric?.categories).toHaveLength(2);
+    expect(result.rubric?.categories[1].verdict).toBe('fail');
+  });
+
+  it('parses reviewer rubric', () => {
+    const raw = `<<<AGENT_RESULT
+{"status":"completed","summary":"Reviewed","rubric":{"role":"reviewer","categories":[{"category":"principle-compliance","verdict":"pass","detail":"OK"},{"category":"scope-discipline","verdict":"fail","detail":"Out of scope"}]},"artifacts":{},"error":null}
+AGENT_RESULT>>>`;
+
+    const result = parseAgentResult(raw);
+    expect(result.rubric?.role).toBe('reviewer');
+    expect(result.rubric?.categories[1].category).toBe('scope-discipline');
+  });
+
+  it('ignores rubric with invalid role', () => {
+    const raw = `<<<AGENT_RESULT
+{"status":"completed","summary":"done","rubric":{"role":"unknown","categories":[]},"artifacts":{},"error":null}
+AGENT_RESULT>>>`;
+
+    const result = parseAgentResult(raw);
+    expect(result.rubric).toBeUndefined();
+  });
+
+  it('ignores rubric without categories array', () => {
+    const raw = `<<<AGENT_RESULT
+{"status":"completed","summary":"done","rubric":{"role":"verifier"},"artifacts":{},"error":null}
+AGENT_RESULT>>>`;
+
+    const result = parseAgentResult(raw);
+    expect(result.rubric).toBeUndefined();
+  });
+
   it('handles PR artifacts from closer', () => {
     const raw = `<<<AGENT_RESULT
 {"status":"completed","summary":"PR created","artifacts":{"commit":null,"filesChanged":[],"testsPassed":null,"screenshotUrls":[],"evidenceMarkers":[],"prUrl":"https://github.com/workos/authkit-nextjs/pull/42","prNumber":42},"error":null}

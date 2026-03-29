@@ -149,13 +149,24 @@ Format each finding as:
    bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent reviewer completed now
    ```
 
+### 4b. Score Rubric
+
+After reviewing, score each category. A `fail` on a hard category (principle-compliance, scope-discipline) is critical. A `fail` on a soft category (test-sufficiency, pattern-fit) is a warning.
+
+| Category | Question | Hard/Soft |
+|---|---|---|
+| `principle-compliance` | Does the diff violate any enforced golden principle (1-7, 14-16, 18)? | Hard — any fail is critical |
+| `test-sufficiency` | Did the implementer add/modify tests for changed src/ files? | Soft — fail is a warning |
+| `scope-discipline` | Is the change minimal? No unrelated churn, no scope creep? | Hard — excessive scope is critical |
+| `pattern-fit` | Does the change follow existing repo patterns and conventions? | Soft — fail is a warning |
+
 ### 5. Output
 
 End your response with the structured result block:
 
 ```
 <<<AGENT_RESULT
-{"status":"completed","summary":"<one-line description of review>","findings":{"critical":<N>,"warnings":<N>,"info":<N>,"details":[{"severity":"critical|warning|info","principle":"<N or convention name>","message":"<description>","file":"<path>","line":<N or null>}]},"artifacts":{"commit":null,"filesChanged":[],"testsPassed":null,"screenshotUrls":[],"evidenceMarkers":["reviewed"],"prUrl":null,"prNumber":null},"error":null}
+{"status":"completed","summary":"<one-line description of review>","rubric":{"role":"reviewer","categories":[{"category":"principle-compliance","verdict":"pass|fail","detail":"<which principles checked, any violations>"},{"category":"test-sufficiency","verdict":"pass|fail|na","detail":"<test coverage assessment>"},{"category":"scope-discipline","verdict":"pass|fail","detail":"<scope assessment>"},{"category":"pattern-fit","verdict":"pass|fail|na","detail":"<pattern assessment>"}]},"findings":{"critical":<N>,"warnings":<N>,"info":<N>,"details":[{"severity":"critical|warning|info","principle":"<N or convention name>","message":"<description>","file":"<path>","line":<N or null>}]},"artifacts":{"commit":null,"filesChanged":[],"testsPassed":null,"screenshotUrls":[],"evidenceMarkers":["reviewed"],"prUrl":null,"prNumber":null},"error":null}
 AGENT_RESULT>>>
 ```
 

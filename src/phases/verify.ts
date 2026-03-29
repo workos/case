@@ -3,6 +3,7 @@ import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
+import { buildRevisionRequest } from './revision.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -60,6 +61,17 @@ export async function runVerifyPhase(
     await store.setAgentPhase('verifier', 'status', 'completed');
     await store.setAgentPhase('verifier', 'completed', 'now');
     previousResults.set('verifier', result);
+
+    // Check rubric for fails — generate revision request if any
+    if (result.rubric?.role === 'verifier') {
+      const fails = result.rubric.categories.filter((c) => c.verdict === 'fail');
+      if (fails.length > 0) {
+        const revision = buildRevisionRequest('verifier', fails);
+        log.phase('verify', 'completed-with-revision', { failedCategories: fails.map((c) => c.category) });
+        return { result, nextPhase: 'review', revision };
+      }
+    }
+
     log.phase('verify', 'completed');
     return { result, nextPhase: 'review' };
   }

@@ -33,11 +33,28 @@ export interface TaskEnrichment {
  * - `branch` field in JSON
  * - Richer markdown with issue reference and labels
  */
+export class TaskValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TaskValidationError';
+  }
+}
+
+const DONE_CONTRACT_FIELDS = ['verificationScenarios', 'nonGoals', 'edgeCases', 'evidenceExpectations'] as const;
+
 export async function createTask(
   caseRoot: string,
   request: TaskCreateRequest,
   enrichment?: TaskEnrichment,
 ): Promise<TaskCreateResult> {
+  // Complex profile requires all done contract sections
+  if (request.profile === 'complex') {
+    const missing = DONE_CONTRACT_FIELDS.filter((f) => !request[f]);
+    if (missing.length > 0) {
+      throw new TaskValidationError(`complex profile requires done contract fields: ${missing.join(', ')}`);
+    }
+  }
+
   const taskId = generateTaskId(request.repo, request.title);
   const activeDir = resolve(caseRoot, 'tasks/active');
   await mkdir(activeDir, { recursive: true });
@@ -54,6 +71,7 @@ export async function createTask(
     issueType: request.issueType ?? 'freeform',
     branch: enrichment?.branch,
     mode: request.mode ?? 'attended',
+    profile: request.profile ?? 'standard',
     agents: {},
     tested: false,
     manualTested: false,
@@ -113,6 +131,25 @@ function buildTaskMarkdown(request: TaskCreateRequest, taskJson: TaskJson, issue
     '- [ ] No regressions introduced',
     '',
   );
+
+  // Done contract sections (skip for ideation tasks — contract subsumes this)
+  if (request.issueType !== 'ideation') {
+    if (request.verificationScenarios) {
+      lines.push('## Verification Scenarios', '', request.verificationScenarios, '');
+    }
+    if (request.nonGoals) {
+      lines.push('## Non-Goals', '', request.nonGoals, '');
+    }
+    if (request.edgeCases) {
+      lines.push('## Edge Cases', '', request.edgeCases, '');
+    }
+    if (request.evidenceExpectations) {
+      lines.push('## Evidence Expectations', '', request.evidenceExpectations, '');
+    }
+  }
+
+  // Progress Log always at the end
+  lines.push('## Progress Log', '', '<!-- Agents append entries below. Do not edit existing entries. -->', '');
 
   return lines.filter((line) => line !== false).join('\n');
 }

@@ -62,4 +62,17 @@ export class TaskStore {
       throw new TaskStateError(result.stderr.trim() || `Failed to set ${field} to ${value}`);
     }
   }
+
+  /** Persist or clear a pending revision request directly in the task JSON.
+   *  Bypasses task-status.sh because that script has no subcommand for pendingRevision —
+   *  this field is pipeline-internal state, not a status transition. */
+  async setPendingRevision(revision: import('../types.js').RevisionRequest | null): Promise<void> {
+    const task = await this.read();
+    if (revision) {
+      task.pendingRevision = revision;
+    } else {
+      delete task.pendingRevision;
+    }
+    await Bun.write(this.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
+  }
 }

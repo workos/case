@@ -1,4 +1,4 @@
-import type { AgentResult } from '../types.js';
+import type { AgentResult, Rubric } from '../types.js';
 
 const START_DELIMITER = '<<<AGENT_RESULT';
 const END_DELIMITER = 'AGENT_RESULT>>>';
@@ -74,8 +74,17 @@ export function parseAgentResult(raw: string): AgentResult {
       prNumber: typeof artifacts.prNumber === 'number' ? artifacts.prNumber : null,
     },
     findings: obj.findings as AgentResult['findings'],
+    rubric: parseRubric(obj.rubric),
     error: typeof obj.error === 'string' ? obj.error : null,
   };
+}
+
+function parseRubric(raw: unknown): Rubric | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const obj = raw as Record<string, unknown>;
+  if (obj.role !== 'verifier' && obj.role !== 'reviewer') return undefined;
+  if (!Array.isArray(obj.categories)) return undefined;
+  return obj as unknown as Rubric;
 }
 
 function syntheticFailed(error: string): AgentResult {

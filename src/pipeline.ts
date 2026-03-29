@@ -1,6 +1,7 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, RevisionRequest, TaskStatus } from './types.js';
+import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
-import { determineEntryPhase } from './state/transitions.js';
+import { determineEntryPhase, findNextAllowedPhase } from './state/transitions.js';
 import { createNotifier, formatDuration, type Notifier } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
 import { runVerifyPhase } from './phases/verify.js';
@@ -14,6 +15,64 @@ import { TraceWriter } from './tracing/writer.js';
 import { createLogger } from './util/logger.js';
 
 const log = createLogger();
+
+/** Map pipeline phase to the task status that phase sets on entry. */
+const PHASE_TO_STATUS: Partial<Record<PipelinePhase, TaskStatus>> = {
+  implement: 'implementing',
+  verify: 'verifying',
+  review: 'reviewing',
+  close: 'closing',
+};
+
+/** Mirrors task-status.sh TRANSITIONS — valid status transitions. */
+const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  active: ['implementing'],
+  implementing: ['verifying', 'active'],
+  verifying: ['reviewing', 'closing', 'implementing'],
+  reviewing: ['closing', 'verifying'],
+  closing: ['pr-opened', 'verifying'],
+  'pr-opened': ['pr-opened', 'merged'],
+  merged: [],
+};
+
+/**
+ * Walk the task status through intermediate states to reach the target phase's status.
+ * Uses BFS on STATUS_TRANSITIONS to find the shortest path, then applies each step.
+ * Needed when the pipeline skips phases or loops back (e.g. tiny profile, revision loops).
+ */
+async function walkStatusToPhase(store: TaskStore, targetPhase: PipelinePhase): Promise<void> {
+  const targetStatus = PHASE_TO_STATUS[targetPhase];
+  if (!targetStatus) return; // retrospective, complete, abort don't have status
+
+  const currentStatus = await store.readStatus();
+  if (currentStatus === targetStatus) return;
+
+  // BFS to find shortest path from current → target
+  const queue: TaskStatus[][] = [[currentStatus]];
+  const visited = new Set<TaskStatus>([currentStatus]);
+
+  while (queue.length > 0) {
+    const path = queue.shift()!;
+    const tail = path[path.length - 1];
+
+    for (const next of STATUS_TRANSITIONS[tail] ?? []) {
+      if (next === targetStatus) {
+        // Apply each intermediate transition (skip the starting status)
+        for (const status of [...path.slice(1), next]) {
+          await store.setStatus(status);
+        }
+        return;
+      }
+      if (!visited.has(next)) {
+        visited.add(next);
+        queue.push([...path, next]);
+      }
+    }
+  }
+
+  // No path found — log and let the phase's own setStatus attempt (and fail) naturally
+  log.error('no status path found', { from: currentStatus, to: targetStatus });
+}
 
 const PHASE_AGENT_MAP: Record<string, AgentName | 'retrospective'> = {
   implement: 'implementer',
@@ -41,13 +100,21 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   };
 
   const task = await store.read();
-  let currentPhase: PipelinePhase = determineEntryPhase(task);
+  const profile = task.profile ?? 'standard';
+  const allowedPhases = new Set(PROFILE_PHASES[profile]);
+  let currentPhase: PipelinePhase = determineEntryPhase(task, profile);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
+  let pendingRevision: RevisionRequest | null = task.pendingRevision ?? null;
+  let revisionCycles = pendingRevision?.cycle ?? 0;
+  const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
-  // Per-run trace writer for tool-level observability
+  metrics.setRevisionCycles(revisionCycles);
+
   const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
   config.traceWriter = traceWriter;
+
+  metrics.setProfile(profile);
 
   // Load prompt versions for this run's metrics
   const promptVersions = await getCurrentPromptVersions(config.caseRoot);
@@ -55,7 +122,52 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
   log.info('pipeline started', { phase: currentPhase, mode: config.mode, task: task.id, runId: metrics.runId });
 
+  /** Handle the revision/budget-exhausted/clean-pass branching shared by verify and review. */
+  async function handleRevisionOutcome(
+    output: import('./types.js').PhaseOutput,
+    source: 'verifier' | 'reviewer',
+  ): Promise<PipelinePhase> {
+    if (output.revision && revisionCycles < maxRevisionCycles) {
+      pendingRevision = output.revision;
+      revisionCycles++;
+      pendingRevision.cycle = revisionCycles;
+      await store.setPendingRevision(pendingRevision);
+      metrics.addRevisionCycle();
+      notifier.send(`Revision cycle ${revisionCycles}: ${source} found fixable issues, re-implementing`);
+      log.phase(source === 'verifier' ? 'verify' : 'review', 'revision-requested', {
+        cycle: revisionCycles,
+        source,
+        failedCategories: output.revision.failedCategories.map((c) => c.category),
+      });
+      return 'implement';
+    }
+    if (output.revision && revisionCycles >= maxRevisionCycles) {
+      metrics.setRevisionFixedIssues(false);
+      notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
+      log.phase(source === 'verifier' ? 'verify' : 'review', 'revision-budget-exhausted', { cycles: revisionCycles });
+      return output.nextPhase;
+    }
+    // Clean pass — if after a revision, record success
+    if (revisionCycles > 0) {
+      metrics.setRevisionFixedIssues(true);
+    }
+    return output.nextPhase;
+  }
+
   while (currentPhase !== 'complete' && currentPhase !== 'abort') {
+    // Skip phases not in this profile
+    if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective') {
+      const skipped = currentPhase;
+      metrics.addSkippedPhase(skipped);
+      currentPhase = nextPhaseInProfile(currentPhase, allowedPhases);
+      log.phase(skipped, 'skipped-by-profile', { profile });
+      continue;
+    }
+
+    // Walk task status through intermediate transitions before entering the phase.
+    // Needed when the pipeline skips phases (tiny profile) or loops back (revision, re-implement).
+    await walkStatusToPhase(store, currentPhase);
+
     log.phase(currentPhase, 'entering');
     const phaseAgent = PHASE_AGENT_MAP[currentPhase];
     if (phaseAgent) {
@@ -72,9 +184,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
     switch (currentPhase) {
       case 'implement': {
-        const output = await runImplementPhase(config, store, previousResults);
+        const output = await runImplementPhase(config, store, previousResults, pendingRevision ?? undefined);
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
+          // Keep pendingRevision intact — retry should receive the same evaluator context
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'failed');
           metrics.endPhase('failed', config.maxRetries > 0);
           const choice = await handleFailure(notifier, config, 'implementer', output.result, [
@@ -92,9 +205,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
             currentPhase = 'retrospective';
           }
         } else {
+          pendingRevision = null;
+          await store.setPendingRevision(null);
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
           metrics.endPhase('completed');
-          // Track CI first-push from implementer result
           if (output.result.artifacts.testsPassed !== null) {
             metrics.setCiFirstPush(output.result.artifacts.testsPassed);
           }
@@ -106,6 +220,9 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'verify': {
         const output = await runVerifyPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
+        if (output.result.rubric?.role === 'verifier') {
+          metrics.setVerifierRubric(output.result.rubric.categories);
+        }
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'failed');
           metrics.endPhase('failed');
@@ -126,7 +243,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         } else {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
           metrics.endPhase('completed');
-          currentPhase = output.nextPhase;
+          currentPhase = await handleRevisionOutcome(output, 'verifier');
         }
         break;
       }
@@ -134,9 +251,11 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
       case 'review': {
         const output = await runReviewPhase(config, store, previousResults);
         const elapsed = Date.now() - phaseStartMs;
-        // Capture review findings in metrics
         if (output.result.findings) {
           metrics.setReviewFindings(output.result.findings);
+        }
+        if (output.result.rubric?.role === 'reviewer') {
+          metrics.setReviewerRubric(output.result.rubric.categories);
         }
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'failed');
@@ -149,6 +268,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           if (choice === 'Re-implement and re-review') {
             currentPhase = 'implement';
           } else if (choice === 'Override and continue') {
+            metrics.addHumanOverride();
             currentPhase = 'close';
           } else {
             failedAgent = 'reviewer';
@@ -158,7 +278,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         } else {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
           metrics.endPhase('completed');
-          currentPhase = output.nextPhase;
+          currentPhase = await handleRevisionOutcome(output, 'reviewer');
         }
         break;
       }
@@ -198,7 +318,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           event: 'phase_start',
         });
         const retroStart = Date.now();
-        await runRetrospectivePhase(config, store, previousResults, outcome, failedAgent);
+        await runRetrospectivePhase(config, store, previousResults, outcome, failedAgent, metrics.snapshot());
         notifier.phaseEnd(currentPhase, 'retrospective', Date.now() - retroStart, 'completed');
         metrics.endPhase('completed');
         currentPhase = outcome === 'completed' ? 'complete' : 'abort';
@@ -244,6 +364,11 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   } else {
     notifier.send('Pipeline completed successfully.');
   }
+}
+
+/** Given a phase that was skipped, determine the next phase to try. */
+function nextPhaseInProfile(skippedPhase: PipelinePhase, allowed: Set<PipelinePhase>): PipelinePhase {
+  return findNextAllowedPhase(skippedPhase, allowed) ?? 'complete';
 }
 
 async function handleFailure(

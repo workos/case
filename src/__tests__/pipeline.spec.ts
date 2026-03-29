@@ -12,15 +12,18 @@ import { join } from 'node:path';
 
 // Pipeline-specific mocks (not shared — only pipeline uses these)
 const mockStoreRead = mock();
+const mockStoreReadStatus = mock();
 const mockStoreSetStatus = mock();
 const mockStoreSetAgentPhase = mock();
 const mockStoreSetField = mock();
+const mockStoreSetPendingRevision = mock();
 const MockTaskStore = mock(() => ({
   read: mockStoreRead,
-  readStatus: mock(),
+  readStatus: mockStoreReadStatus,
   setStatus: mockStoreSetStatus,
   setAgentPhase: mockStoreSetAgentPhase,
   setField: mockStoreSetField,
+  setPendingRevision: mockStoreSetPendingRevision,
 }));
 
 const mockNotifierSend = mock();
@@ -133,17 +136,22 @@ describe('runPipeline', () => {
 
     // Reset pipeline-specific mocks
     mockStoreRead.mockReset();
+    mockStoreReadStatus.mockReset();
     mockStoreSetStatus.mockReset();
     mockStoreSetAgentPhase.mockReset();
     mockStoreSetField.mockReset();
+    mockStoreSetPendingRevision.mockReset();
     mockNotifierSend.mockReset();
     mockNotifierAskUser.mockReset();
 
-    // Defaults
+    // Defaults — track status so walkStatusToPhase can read the current value
+    let currentStatus = 'active';
     mockStoreRead.mockResolvedValue(mockTask);
-    mockStoreSetStatus.mockResolvedValue(undefined);
+    mockStoreReadStatus.mockImplementation(() => Promise.resolve(currentStatus));
+    mockStoreSetStatus.mockImplementation((s: string) => { currentStatus = s; return Promise.resolve(undefined); });
     mockStoreSetAgentPhase.mockResolvedValue(undefined);
     mockStoreSetField.mockResolvedValue(undefined);
+    mockStoreSetPendingRevision.mockResolvedValue(undefined);
     mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
     mockWriteRunMetrics.mockResolvedValue(undefined);
     mockGetCurrentPromptVersions.mockResolvedValue({});
@@ -279,5 +287,594 @@ describe('runPipeline', () => {
     await runPipeline(makeConfig());
 
     expect(mockWriteRunMetrics).toHaveBeenCalledTimes(1);
+  });
+
+  it('verifier rubric fail triggers revision loop back to implement', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'reproduced-scenario', verdict: 'pass', detail: 'OK' },
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' },
+        ],
+      },
+    };
+    const verifierClean: AgentResult = { ...completedAgentOutput };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (finds issue)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierClean), result: verifierClean, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // 7 spawns: impl, verify(fail), impl(revision), verify(pass), review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(7);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1'));
+    expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
+  });
+
+  it('revision budget exhausted → proceeds with warnings', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Still failing' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (cycle 1 trigger)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (cycle 2 trigger)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 2)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (budget exhausted → proceed)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+    expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
+  });
+
+  it('reviewer soft-fail triggers revision loop', async () => {
+    const reviewerSoftFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs more tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+          { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (re-verify)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1: reviewer'));
+  });
+
+  it('maxRevisionCycles=0 disables revision loop', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Failing' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (has fails but budget=0)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ maxRevisionCycles: 0 }));
+
+    // No revision — straight through: impl, verify, review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+  });
+
+  it('revision context is passed to implementer on re-entry', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fail)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Second implementer call (index 2) should have REVISION CONTEXT in prompt
+    const revisionPrompt = mockSpawnAgent.mock.calls[2][0].prompt;
+    expect(revisionPrompt).toContain('REVISION CONTEXT');
+    expect(revisionPrompt).toContain('edge-case-checked');
+    expect(revisionPrompt).toContain('Missing null check');
+
+    // First implementer call (index 0) should NOT have revision context
+    const initialPrompt = mockSpawnAgent.mock.calls[0][0].prompt;
+    expect(initialPrompt).not.toContain('REVISION CONTEXT');
+  });
+
+  it('implementer failure during revision triggers retry inside the revision', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (triggers revision)
+      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer (revision attempt 1 — fails)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (retry within revision — succeeds)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    // runScript calls: prefetchRepoContext (2 calls per phase) + analyze-failure
+    // Order: impl(2), verify(2), revision-impl(2), analyze-failure(1), remaining
+    mockRunScript
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (initial impl)
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (initial impl)
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (verifier)
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (verifier)
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (revision impl)
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (revision impl)
+      .mockResolvedValueOnce({
+        // analyze-failure (revision implementer failed)
+        stdout: JSON.stringify({
+          failureClass: 'test-failure',
+          failedAgent: 'implementer',
+          errorSummary: 'Tests failed during revision',
+          filesInvolved: [],
+          whatWasTried: ['revision approach'],
+          suggestedFocus: 'Fix the test',
+          retryViable: true,
+        }),
+        stderr: '',
+        exitCode: 0,
+      })
+      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 }); // remaining runScript calls
+
+    await runPipeline(makeConfig());
+
+    // 8 spawns: impl, verify(fail), impl(revision-fails), impl(retry-succeeds), verify(clean), review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1'));
+    expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
+
+    // The retry prompt should contain RETRY CONTEXT (not REVISION CONTEXT)
+    const retryCall = mockSpawnAgent.mock.calls[3]; // 4th spawn = retry within revision
+    expect(retryCall[0].prompt).toContain('RETRY CONTEXT');
+  });
+
+  it('multiple revision cycles use latest context only (no accumulation)', async () => {
+    const verifierFail1: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'First issue: missing null check' },
+        ],
+      },
+    };
+    const verifierFail2: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'evidence-proves-change', verdict: 'fail', detail: 'Second issue: no screenshot' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierFail1), result: verifierFail1, durationMs: 100 }) // verifier (cycle 1)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierFail2), result: verifierFail2, durationMs: 100 }) // verifier (cycle 2)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 2)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Revision 2 implementer (index 4) should have cycle 2 context, not cycle 1
+    const revision2Prompt = mockSpawnAgent.mock.calls[4][0].prompt;
+    expect(revision2Prompt).toContain('cycle 2');
+    expect(revision2Prompt).toContain('Second issue: no screenshot');
+    // Should NOT contain cycle 1's issue (context replaced, not accumulated)
+    expect(revision2Prompt).not.toContain('First issue: missing null check');
+  });
+
+  it('shared revision counter across verify and review', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Issue' }],
+      },
+    };
+    const reviewerSoftFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+    };
+
+    // maxRevisionCycles=1: verify uses the one cycle, reviewer can't use any
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (uses cycle 1)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail, budget exhausted)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ maxRevisionCycles: 1 }));
+
+    // Verify used cycle 1. Reviewer finds soft fail but budget exhausted → proceeds to close.
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(7);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1: verifier'));
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+  });
+
+  it('tiny profile skips verify phase', async () => {
+    const tinyTask = { ...mockTask, profile: 'tiny' as const };
+    mockStoreRead.mockResolvedValue(tinyTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (verify skipped)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // 4 agents: implementer, reviewer, closer, retrospective (no verifier)
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(4);
+    // Second spawn should be reviewer, not verifier
+    const secondPrompt = mockSpawnAgent.mock.calls[1][0].prompt;
+    expect(secondPrompt).toContain('# reviewer');
+    // walkStatusToPhase should walk implementing → verifying → reviewing
+    const statusCalls = mockStoreSetStatus.mock.calls.map((c: any) => c[0]);
+    expect(statusCalls).toContain('verifying');
+    expect(statusCalls).toContain('reviewing');
+  });
+
+  it('reviewer revision walks status reviewing → verifying → implementing', async () => {
+    const reviewerSoftFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'reviewer',
+        categories: [
+          { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
+          { category: 'test-sufficiency', verdict: 'fail', detail: 'Needs tests' },
+          { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+          { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Verify the revision loop fired (8 spawns, not 5)
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    // walkStatusToPhase should walk through intermediate statuses.
+    // The full status sequence should include verifying and implementing after the first reviewing.
+    const statusCalls = mockStoreSetStatus.mock.calls.map((c: any) => c[0]);
+    // After the first review (soft-fail), the pipeline walks reviewing → verifying → implementing
+    const firstReviewIdx = statusCalls.indexOf('reviewing');
+    const afterFirstReview = statusCalls.slice(firstReviewIdx + 1);
+    expect(afterFirstReview).toContain('verifying');
+    expect(afterFirstReview).toContain('implementing');
+  });
+
+  it('standard profile runs all phases (backward compat)', async () => {
+    const standardTask = { ...mockTask, profile: 'standard' as const };
+    mockStoreRead.mockResolvedValue(standardTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    // 5 agents: all phases
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('task without profile field defaults to standard (all phases)', async () => {
+    // mockTask has no profile field — should default to standard
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('revision request is persisted to task store', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fail)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Revision should be persisted when set, and cleared when implementer succeeds
+    const persistCalls = mockStoreSetPendingRevision.mock.calls;
+    expect(persistCalls.length).toBeGreaterThanOrEqual(2);
+    // Find the persist call (non-null argument with source)
+    const setCalls = persistCalls.filter((c: any) => c[0] !== null);
+    expect(setCalls.length).toBeGreaterThanOrEqual(1);
+    expect(setCalls[0][0].source).toBe('verifier');
+    // Last call: clear after successful revision implementer
+    expect(persistCalls[persistCalls.length - 1][0]).toBeNull();
+  });
+
+  it('failed implementer retains pendingRevision for retry', async () => {
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [
+          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' },
+        ],
+      },
+    };
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (triggers revision)
+      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer (revision — fails)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (retry — succeeds)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    mockRunScript
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          failureClass: 'test-failure',
+          retryViable: true,
+          errorSummary: 'Tests failed',
+          filesInvolved: [],
+          whatWasTried: [],
+          suggestedFocus: 'Fix test',
+        }),
+        stderr: '',
+        exitCode: 0,
+      })
+      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+
+    await runPipeline(makeConfig());
+
+    // The retry (4th spawn, index 3) should still have REVISION CONTEXT
+    const retryPrompt = mockSpawnAgent.mock.calls[3][0].prompt;
+    expect(retryPrompt).toContain('REVISION CONTEXT');
+    expect(retryPrompt).toContain('edge-case-checked');
+  });
+
+  it('resume from persisted pendingRevision enters implement phase', async () => {
+    const taskWithRevision = {
+      ...mockTask,
+      status: 'verifying' as const,
+      agents: { verifier: { started: '2026-03-14', completed: '2026-03-14', status: 'completed' as const } },
+      pendingRevision: {
+        source: 'verifier' as const,
+        failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing check' }],
+        summary: 'Verifier found 1 issue(s)',
+        suggestedFocus: ['Missing check'],
+        cycle: 1,
+      },
+    };
+    mockStoreRead.mockResolvedValue(taskWithRevision);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Should start at implement (not review), with revision context
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    const firstPrompt = mockSpawnAgent.mock.calls[0][0].prompt;
+    expect(firstPrompt).toContain('REVISION CONTEXT');
+    expect(firstPrompt).toContain('edge-case-checked');
+  });
+
+  it('resumed run respects persisted cycle count toward revision budget', async () => {
+    // Task already used 1 of 1 revision cycle before crash
+    const verifierWithFail: AgentResult = {
+      ...completedAgentOutput,
+      rubric: {
+        role: 'verifier',
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Still failing' }],
+      },
+    };
+    const taskWithRevision = {
+      ...mockTask,
+      status: 'verifying' as const,
+      agents: { verifier: { started: '2026-03-14', completed: '2026-03-14', status: 'completed' as const } },
+      pendingRevision: {
+        source: 'verifier' as const,
+        failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing check' }],
+        summary: 'Verifier found 1 issue(s)',
+        suggestedFocus: ['Missing check'],
+        cycle: 1,
+      },
+    };
+    mockStoreRead.mockResolvedValue(taskWithRevision);
+
+    // maxRevisionCycles=1: the persisted cycle=1 means the budget is already used.
+    // After implementer succeeds, the verifier fails again → budget exhausted (not a fresh cycle 1).
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fails again, budget exhausted)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig({ maxRevisionCycles: 1 }));
+
+    // Should NOT loop back to implement — budget was already exhausted
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
+  });
+
+  it('resumed run writes restored revisionCycles to metrics', async () => {
+    const taskWithRevision = {
+      ...mockTask,
+      status: 'verifying' as const,
+      agents: { verifier: { started: '2026-03-14', completed: '2026-03-14', status: 'completed' as const } },
+      pendingRevision: {
+        source: 'verifier' as const,
+        failedCategories: [{ category: 'edge-case-checked', verdict: 'fail' as const, detail: 'Missing check' }],
+        summary: 'Verifier found 1 issue(s)',
+        suggestedFocus: ['Missing check'],
+        cycle: 1,
+      },
+    };
+    mockStoreRead.mockResolvedValue(taskWithRevision);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    const writtenMetrics = mockWriteRunMetrics.mock.calls[0][3];
+    expect(writtenMetrics.revisionCycles).toBe(1);
+  });
+
+  it('complex profile runs all phases (same as standard)', async () => {
+    const complexTask = { ...mockTask, profile: 'complex' as const };
+    mockStoreRead.mockResolvedValue(complexTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
+
+    await runPipeline(makeConfig());
+
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+  });
+
+  it('tiny profile: retrospective still runs after all profiles', async () => {
+    const tinyTask = { ...mockTask, profile: 'tiny' as const };
+    mockStoreRead.mockResolvedValue(tinyTask);
+
+    mockSpawnAgent
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
+      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
+      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
+
+    await runPipeline(makeConfig());
+
+    // Last spawn is retrospective
+    const lastCall = mockSpawnAgent.mock.calls[3][0];
+    expect(lastCall.agentName).toBe('retrospective');
   });
 });

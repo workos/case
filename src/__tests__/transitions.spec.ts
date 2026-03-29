@@ -96,4 +96,42 @@ describe('determineEntryPhase', () => {
   it('merged -> complete', () => {
     expect(determineEntryPhase(makeTask({ status: 'merged' }))).toBe('complete');
   });
+
+  // Profile-aware tests
+  it('tiny profile: verifying status -> skips to review', () => {
+    const task = makeTask({
+      status: 'verifying',
+      profile: 'tiny',
+      agents: { verifier: { started: null, completed: null, status: 'running' } },
+    });
+    expect(determineEntryPhase(task, 'tiny')).toBe('review');
+  });
+
+  it('tiny profile: implementing with completed implementer -> skips verify to review', () => {
+    const task = makeTask({
+      status: 'implementing',
+      profile: 'tiny',
+      agents: { implementer: { started: '2026-03-14T00:00:00Z', completed: '2026-03-14T00:01:00Z', status: 'completed' } },
+    });
+    // Raw phase would be 'verify', but tiny skips it -> review
+    expect(determineEntryPhase(task, 'tiny')).toBe('review');
+  });
+
+  it('standard profile: verifying status -> verify (no skip)', () => {
+    const task = makeTask({
+      status: 'verifying',
+      agents: { verifier: { started: null, completed: null, status: 'running' } },
+    });
+    expect(determineEntryPhase(task, 'standard')).toBe('verify');
+  });
+
+  it('no profile defaults to standard', () => {
+    const task = makeTask({ status: 'active' });
+    expect(determineEntryPhase(task)).toBe('implement');
+  });
+
+  it('terminal phases pass through regardless of profile', () => {
+    expect(determineEntryPhase(makeTask({ status: 'pr-opened' }), 'tiny')).toBe('complete');
+    expect(determineEntryPhase(makeTask({ status: 'merged' }), 'tiny')).toBe('complete');
+  });
 });
