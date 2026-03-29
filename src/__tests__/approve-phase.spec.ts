@@ -1,13 +1,21 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import { mockSpawnAgent, mockRunScript, mockWriteRunMetrics, mockGetCurrentPromptVersions, mockFindPriorRunId } from './mocks.js';
-import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
+import type { AgentName, AgentResult, ApprovalDecision, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import type { Notifier } from '../notify.js';
-import { runApprovePhase } from '../phases/approve.js';
 
 // Suppress unused import warnings — mocks.ts must be imported for its side effects
-void mockSpawnAgent; void mockRunScript; void mockWriteRunMetrics;
+void mockSpawnAgent; void mockWriteRunMetrics;
 void mockGetCurrentPromptVersions; void mockFindPriorRunId;
+
+// --- Mock approval server (I/O boundary — starts real HTTP server) ---
+const mockRunApprovalServer = mock<() => Promise<ApprovalDecision>>();
+mock.module('../phases/approve-server.js', () => ({
+  runApprovalServer: mockRunApprovalServer,
+}));
+
+// Evidence assembler is NOT mocked — it uses the already-mocked runScript and store
+const { runApprovePhase } = await import('../phases/approve.js');
 
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
@@ -24,19 +32,31 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   };
 }
 
-function makeNotifier(askUserReturn: string): Notifier {
+function makeNotifier(): Notifier {
   return {
     send: mock(),
     phaseStart: mock(),
     phaseEnd: mock(),
-    askUser: mock(() => Promise.resolve(askUserReturn)),
+    askUser: mock(() => Promise.resolve('Reject')),
   };
 }
 
 function makeStore(): TaskStore {
   return {
     setStatus: mock(() => Promise.resolve()),
-    read: mock(),
+    read: mock(() => Promise.resolve({
+      id: 'cli-42',
+      status: 'approving',
+      created: '2026-03-28T00:00:00Z',
+      repo: 'cli',
+      branch: 'fix/login',
+      issue: 'workos/cli#42',
+      agents: {},
+      tested: false,
+      manualTested: false,
+      prUrl: null,
+      prNumber: null,
+    })),
     readStatus: mock(),
     setAgentPhase: mock(),
     setField: mock(),
@@ -49,7 +69,7 @@ const completedResult: AgentResult = {
   summary: 'Done',
   artifacts: {
     commit: 'abc123',
-    filesChanged: ['src/foo.ts', 'src/bar.ts'],
+    filesChanged: ['src/foo.ts'],
     testsPassed: true,
     screenshotUrls: [],
     evidenceMarkers: [],
@@ -59,62 +79,25 @@ const completedResult: AgentResult = {
   error: null,
 };
 
-const verifierResult: AgentResult = {
-  ...completedResult,
-  rubric: {
-    role: 'verifier',
-    categories: [
-      { category: 'reproduced-scenario', verdict: 'pass', detail: 'OK' },
-      { category: 'edge-case-checked', verdict: 'pass', detail: 'OK' },
-    ],
-  },
-};
-
-const reviewerResult: AgentResult = {
-  ...completedResult,
-  findings: { critical: 0, warnings: 1, info: 2, details: [] },
-  rubric: {
-    role: 'reviewer',
-    categories: [
-      { category: 'principle-compliance', verdict: 'pass', detail: 'OK' },
-      { category: 'test-sufficiency', verdict: 'pass', detail: 'OK' },
-      { category: 'scope-discipline', verdict: 'fail', detail: 'Minor scope creep' },
-    ],
-  },
-};
-
 describe('runApprovePhase', () => {
   let previousResults: Map<AgentName, AgentResult>;
 
   beforeEach(() => {
+    mockRunApprovalServer.mockReset();
+    mockRunScript.mockReset();
     previousResults = new Map();
     previousResults.set('implementer', completedResult);
-    previousResults.set('verifier', verifierResult);
-    previousResults.set('reviewer', reviewerResult);
-  });
 
-  it('prints evidence summary with file count, test status, rubric results', async () => {
-    const notifier = makeNotifier('Approve');
-    const store = makeStore();
-
-    await runApprovePhase(makeConfig(), store, previousResults, notifier);
-
-    const sendCalls = (notifier.send as ReturnType<typeof mock>).mock.calls;
-    const summaryCall = sendCalls.find((c: any) => (c[0] as string).includes('Approval Gate'));
-    expect(summaryCall).toBeDefined();
-
-    const summary = summaryCall![0] as string;
-    expect(summary).toContain('Files changed: 2');
-    expect(summary).toContain('Tests: passed');
-    expect(summary).toContain('Verifier: 2/2 categories pass');
-    expect(summary).toContain('Reviewer: 0 critical, 1 warnings');
+    // Default git commands return empty results
+    mockRunScript.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
   });
 
   it('approve → close', async () => {
-    const notifier = makeNotifier('Approve');
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'approve' }),
+    );
     const store = makeStore();
-
-    const output = await runApprovePhase(makeConfig(), store, previousResults, notifier);
+    const output = await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
     expect(output.nextPhase).toBe('close');
     expect(output.result.status).toBe('completed');
@@ -122,61 +105,78 @@ describe('runApprovePhase', () => {
   });
 
   it('reject → abort', async () => {
-    const notifier = makeNotifier('Reject');
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'reject' }),
+    );
     const store = makeStore();
-
-    const output = await runApprovePhase(makeConfig(), store, previousResults, notifier);
+    const output = await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
     expect(output.nextPhase).toBe('abort');
     expect(output.result.status).toBe('failed');
   });
 
-  it('sets status to approving', async () => {
-    const notifier = makeNotifier('Approve');
+  it('revise with feedback → implement with RevisionRequest', async () => {
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'revise', feedback: 'Fix the error handling' }),
+    );
     const store = makeStore();
+    const output = await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
-    await runApprovePhase(makeConfig(), store, previousResults, notifier);
+    expect(output.nextPhase).toBe('implement');
+    expect(output.revision).toBeDefined();
+    expect(output.revision!.source).toBe('human');
+    expect(output.revision!.summary).toBe('Fix the error handling');
+  });
+
+  it('revise with manualEdit → verify', async () => {
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'revise', feedback: '', manualEdit: true }),
+    );
+    const store = makeStore();
+    const notifier = makeNotifier();
+    const output = await runApprovePhase(makeConfig(), store, previousResults, notifier);
+
+    expect(output.nextPhase).toBe('verify');
+    expect(output.revision).toBeUndefined();
+    expect(output.result.summary).toContain('manually');
+  });
+
+  it('sets status to approving', async () => {
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'approve' }),
+    );
+    const store = makeStore();
+    await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
     expect((store.setStatus as ReturnType<typeof mock>)).toHaveBeenCalledWith('approving');
   });
 
   it('dry-run skips and proceeds to close', async () => {
-    const notifier = makeNotifier('Reject'); // would reject if it ran
     const store = makeStore();
-
-    const output = await runApprovePhase(makeConfig({ dryRun: true }), store, previousResults, notifier);
+    const output = await runApprovePhase(makeConfig({ dryRun: true }), store, previousResults, makeNotifier());
 
     expect(output.nextPhase).toBe('close');
-    expect((notifier.askUser as ReturnType<typeof mock>)).not.toHaveBeenCalled();
+    expect(mockRunApprovalServer).not.toHaveBeenCalled();
   });
 
-  it('handles missing verifier result gracefully', async () => {
-    previousResults.delete('verifier');
-    const notifier = makeNotifier('Approve');
-    const store = makeStore();
-
-    const output = await runApprovePhase(makeConfig(), store, previousResults, notifier);
-
-    expect(output.nextPhase).toBe('close');
-    const summaryCall = (notifier.send as ReturnType<typeof mock>).mock.calls.find(
-      (c: any) => (c[0] as string).includes('Approval Gate'),
+  it('passes assembled evidence to approval server', async () => {
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'approve' }),
     );
-    expect(summaryCall![0] as string).toContain('Verifier: skipped');
+    await runApprovePhase(makeConfig(), makeStore(), previousResults, makeNotifier());
+
+    // Verify the server received evidence with correct task metadata
+    const evidence = mockRunApprovalServer.mock.calls[0][0];
+    expect(evidence.task.id).toBe('cli-42');
+    expect(evidence.task.repo).toBe('cli');
   });
 
-  it('handles missing all previous results gracefully', async () => {
-    const emptyResults = new Map<AgentName, AgentResult>();
-    const notifier = makeNotifier('Approve');
-    const store = makeStore();
-
-    const output = await runApprovePhase(makeConfig(), store, emptyResults, notifier);
-
-    expect(output.nextPhase).toBe('close');
-    const summaryCall = (notifier.send as ReturnType<typeof mock>).mock.calls.find(
-      (c: any) => (c[0] as string).includes('Approval Gate'),
+  it('revise without feedback uses default text', async () => {
+    mockRunApprovalServer.mockImplementation(() =>
+      Promise.resolve({ decision: 'revise' }),
     );
-    const summary = summaryCall![0] as string;
-    expect(summary).toContain('Files changed: 0');
-    expect(summary).toContain('Tests: N/A');
+    const output = await runApprovePhase(makeConfig(), makeStore(), previousResults, makeNotifier());
+
+    expect(output.revision!.summary).toBe('No feedback provided');
   });
 });

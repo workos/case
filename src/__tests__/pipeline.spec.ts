@@ -37,11 +37,15 @@ const mockCreateNotifier = mock(() => ({
   phaseEnd: mockNotifierPhaseEnd,
 }));
 
+const mockRunApprovalServer = mock();
+
 mock.module('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
 mock.module('../notify.js', () => ({
   createNotifier: mockCreateNotifier,
   formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
 }));
+mock.module('../phases/approve-server.js', () => ({ runApprovalServer: mockRunApprovalServer }));
+// Evidence assembler is NOT mocked — it uses the already-mocked runScript and store
 
 const { runPipeline } = await import('../pipeline.js');
 
@@ -133,6 +137,7 @@ describe('runPipeline', () => {
     mockWriteRunMetrics.mockReset();
     mockGetCurrentPromptVersions.mockReset();
     mockFindPriorRunId.mockReset();
+    mockRunApprovalServer.mockReset();
 
     // Reset pipeline-specific mocks
     mockStoreRead.mockReset();
@@ -918,12 +923,12 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
-    mockNotifierAskUser.mockResolvedValueOnce('Approve');
+    mockRunApprovalServer.mockResolvedValueOnce({ decision: 'approve' });
 
     await runPipeline(makeConfig({ approve: true }));
 
     expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
-    expect(mockNotifierAskUser).toHaveBeenCalledWith('Approve this work?', ['Approve', 'Request Changes', 'Reject']);
+    expect(mockRunApprovalServer).toHaveBeenCalledTimes(1);
     expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
   });
 
@@ -934,7 +939,7 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
-    mockNotifierAskUser.mockResolvedValueOnce('Reject');
+    mockRunApprovalServer.mockResolvedValueOnce({ decision: 'reject' });
 
     await runPipeline(makeConfig({ approve: true }));
 

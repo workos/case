@@ -156,6 +156,51 @@ export interface FailureAnalysis {
   retryViable: boolean;
 }
 
+/** Evidence payload assembled for the approval gate web UI */
+export interface ApprovalEvidence {
+  task: {
+    id: string;
+    title: string;
+    repo: string;
+    branch: string;
+    issue?: string;
+  };
+  diff: {
+    summary: { additions: number; deletions: number; filesChanged: number };
+    files: Array<{
+      path: string;
+      additions: number;
+      deletions: number;
+      status: 'added' | 'modified' | 'deleted' | 'renamed';
+      hunks: Array<{ header: string; lines: string[] }>;
+    }>;
+  };
+  tests: {
+    passed: boolean | null;
+    summary: string | null;
+  };
+  verifier: {
+    ran: boolean;
+    rubric: RubricCategory[] | null;
+    summary: string | null;
+  };
+  reviewer: {
+    ran: boolean;
+    rubric: RubricCategory[] | null;
+    findings: ReviewFindings | null;
+    summary: string | null;
+  };
+  screenshots: string[];
+  commit: string | null;
+}
+
+/** Decision returned by the approval gate web UI */
+export interface ApprovalDecision {
+  decision: 'approve' | 'revise' | 'reject';
+  feedback?: string;
+  manualEdit?: boolean;
+}
+
 /** Structured revision request from evaluator (verifier/reviewer) when fixable issues are found */
 export interface RevisionRequest {
   /** Which evaluator triggered the revision */
