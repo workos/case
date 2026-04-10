@@ -1,6 +1,6 @@
 # Case
 
-<img width="500" height="500" alt="Untitled_design__2_-removebg-preview" src="https://github.com/user-attachments/assets/3fc18864-10f2-4d07-9ae9-13ad590f7a8f" />
+<img width="500" height="500" alt="Case" src="docs/case-logo.svg" />
 
 A harness for orchestrating AI agent work across WorkOS open source projects.
 
