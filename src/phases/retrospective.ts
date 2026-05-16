@@ -100,6 +100,7 @@ export async function runRetrospectivePhase(
       caseRoot: config.caseRoot,
       onHeartbeat: config.onAgentHeartbeat,
       traceWriter: config.traceWriter,
+      eventAppender: config.eventAppender,
       phase: 'retrospective',
     });
     log.phase('retrospective', 'completed');

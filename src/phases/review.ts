@@ -53,6 +53,7 @@ export async function runReviewPhase(
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'review',
   });
 

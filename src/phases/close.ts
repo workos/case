@@ -51,6 +51,7 @@ export async function runClosePhase(
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'close',
   });
 

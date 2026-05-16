@@ -74,6 +74,13 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
   const plan = generatePlan(task, config, runId);
 
+  // Write plan.json for quick reference
+  const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
+  const { resolve: resolvePlan } = await import('node:path');
+  const planDir = resolvePlan(config.caseRoot, '.case', task.id);
+  await mkdirPlan(planDir, { recursive: true });
+  await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
+
   if (revisionCycles > 0) {
     // Crash recovery: restore prior state rather than emitting a new pipeline_start
     const resumeState: import('./events/types.js').PipelineState = {
@@ -182,9 +189,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           await store.setPendingRevision(null);
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
           await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: elapsed, result: output.result });
-          if (output.result.artifacts.testsPassed !== null) {
-            // ciFirstPush tracked via metrics projection
-          }
+          // ciFirstPush derived from phase_end result.artifacts.testsPassed in projectMetrics
           currentPhase = output.nextPhase;
         }
         break;

@@ -137,7 +137,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
 }
 
 function ensureState(state: PipelineState | null, event: PipelineEvent): PipelineState {
-  if (!state) throw new Error(`Event "${event.event}" received before pipeline_start`);
+  if (!state) throw new Error(`Event "${event.event}" (sequence ${event.sequence}) received before pipeline_start — event log may be missing or its first line may be corrupt`);
   return state;
 }
 

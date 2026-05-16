@@ -38,6 +38,7 @@ export async function runImplementPhase(
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 
@@ -116,6 +117,7 @@ async function attemptRetry(
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 

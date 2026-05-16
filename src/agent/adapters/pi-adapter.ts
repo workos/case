@@ -25,7 +25,7 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
     const start = Date.now();
 
     const systemPrompt = await loadSystemPrompt(options.caseRoot, options.agentName);
-    const tools = this.createTools(options.agentName, options.cwd);
+    const tools = this.createPiTools(options.agentName, options.cwd);
 
     const modelOverride = process.env.CASE_MODEL_OVERRIDE;
     let modelConfig: AgentModelConfig;
@@ -66,33 +66,41 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
       if (event.type === 'tool_execution_start') {
         if (options.onHeartbeat) options.onHeartbeat(Date.now() - start);
         toolTimers.set(event.toolCallId, Date.now());
-        if (options.traceWriter && options.phase) {
-          options.traceWriter.write({
-            ts: new Date().toISOString(),
+        if (options.phase) {
+          const toolEvent = {
+            event: 'tool_start' as const,
             phase: options.phase,
             agent: options.agentName,
-            event: 'tool_start',
             toolCallId: event.toolCallId,
             tool: event.toolName,
             args: sanitizeForTrace(event.args),
-          });
+          };
+          if (options.eventAppender) {
+            void options.eventAppender.append(toolEvent);
+          } else if (options.traceWriter) {
+            options.traceWriter.write({ ts: new Date().toISOString(), ...toolEvent });
+          }
         }
       }
       if (event.type === 'tool_execution_end') {
         const toolStart = toolTimers.get(event.toolCallId);
         toolTimers.delete(event.toolCallId);
-        if (options.traceWriter && options.phase) {
-          options.traceWriter.write({
-            ts: new Date().toISOString(),
+        if (options.phase) {
+          const toolEvent = {
+            event: 'tool_end' as const,
             phase: options.phase,
             agent: options.agentName,
-            event: 'tool_end',
             toolCallId: event.toolCallId,
             tool: event.toolName,
             durationMs: toolStart ? Date.now() - toolStart : 0,
             isError: event.isError,
             result: sanitizeForTrace(event.result),
-          });
+          };
+          if (options.eventAppender) {
+            void options.eventAppender.append(toolEvent);
+          } else if (options.traceWriter) {
+            options.traceWriter.write({ ts: new Date().toISOString(), ...toolEvent });
+          }
         }
       }
     });
@@ -138,7 +146,11 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
     }
   }
 
-  createTools(agentName: string, cwd: string, _policy?: WorkspacePolicy): AgentTool<any>[] {
+  createTools(agentName: string, cwd: string, _policy?: WorkspacePolicy): unknown[] {
+    return this.createPiTools(agentName, cwd);
+  }
+
+  private createPiTools(agentName: string, cwd: string) {
     switch (agentName) {
       case 'implementer':
       case 'retrospective':

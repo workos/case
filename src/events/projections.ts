@@ -1,6 +1,11 @@
 import type { AgentName, AgentPhase, PhaseMetrics, PipelinePhase, ReviewFindings, RubricCategory, RunMetrics, TaskJson } from '../types.js';
 import type { PipelineState } from './types.js';
 
+/**
+ * Projects a subset of TaskJson fields from PipelineState.
+ * Returns Partial<TaskJson> — callers merge onto the existing task via Object.assign.
+ * Fields not derivable from state (created, repo, branch, etc.) are omitted.
+ */
 export function projectTaskJson(state: PipelineState): Partial<TaskJson> {
   const agents: Partial<Record<AgentName, AgentPhase>> = {};
 
@@ -43,6 +48,7 @@ export function projectMetrics(state: PipelineState): RunMetrics {
   let verifierRubric: RubricCategory[] | null = null;
   let reviewerRubric: RubricCategory[] | null = null;
   const skippedPhases: PipelinePhase[] = [];
+  let ciFirstPush: boolean | null = null;
 
   for (const [, phase] of state.phases) {
     if (phase.status === 'skipped') {
@@ -68,6 +74,21 @@ export function projectMetrics(state: PipelineState): RunMetrics {
     if (phase.result?.rubric?.role === 'reviewer') {
       reviewerRubric = phase.result.rubric.categories;
     }
+    if (phase.phase === 'implement' && phase.status === 'completed' && phase.result?.artifacts?.testsPassed !== undefined) {
+      ciFirstPush = phase.result.artifacts.testsPassed;
+    }
+  }
+
+  // Derive revisionFixedIssues from event history:
+  // true if a clean evaluator pass follows a revision_requested (no budget_exhausted)
+  // false if revision_budget_exhausted is present
+  let revisionFixedIssues: boolean | null = null;
+  if (state.revisionCycles > 0) {
+    if (state.outcome === 'completed') {
+      revisionFixedIssues = true;
+    } else if (state.outcome === 'failed') {
+      revisionFixedIssues = false;
+    }
   }
 
   return {
@@ -78,7 +99,7 @@ export function projectMetrics(state: PipelineState): RunMetrics {
     outcome: state.outcome === 'running' ? 'completed' : state.outcome,
     failedAgent: state.failedAgent,
     phases,
-    ciFirstPush: null,
+    ciFirstPush,
     reviewFindings,
     promptVersions: {},
     revisionCycles: state.revisionCycles,
@@ -90,7 +111,7 @@ export function projectMetrics(state: PipelineState): RunMetrics {
     evaluatorEffectiveness: {
       verifierRubric,
       reviewerRubric,
-      revisionFixedIssues: null,
+      revisionFixedIssues,
       skippedPhases,
     },
   };
@@ -100,10 +121,10 @@ export function projectMarkers(state: PipelineState): Array<{ name: string; path
   const markers: Array<{ name: string; path: string }> = [];
 
   for (const [, phase] of state.phases) {
-    if (phase.phase === 'verify' && phase.status === 'completed') {
+    if (phase.phase === 'verify' && phase.status === 'completed' && !state.markers.has('tested')) {
       markers.push({ name: 'tested', path: `.case/${state.taskId}/tested` });
     }
-    if (phase.phase === 'review' && phase.status === 'completed') {
+    if (phase.phase === 'review' && phase.status === 'completed' && !state.markers.has('reviewed')) {
       markers.push({ name: 'reviewed', path: `.case/${state.taskId}/reviewed` });
     }
   }
