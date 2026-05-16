@@ -27,6 +27,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
         status: 'active',
         phases: new Map(),
         currentPhase: null,
+        runningPhases: new Set(),
         revisionCycles: 0,
         pendingRevision: null,
         markers: new Set(),
@@ -47,6 +48,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
         startedAt: event.ts,
       });
       updated.currentPhase = key;
+      updated.runningPhases.add(key);
       updated.lastSequence = event.sequence;
       return updated;
     }
@@ -54,17 +56,24 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
     case 'phase_end': {
       const s = ensureState(state, event);
       const updated = cloneState(s);
-      if (updated.currentPhase) {
-        const phaseState = updated.phases.get(updated.currentPhase);
-        if (phaseState) {
-          phaseState.status =
-            event.outcome === 'completed' ? 'completed' : event.outcome === 'skipped' ? 'skipped' : 'failed';
-          phaseState.completedAt = event.ts;
-          phaseState.durationMs = event.durationMs;
-          if (event.result) phaseState.result = event.result;
-        }
+      const key = `${event.phase}_${s.revisionCycles}`;
+      // Find the matching phase — try the key first, fall back to currentPhase
+      const phaseState =
+        updated.phases.get(key) ?? (updated.currentPhase ? updated.phases.get(updated.currentPhase) : undefined);
+      if (phaseState) {
+        phaseState.status =
+          event.outcome === 'completed' ? 'completed' : event.outcome === 'skipped' ? 'skipped' : 'failed';
+        phaseState.completedAt = event.ts;
+        phaseState.durationMs = event.durationMs;
+        if (event.result) phaseState.result = event.result;
       }
-      updated.currentPhase = null;
+      updated.runningPhases.delete(key);
+      // currentPhase = last remaining running phase, or null
+      if (updated.runningPhases.size > 0) {
+        updated.currentPhase = [...updated.runningPhases][updated.runningPhases.size - 1];
+      } else {
+        updated.currentPhase = null;
+      }
       updated.lastSequence = event.sequence;
       return updated;
     }
@@ -150,6 +159,7 @@ function cloneState(state: PipelineState): PipelineState {
     ...state,
     phases: new Map(state.phases),
     markers: new Set(state.markers),
+    runningPhases: new Set(state.runningPhases),
   };
 }
 

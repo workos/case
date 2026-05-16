@@ -23,6 +23,7 @@ function makeState(overrides: Partial<PipelineState> = {}): PipelineState {
     status: 'implementing',
     phases: new Map(),
     currentPhase: null,
+    runningPhases: new Set(),
     revisionCycles: 0,
     pendingRevision: null,
     markers: new Set(),
@@ -82,13 +83,13 @@ describe('validateTransition', () => {
       ).not.toThrow();
     });
 
-    test('rejects phase_start when another phase is running', () => {
+    test('allows concurrent phase_start when another phase is running (DAG executor)', () => {
       expect(() =>
         validateTransition(
           makeEvent({ event: 'phase_start', phase: 'verify', agent: 'verifier' }),
-          makeState({ currentPhase: 'implement_0' }),
+          makeState({ currentPhase: 'implement_0', runningPhases: new Set(['implement_0']) }),
         ),
-      ).toThrow(LifecycleValidationError);
+      ).not.toThrow();
     });
 
     test('rejects phase_start when pipeline not started', () => {
@@ -120,7 +121,7 @@ describe('validateTransition', () => {
             outcome: 'completed',
             durationMs: 100,
           }),
-          makeState({ currentPhase: 'implement_0', phases }),
+          makeState({ currentPhase: 'implement_0', runningPhases: new Set(['implement_0']), phases }),
         ),
       ).not.toThrow();
     });
@@ -140,13 +141,22 @@ describe('validateTransition', () => {
       ).toThrow(LifecycleValidationError);
     });
 
-    test('rejects phase_end when different phase is running', () => {
+    test('allows phase_end for a different running phase (concurrent execution)', () => {
       const phases = new Map([
         [
           'verify_0',
           {
             phase: 'verify' as const,
             agent: 'verifier' as const,
+            status: 'running' as const,
+            startedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        [
+          'implement_0',
+          {
+            phase: 'implement' as const,
+            agent: 'implementer' as const,
             status: 'running' as const,
             startedAt: '2026-01-01T00:00:00Z',
           },
@@ -161,9 +171,9 @@ describe('validateTransition', () => {
             outcome: 'completed',
             durationMs: 100,
           }),
-          makeState({ currentPhase: 'verify_0', phases }),
+          makeState({ currentPhase: 'verify_0', runningPhases: new Set(['verify_0', 'implement_0']), phases }),
         ),
-      ).toThrow(LifecycleValidationError);
+      ).not.toThrow();
     });
   });
 

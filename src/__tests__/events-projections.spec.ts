@@ -22,6 +22,7 @@ function makeState(overrides: Partial<PipelineState> = {}): PipelineState {
     status: 'implementing',
     phases: new Map(),
     currentPhase: null,
+    runningPhases: new Set(),
     revisionCycles: 0,
     pendingRevision: null,
     markers: new Set(),

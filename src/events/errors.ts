@@ -24,28 +24,17 @@ export function validateTransition(event: PipelineEvent, state: PipelineState | 
 
     case 'phase_start': {
       assertRunning(event, state);
-      if (state!.currentPhase !== null) {
-        throw new LifecycleValidationError(
-          event,
-          state,
-          `Cannot start phase while another phase is running: ${state!.currentPhase}`,
-        );
-      }
+      // Allow concurrent phases (e.g., verify + review in DAG executor)
       return;
     }
 
     case 'phase_end': {
       assertRunning(event, state);
-      if (state!.currentPhase === null) {
-        throw new LifecycleValidationError(event, state, 'Cannot end phase that is not running');
-      }
-      const running = state!.phases.get(state!.currentPhase);
-      if (running && running.phase !== event.phase) {
-        throw new LifecycleValidationError(
-          event,
-          state,
-          `Phase end does not match running phase: expected ${running.phase}, got ${event.phase}`,
-        );
+      // Allow phase_end for skipped phases that were never started
+      if (event.outcome === 'skipped') return;
+      // Verify at least one phase is running
+      if (state!.runningPhases.size === 0 && state!.currentPhase === null) {
+        throw new LifecycleValidationError(event, state, 'Cannot end phase when no phases are running');
       }
       return;
     }

@@ -19,6 +19,7 @@ export interface PipelineState {
   status: TaskStatus;
   phases: Map<string, PhaseState>;
   currentPhase: string | null;
+  runningPhases: Set<string>;
   revisionCycles: number;
   pendingRevision: RevisionRequest | null;
   markers: Set<string>;

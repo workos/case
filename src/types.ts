@@ -1,4 +1,4 @@
-/** Status lifecycle — mirrors task-status.sh TRANSITIONS map */
+/** Status lifecycle — derived from DAG node state via projectStatusFromGraph() */
 export type TaskStatus =
   | 'active'
   | 'implementing'

@@ -31,6 +31,7 @@ async function main() {
       description: { type: 'string' },
       issue: { type: 'string' },
       'issue-type': { type: 'string' },
+      raw: { type: 'boolean' },
     },
     allowPositionals: true,
     strict: true,
@@ -66,6 +67,20 @@ async function main() {
       process.stderr.write(`Fatal: ${msg}\n`);
       process.exit(1);
     }
+  } else if (command === 'watch') {
+    const taskSlug = positionals[1];
+    if (!taskSlug) {
+      process.stderr.write('Error: ca watch <taskSlug> is required\n');
+      process.exit(1);
+    }
+    const caseRoot = resolveCaseRoot();
+    const { watchEventLog } = await import('./watch/watcher.js');
+    const { renderWatchEvent } = await import('./watch/renderer.js');
+    const format = values.raw ? ('raw' as const) : ('structured' as const);
+    for await (const event of watchEventLog({ taskSlug, caseRoot, format })) {
+      process.stdout.write(renderWatchEvent(event) + '\n');
+    }
+    process.exit(0);
   } else if (command === 'create') {
     await runCreate(values);
   } else if (command === 'serve') {
@@ -248,6 +263,7 @@ Usage:
   bun src/index.ts [<issue>] [options]              Detect repo, fetch issue, run pipeline
   bun src/index.ts --agent [<issue>] [options]      Interactive orchestrator session
   bun src/index.ts [run] --task <path> [options]    Run pipeline for an existing task
+  bun src/index.ts watch <taskSlug> [--raw]         Live pipeline progress (file tail)
   bun src/index.ts create [options]                 Create a new task
   bun src/index.ts serve [options]                  Start as HTTP service
 

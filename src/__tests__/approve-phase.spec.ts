@@ -150,12 +150,12 @@ describe('runApprovePhase', () => {
     expect(output.result.summary).toContain('manually');
   });
 
-  it('sets status to approving', async () => {
+  it('does not set status directly (DAG executor owns status projection)', async () => {
     mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'approve' }));
     const store = makeStore();
     await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
-    expect(store.setStatus as ReturnType<typeof mock>).toHaveBeenCalledWith('approving');
+    expect(store.setStatus as ReturnType<typeof mock>).not.toHaveBeenCalled();
   });
 
   it('dry-run skips and proceeds to close', async () => {

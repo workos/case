@@ -135,21 +135,29 @@ describe('EventAppender', () => {
     expect(events[1].runId).toBe('run-3');
   });
 
-  test('rejects invalid transition and does NOT modify file', async () => {
+  test('allows concurrent phase starts (DAG executor)', async () => {
     const store = new MockTaskStore(taskJsonPath) as any;
     const appender = new EventAppender(tmpDir, 'task-1', 'run-4', store);
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
 
-    const contentBefore = await readFile(appender.path, 'utf-8');
+    // DAG executor may start multiple phases concurrently
+    await expect(
+      appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' }),
+    ).resolves.toBeUndefined();
+  });
 
-    await expect(appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' })).rejects.toThrow(
+  test('rejects events after pipeline end', async () => {
+    const store = new MockTaskStore(taskJsonPath) as any;
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-4b', store);
+
+    await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
+    await appender.append({ event: 'pipeline_end', outcome: 'completed', durationMs: 100 });
+
+    await expect(appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' })).rejects.toThrow(
       LifecycleValidationError,
     );
-
-    const contentAfter = await readFile(appender.path, 'utf-8');
-    expect(contentAfter).toBe(contentBefore);
   });
 
   test('updates in-memory state after each append', async () => {
@@ -264,6 +272,7 @@ describe('EventAppender', () => {
         ['implement_0', { phase: 'implement' as const, agent: 'implementer' as const, status: 'completed' as const }],
       ]),
       currentPhase: null,
+      runningPhases: new Set<string>(),
       revisionCycles: 0,
       pendingRevision: null,
       markers: new Set<string>(),
