@@ -17,7 +17,25 @@
 
 set -euo pipefail
 
-ASSETS_REPO="nicknisi/case-assets"
+# ASSETS_REPO precedence:
+#   1. Explicit env var (e.g., CI, the `case upload` wrapper)
+#   2. config.json under the data dir (read via jq when available)
+#   3. Hardcoded default — preserves back-compat for direct invocations.
+if [[ -z "${ASSETS_REPO:-}" ]]; then
+  if [[ -n "${CASE_DATA_DIR:-}" ]]; then
+    _CFG="$CASE_DATA_DIR/config.json"
+  elif [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+    _CFG="$XDG_CONFIG_HOME/case/config.json"
+  elif [[ -n "${HOME:-}" ]]; then
+    _CFG="$HOME/.config/case/config.json"
+  else
+    _CFG=""
+  fi
+  if [[ -n "$_CFG" ]] && [[ -f "$_CFG" ]] && command -v jq >/dev/null 2>&1; then
+    ASSETS_REPO="$(jq -r '.assetsRepo // empty' "$_CFG" 2>/dev/null || true)"
+  fi
+fi
+ASSETS_REPO="${ASSETS_REPO:-nicknisi/case-assets}"
 RELEASE_TAG="assets"
 
 if [[ $# -lt 1 ]]; then

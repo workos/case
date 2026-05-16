@@ -4,15 +4,16 @@
 .case-manual-tested
 .case-reviewed
 
-# Active tasks (ephemeral per-run state, moved to tasks/done/ after merge)
+# Phase 3: state moved to ~/.config/case/. These rules cover both the legacy
+# in-repo paths (during the transition window) and any state accidentally written
+# under the repo root.
 tasks/active/
-
-# Proposed amendments (staged for human review, not committed until approved)
+tasks/done/
+docs/learnings/
 docs/proposed-amendments/*.md
 !docs/proposed-amendments/.gitkeep
-
-# Run log (append-only, machine-generated)
 docs/run-log.jsonl
+docs/agent-versions/
 
 # Build artifacts
 node_modules/

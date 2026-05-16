@@ -94,3 +94,33 @@ export function resolveDoc(relativePath: string): string {
 export function resolveTask(slug: string): string {
   return resolve(resolveDataDir(), 'tasks', 'active', `${slug}.task.json`);
 }
+
+/** Resolve the tasks/ directory under dataDir. Contains active/ and done/ subdirs. */
+export function resolveTaskDir(): string {
+  return resolve(resolveDataDir(), 'tasks');
+}
+
+/** Resolve the learnings/ directory under dataDir. */
+export function resolveLearningsDir(): string {
+  return resolve(resolveDataDir(), 'learnings');
+}
+
+/** Resolve the amendments/ directory under dataDir. */
+export function resolveAmendmentsDir(): string {
+  return resolve(resolveDataDir(), 'amendments');
+}
+
+/** Resolve the append-only run-log.jsonl path under dataDir. */
+export function resolveRunLogPath(): string {
+  return resolve(resolveDataDir(), 'run-log.jsonl');
+}
+
+/** Resolve the agent-versions/ directory under dataDir. */
+export function resolveAgentVersionsDir(): string {
+  return resolve(resolveDataDir(), 'agent-versions');
+}
+
+/** Resolve the config.json path under dataDir. */
+export function resolveConfigPath(): string {
+  return resolve(resolveDataDir(), 'config.json');
+}

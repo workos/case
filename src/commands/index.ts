@@ -21,6 +21,7 @@ import * as markManualTested from './mark-manual-tested.js';
 import * as markReviewed from './mark-reviewed.js';
 import * as upload from './upload.js';
 import * as snapshot from './snapshot.js';
+import * as init from './init.js';
 
 export interface Command {
   handler: (argv: string[]) => Promise<number>;
@@ -42,6 +43,7 @@ export const commandMap: Record<string, Command> = {
   'mark-reviewed': { handler: markReviewed.handler, description: markReviewed.description },
   upload: { handler: upload.handler, description: upload.description },
   snapshot: { handler: snapshot.handler, description: snapshot.description },
+  init: { handler: init.handler, description: init.description },
 };
 
 export async function dispatch(argv: string[]): Promise<number> {

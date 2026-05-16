@@ -1,16 +1,58 @@
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import type { PipelineConfig, PipelineMode, ProjectEntry } from './types.js';
 import { resolveDataDir, resolvePackageRoot } from './paths.js';
+import { readConfig } from './data-dir.js';
 
 interface ProjectsManifest {
   repos: ProjectEntry[];
 }
 
-/** Load and parse projects.json from the case root. */
-export function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
-  return Bun.file(resolve(caseRoot, 'projects.json'))
-    .text()
-    .then((raw) => (JSON.parse(raw) as ProjectsManifest).repos);
+/**
+ * Load and parse projects.json.
+ *
+ * Phase 3 resolution order:
+ *   1. `<dataDir>/<readConfig().projects>` (path may be absolute or relative to dataDir)
+ *   2. `<caseRoot>/projects.json` — legacy in-repo path, retained for back-compat
+ *
+ * Logs a deprecation notice when (2) is used.
+ */
+export async function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
+  const candidates = projectsManifestCandidates(caseRoot);
+  for (let i = 0; i < candidates.length; i++) {
+    const path = candidates[i]!;
+    const file = Bun.file(path);
+    if (await file.exists()) {
+      if (i > 0) {
+        process.stderr.write(
+          `case: deprecation — projects.json read from legacy path ${path}; move it to ${candidates[0]} (or run 'case init --migrate-from <repo>').\n`,
+        );
+      }
+      const raw = await file.text();
+      return (JSON.parse(raw) as ProjectsManifest).repos;
+    }
+  }
+  throw new Error(
+    `projects.json not found. Looked in:\n  ${candidates.join('\n  ')}\nRun 'case init' or set --projects.`,
+  );
+}
+
+/** Candidate paths for projects.json in resolution order. */
+function projectsManifestCandidates(caseRoot: string): string[] {
+  const list: string[] = [];
+  try {
+    const cfg = readConfig();
+    const configured = cfg.projects;
+    if (configured) {
+      list.push(isAbsolute(configured) ? configured : resolve(resolveDataDir(), configured));
+    } else {
+      list.push(resolve(resolveDataDir(), 'projects.json'));
+    }
+  } catch {
+    // resolveDataDir() can throw if HOME/XDG/CASE_DATA_DIR are all unset.
+    // Fall through to caseRoot.
+  }
+  list.push(resolve(caseRoot, 'projects.json'));
+  return list;
 }
 
 /** Resolve a repo path (potentially relative) to absolute from caseRoot. */

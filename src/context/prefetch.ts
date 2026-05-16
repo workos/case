@@ -1,5 +1,6 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { AgentName, PipelineConfig } from '../types.js';
+import { resolveLearningsDir } from '../paths.js';
 import { runScript } from '../util/run-script.js';
 
 export interface RepoContext {
@@ -15,9 +16,11 @@ export interface RepoContext {
  * learnings in parallel for speed. Only fetches what the role needs.
  */
 export async function prefetchRepoContext(config: PipelineConfig, role: AgentName): Promise<RepoContext> {
-  // session-start.sh, learnings/, golden-principles.md are all static package assets.
+  // session-start.sh + golden-principles.md are static package assets.
+  // Learnings live in the data dir (Phase 3); fall back to the legacy in-repo path for back-compat.
   const sessionStartScript = resolve(config.packageRoot, 'scripts/session-start.sh');
-  const learningsPath = resolve(config.packageRoot, `docs/learnings/${config.repoName}.md`);
+  const dataDirLearnings = join(resolveLearningsDir(), `${config.repoName}.md`);
+  const legacyLearnings = resolve(config.packageRoot, `docs/learnings/${config.repoName}.md`);
   const principlesPath = resolve(config.packageRoot, 'docs/golden-principles.md');
 
   // Derive working memory path from task file
@@ -39,7 +42,7 @@ export async function prefetchRepoContext(config: PipelineConfig, role: AgentNam
   const needsWorkingMemory = role === 'implementer';
 
   if (needsLearnings) {
-    promises.push(readFileSafe(learningsPath));
+    promises.push(readLearnings(dataDirLearnings, legacyLearnings));
   }
   if (needsPrinciples) {
     promises.push(readFileSafe(principlesPath));
@@ -80,4 +83,11 @@ async function readFileSafe(path: string): Promise<string> {
     return file.text();
   }
   return '';
+}
+
+/** Prefer dataDir learnings, fall back to legacy in-repo path during transition. */
+async function readLearnings(dataDirPath: string, legacyPath: string): Promise<string> {
+  const dataDir = await readFileSafe(dataDirPath);
+  if (dataDir) return dataDir;
+  return readFileSafe(legacyPath);
 }

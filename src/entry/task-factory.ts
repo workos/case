@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises';
-import { resolve, basename } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import type { IssueContext, TaskCreateRequest, TaskJson } from '../types.js';
+import { ensureDataDir } from '../data-dir.js';
+import { resolveTaskDir } from '../paths.js';
 import { createLogger } from '../util/logger.js';
 import { slugify } from '../util/slugify.js';
 
@@ -56,7 +58,11 @@ export async function createTask(
   }
 
   const taskId = generateTaskId(request.repo, request.title);
-  const activeDir = resolve(caseRoot, 'tasks/active');
+  // Write new tasks into the dataDir. Lazy ensureDataDir() so missing dirs self-heal.
+  ensureDataDir();
+  const activeDir = join(resolveTaskDir(), 'active');
+  // caseRoot legacy intentionally not referenced here — we always create new tasks in dataDir.
+  void caseRoot;
   await mkdir(activeDir, { recursive: true });
 
   const taskJsonPath = resolve(activeDir, `${taskId}.task.json`);

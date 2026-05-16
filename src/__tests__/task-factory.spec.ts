@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createTask } from '../entry/task-factory.js';
 import type { TaskCreateRequest } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
@@ -6,10 +6,17 @@ import { join } from 'node:path';
 
 describe('createTask', () => {
   let tempDir: string;
+  const originalEnv = { ...process.env };
 
   beforeEach(async () => {
     tempDir = join(process.env.TMPDIR ?? '/tmp', `case-test-${Date.now()}`);
     await mkdir(join(tempDir, 'tasks/active'), { recursive: true });
+    // Phase 3: createTask writes into dataDir; route it to tempDir to keep tests hermetic.
+    process.env.CASE_DATA_DIR = tempDir;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
   });
 
   it('creates task.json and task.md files', async () => {
