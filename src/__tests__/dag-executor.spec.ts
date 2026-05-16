@@ -1,8 +1,8 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { buildGraph, nodeId } from '../dag/builder.js';
+import { buildGraph } from '../dag/builder.js';
 import { executeGraph, findReadyNodes } from '../dag/executor.js';
 import type { ExecuteGraphContext } from '../dag/executor.js';
-import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
+import type { AgentResult, PipelineConfig } from '../types.js';
 import type { DagNode, PipelineGraph } from '../dag/types.js';
 import type { PipelineState } from '../events/types.js';
 import type { PlanArtifact } from '../events/plan.js';

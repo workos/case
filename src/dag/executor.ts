@@ -1,7 +1,7 @@
 import type { AgentResult, PipelineConfig, RevisionRequest } from '../types.js';
 import type { EventAppender } from '../events/appender.js';
 import type { Notifier } from '../notify.js';
-import type { DagNode, NodeId, PipelineGraph } from './types.js';
+import type { DagNode, PipelineGraph } from './types.js';
 import { nodeId } from './builder.js';
 import { mergeRevisionRequests } from './merge.js';
 import { projectStatusFromGraph } from './status.js';
