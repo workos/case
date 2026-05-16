@@ -68,12 +68,10 @@ export async function dispatch(argv: string[]): Promise<number> {
 
   const cmd = commandMap[verb!];
   if (!cmd) {
-    const suggestion = suggest(verb!, Object.keys(commandMap));
-    process.stderr.write(
-      `unknown command '${verb}'${suggestion ? `, did you mean '${suggestion}'?` : ''}\n\n`,
-    );
-    printHelp();
-    return 1;
+    // Not a registered verb — forward to `run` as a bare positional argument
+    // (issue number, Linear ID, freeform text). Preserves back-compat with
+    // `case 1234`, `ca DX-1234`, `ca "fix login bug"`.
+    return commandMap.run.handler(argv);
   }
 
   return cmd.handler(argv.slice(1));

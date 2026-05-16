@@ -97,19 +97,36 @@ describe('dispatch — help and routing', () => {
     expect(outCapture.lines.join('')).toContain('Commands:');
   });
 
-  it('unknown verb exits 1 and suggests closest', async () => {
-    // Stub the run handler to avoid kicking off the real pipeline if dispatch falls through.
-    const code = await dispatch(['statis']);
-    expect(code).toBe(1);
-    const stderr = errCapture.lines.join('');
-    expect(stderr).toContain("unknown command 'statis'");
-    expect(stderr).toContain("did you mean 'status'");
+  it('unrecognized verb forwards to run handler as positional arg', async () => {
+    const original = commandMap.run!.handler;
+    let receivedArgv: string[] | undefined;
+    commandMap.run!.handler = async (argv) => {
+      receivedArgv = argv;
+      return 0;
+    };
+    try {
+      const code = await dispatch(['1234']);
+      expect(code).toBe(0);
+      expect(receivedArgv).toEqual(['1234']);
+    } finally {
+      commandMap.run!.handler = original;
+    }
   });
 
-  it('unknown verb without close match still exits 1', async () => {
-    const code = await dispatch(['zzzzzzzzz']);
-    expect(code).toBe(1);
-    expect(errCapture.lines.join('')).toContain("unknown command 'zzzzzzzzz'");
+  it('forwards Linear IDs to run handler', async () => {
+    const original = commandMap.run!.handler;
+    let receivedArgv: string[] | undefined;
+    commandMap.run!.handler = async (argv) => {
+      receivedArgv = argv;
+      return 0;
+    };
+    try {
+      const code = await dispatch(['DX-1234']);
+      expect(code).toBe(0);
+      expect(receivedArgv).toEqual(['DX-1234']);
+    } finally {
+      commandMap.run!.handler = original;
+    }
   });
 
   it('flag-only argv (no verb) routes to run handler', async () => {

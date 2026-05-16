@@ -1,7 +1,7 @@
 import { isAbsolute, resolve } from 'node:path';
 import type { PipelineConfig, PipelineMode, ProjectEntry } from './types.js';
 import { resolveDataDir, resolvePackageRoot } from './paths.js';
-import { readConfig } from './data-dir.js';
+import { configExists, readConfig } from './data-dir.js';
 
 interface ProjectsManifest {
   repos: ProjectEntry[];
@@ -40,12 +40,18 @@ export async function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
 function projectsManifestCandidates(caseRoot: string): string[] {
   const list: string[] = [];
   try {
-    const cfg = readConfig();
-    const configured = cfg.projects;
-    if (configured) {
-      list.push(isAbsolute(configured) ? configured : resolve(resolveDataDir(), configured));
-    } else {
-      list.push(resolve(resolveDataDir(), 'projects.json'));
+    // Only add the XDG data dir candidate when the user has explicitly opted
+    // into Phase 3 by running `case init` (which creates config.json).
+    // Without this guard, every invocation falls back to the legacy in-repo
+    // path and prints a spurious deprecation warning.
+    if (configExists()) {
+      const cfg = readConfig();
+      const configured = cfg.projects;
+      if (configured) {
+        list.push(isAbsolute(configured) ? configured : resolve(resolveDataDir(), configured));
+      } else {
+        list.push(resolve(resolveDataDir(), 'projects.json'));
+      }
     }
   } catch {
     // resolveDataDir() can throw if HOME/XDG/CASE_DATA_DIR are all unset.

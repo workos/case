@@ -52,8 +52,22 @@ EOF
 
 echo ".case/${TASK_SLUG}/reviewed created (${WARNINGS} warnings, ${INFO} info)" >&2
 
-# Update task JSON
-TASK_JSON="${CASE_REPO}/tasks/active/${TASK_SLUG}.task.json"
+# Resolve data dir using the same XDG resolution order as the TypeScript code.
+if [[ -n "${CASE_DATA_DIR:-}" ]]; then
+  DATA_ROOT="$CASE_DATA_DIR"
+elif [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+  DATA_ROOT="$XDG_CONFIG_HOME/case"
+elif [[ -n "${HOME:-}" ]]; then
+  DATA_ROOT="$HOME/.config/case"
+else
+  DATA_ROOT="$CASE_REPO"
+fi
+
+# Update task JSON — check data dir first, fall back to package root.
+TASK_JSON="${DATA_ROOT}/tasks/active/${TASK_SLUG}.task.json"
+if [[ ! -f "$TASK_JSON" ]]; then
+  TASK_JSON="${CASE_REPO}/tasks/active/${TASK_SLUG}.task.json"
+fi
 if [[ -f "$TASK_JSON" ]]; then
   bash "${CASE_REPO}/scripts/task-status.sh" "$TASK_JSON" agent reviewer status completed 2>/dev/null || true
   bash "${CASE_REPO}/scripts/task-status.sh" "$TASK_JSON" agent reviewer completed now 2>/dev/null || true
