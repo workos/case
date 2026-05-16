@@ -2,14 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  resolvePackageRoot,
-  resolveDataDir,
-  resolveAgent,
-  resolveScript,
-  resolveDoc,
-  resolveTask,
-} from '../paths.js';
+import { resolvePackageRoot, resolveDataDir, resolveAgent, resolveScript, resolveDoc, resolveTask } from '../paths.js';
 
 describe('resolvePackageRoot', () => {
   it('returns the case repo root when invoked from src/paths.ts', () => {

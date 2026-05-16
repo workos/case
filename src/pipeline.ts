@@ -335,7 +335,12 @@ async function dispatchNode(
           notifier.send(`Human requested changes: ${approveOutput.revision?.summary ?? 'no details'}`);
           await dispatchNode(
             { ...node, phase: 'implement', agent: 'implementer', id: `implement_${usedCycles}` },
-            config, store, previousResults, notifier, approveOutput.revision, callbacks,
+            config,
+            store,
+            previousResults,
+            notifier,
+            approveOutput.revision,
+            callbacks,
           );
         } else {
           notifier.send('Manual edit complete — re-verifying.');
@@ -344,13 +349,23 @@ async function dispatchNode(
         if (callbacks.hasVerify || approveOutput.nextPhase === 'verify') {
           await dispatchNode(
             { ...node, phase: 'verify', agent: 'verifier', id: `verify_${usedCycles}` },
-            config, store, previousResults, notifier, undefined, callbacks,
+            config,
+            store,
+            previousResults,
+            notifier,
+            undefined,
+            callbacks,
           );
         }
 
         await dispatchNode(
           { ...node, phase: 'review', agent: 'reviewer', id: `review_${usedCycles}` },
-          config, store, previousResults, notifier, undefined, callbacks,
+          config,
+          store,
+          previousResults,
+          notifier,
+          undefined,
+          callbacks,
         );
       }
     }

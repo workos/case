@@ -10,9 +10,7 @@ export const description = 'Mark a repo as auto-tested (writes .case-tested with
  */
 export async function handler(argv: string[]): Promise<number> {
   if (process.stdin.isTTY) {
-    process.stderr.write(
-      'mark-tested requires test output on stdin: <test-cmd> | case mark-tested --repo <path>\n',
-    );
+    process.stderr.write('mark-tested requires test output on stdin: <test-cmd> | case mark-tested --repo <path>\n');
     return 1;
   }
   return spawnScript('mark-tested.sh', argv);

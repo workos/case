@@ -297,15 +297,13 @@ describe('assemblePrompt', () => {
   it('substitutes multiple variables in one prompt', async () => {
     const agentsDir = join(tempCaseRoot, 'agents');
     await mkdir(agentsDir, { recursive: true });
-    await Bun.write(
-      join(agentsDir, 'implementer.md'),
-      '{{packageRoot}} / {{dataDir}} / {{packageRoot}}\n',
-    );
+    await Bun.write(join(agentsDir, 'implementer.md'), '{{packageRoot}} / {{dataDir}} / {{packageRoot}}\n');
 
     const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     // Both occurrences of {{packageRoot}} replaced via global flag.
-    const occurrences = (prompt.match(new RegExp(tempCaseRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length;
+    const occurrences = (prompt.match(new RegExp(tempCaseRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? [])
+      .length;
     expect(occurrences).toBeGreaterThanOrEqual(3);
   });
 });

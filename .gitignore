@@ -15,6 +15,9 @@ docs/proposed-amendments/*.md
 docs/run-log.jsonl
 docs/agent-versions/
 
+# Ideation artifacts (generated HTML/MD specs)
+docs/ideation/
+
 # Build artifacts
 node_modules/
 dist/

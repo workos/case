@@ -307,9 +307,7 @@ describe('upload handler — preflight checks', () => {
     expect(code).toBe(1);
     const stderr = errCapture.lines.join('');
     // Accept either preflight failure (gh missing OR file missing).
-    expect(
-      stderr.includes('upload: file not found') || stderr.includes('gh CLI not found'),
-    ).toBe(true);
+    expect(stderr.includes('upload: file not found') || stderr.includes('gh CLI not found')).toBe(true);
   });
 
   it('exits 1 when no positional file path is provided', async () => {

@@ -91,9 +91,7 @@ export function readConfig(): CaseConfig {
   try {
     raw = readFileSync(p, 'utf-8');
   } catch (err) {
-    process.stderr.write(
-      `case: warning — could not read config.json (${(err as Error).message}); using defaults.\n`,
-    );
+    process.stderr.write(`case: warning — could not read config.json (${(err as Error).message}); using defaults.\n`);
     return { ...DEFAULT_CONFIG };
   }
   let parsed: Partial<CaseConfig> & { version?: number };
@@ -190,11 +188,7 @@ export async function migrateFromRepo(repoRoot: string): Promise<MigrationStats>
   stats.learnings += copyDirShallow(resolve(repoRoot, 'docs/learnings'), resolveLearningsDir(), stats);
 
   // amendments (repo path: docs/proposed-amendments)
-  stats.amendments += copyDirShallow(
-    resolve(repoRoot, 'docs/proposed-amendments'),
-    resolveAmendmentsDir(),
-    stats,
-  );
+  stats.amendments += copyDirShallow(resolve(repoRoot, 'docs/proposed-amendments'), resolveAmendmentsDir(), stats);
 
   // run-log.jsonl
   const runLogSrc = resolve(repoRoot, 'docs/run-log.jsonl');

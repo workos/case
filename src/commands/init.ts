@@ -106,9 +106,10 @@ export async function handler(argv: string[]): Promise<number> {
       force: parsed.values.force as boolean | undefined,
     });
   } catch (err) {
-    const msg = (err as NodeJS.ErrnoException).code === 'EACCES'
-      ? `permission denied at ${resolveDataDir()} — try CASE_DATA_DIR=/writable/path`
-      : (err as Error).message;
+    const msg =
+      (err as NodeJS.ErrnoException).code === 'EACCES'
+        ? `permission denied at ${resolveDataDir()} — try CASE_DATA_DIR=/writable/path`
+        : (err as Error).message;
     process.stderr.write(`case init: ${msg}\n`);
     return 1;
   }

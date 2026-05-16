@@ -72,13 +72,7 @@ describe('assembler doc inlining', () => {
     await writeDoc('docs/conventions/commits.md', '# Commits\n\nUse conventional commits.\n');
     await writeAgent('implementer', '# Implementer\n\n<!-- inject: docs/conventions/commits.md -->\n');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('Use conventional commits.');
     expect(prompt).not.toContain('<!-- inject: docs/conventions/commits.md -->');
@@ -93,13 +87,7 @@ describe('assembler doc inlining', () => {
       '# Top\n<!-- inject: docs/a.md -->\n---\n<!-- inject: docs/b.md -->\n---\n<!-- inject: docs/c.md -->\n',
     );
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('AAA');
     expect(prompt).toContain('BBB');
@@ -108,18 +96,9 @@ describe('assembler doc inlining', () => {
   });
 
   it('leaves the marker verbatim when the target file is missing', async () => {
-    await writeAgent(
-      'implementer',
-      '# Implementer\n<!-- inject: docs/does-not-exist.md -->\n',
-    );
+    await writeAgent('implementer', '# Implementer\n<!-- inject: docs/does-not-exist.md -->\n');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('<!-- inject: docs/does-not-exist.md -->');
   });
@@ -130,13 +109,7 @@ describe('assembler doc inlining', () => {
     await writeDoc('docs/big.md', big);
     await writeAgent('implementer', '<!-- inject: docs/big.md -->');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('[truncated]');
     // Should NOT contain the full 20K body — count Xs.
@@ -152,13 +125,7 @@ describe('assembler doc inlining', () => {
 
     process.env.CASE_INLINE_MAX_BYTES = '500';
     try {
-      const prompt = await assemblePrompt(
-        'implementer',
-        makeConfig(),
-        makeTask(),
-        emptyRepoContext,
-        new Map(),
-      );
+      const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
       expect(prompt).toContain('[truncated]');
       const yCount = (prompt.match(/Y/g) ?? []).length;
@@ -175,13 +142,7 @@ describe('assembler doc inlining', () => {
     await writeDoc('docs/b.md', 'B-content');
     await writeAgent('implementer', '<!-- inject: docs/a.md -->');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('A-content');
     // B's marker survives — NOT recursively resolved.
@@ -192,13 +153,7 @@ describe('assembler doc inlining', () => {
   it('treats an empty inject path as a no-op', async () => {
     await writeAgent('implementer', '# Top\n<!-- inject:  -->\n# Bottom');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     // Regex requires at least one non-space char; empty marker is unchanged.
     expect(prompt).toContain('# Top');
@@ -207,18 +162,9 @@ describe('assembler doc inlining', () => {
 
   it('does not interfere with {{var}} substitution', async () => {
     await writeDoc('docs/note.md', 'NOTE-BODY');
-    await writeAgent(
-      'implementer',
-      'root={{packageRoot}}\n<!-- inject: docs/note.md -->\ndata={{dataDir}}',
-    );
+    await writeAgent('implementer', 'root={{packageRoot}}\n<!-- inject: docs/note.md -->\ndata={{dataDir}}');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain(`root=${tempCaseRoot}`);
     expect(prompt).toContain(`data=${tempCaseRoot}`);
@@ -234,13 +180,7 @@ describe('assembler doc inlining', () => {
     await writeDoc('docs/x.md', 'X-CONTENT');
     await writeAgent('implementer', '<!-- inject: docs/x.md -->');
 
-    const prompt = await assemblePrompt(
-      'implementer',
-      makeConfig(),
-      makeTask(),
-      emptyRepoContext,
-      new Map(),
-    );
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
 
     expect(prompt).toContain('X-CONTENT');
   });

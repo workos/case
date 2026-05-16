@@ -23,11 +23,7 @@ export interface SpawnOptions {
  * @throws Error("Script not found: <name> (tried <path>)") if the resolved path is missing.
  * @throws Error wrapping fs.accessSync if the executable bit cannot be set.
  */
-export async function spawnScript(
-  name: string,
-  args: string[],
-  opts: SpawnOptions = {},
-): Promise<number> {
+export async function spawnScript(name: string, args: string[], opts: SpawnOptions = {}): Promise<number> {
   const path = resolveScript(name);
 
   if (!fs.existsSync(path)) {

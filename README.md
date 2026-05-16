@@ -120,17 +120,17 @@ All agents run as [Pi](https://shittycodingagent.ai/) sessions — the orchestra
 
 The pipeline's flow control (Steps 4-9) runs as a TypeScript DAG executor rather than LLM-interpreted prose. The LLM still does the work _inside_ each phase (writing code, testing, reviewing), but the transitions _between_ phases are deterministic graph traversals.
 
-| Concern                | Before (prose in SKILL.md)                             | After (DAG executor)                                              |
-| ---------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
-| Phase transitions      | LLM reads a table and decides                          | DAG edges define dependencies; executor dispatches ready nodes    |
-| Concurrent phases      | Not possible — strictly sequential                     | Verify + review run in parallel via `Promise.all`                 |
-| Retry cap              | Doom-loop hook fires after 3 identical failures        | `maxRetries: 1` checked before spawning                           |
-| Revision loops         | Not supported — abort or ask human                     | Rubric soft-fails loop back to implementer (max 2)                |
-| Pipeline profiles      | All tasks run the same phases                          | `tiny` / `standard` / `complex` expressed as typed DAG definitions|
-| Resume after interrupt | LLM reads status table, hopefully picks the right step | Event log replay via `restoreGraphState()`                        |
-| Context per agent      | LLM decides what to include                            | `assemblePrompt()` gives each role only what it needs             |
-| Attended vs unattended | Not supported                                          | `--mode unattended` auto-aborts on failure                        |
-| Observability          | Sparse trace events                                    | Unified NDJSON event log; `ca watch` for live tail                |
+| Concern                | Before (prose in SKILL.md)                             | After (DAG executor)                                               |
+| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
+| Phase transitions      | LLM reads a table and decides                          | DAG edges define dependencies; executor dispatches ready nodes     |
+| Concurrent phases      | Not possible — strictly sequential                     | Verify + review run in parallel via `Promise.all`                  |
+| Retry cap              | Doom-loop hook fires after 3 identical failures        | `maxRetries: 1` checked before spawning                            |
+| Revision loops         | Not supported — abort or ask human                     | Rubric soft-fails loop back to implementer (max 2)                 |
+| Pipeline profiles      | All tasks run the same phases                          | `tiny` / `standard` / `complex` expressed as typed DAG definitions |
+| Resume after interrupt | LLM reads status table, hopefully picks the right step | Event log replay via `restoreGraphState()`                         |
+| Context per agent      | LLM decides what to include                            | `assemblePrompt()` gives each role only what it needs              |
+| Attended vs unattended | Not supported                                          | `--mode unattended` auto-aborts on failure                         |
+| Observability          | Sparse trace events                                    | Unified NDJSON event log; `ca watch` for live tail                 |
 
 ### Usage
 

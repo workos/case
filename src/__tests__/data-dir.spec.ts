@@ -89,10 +89,7 @@ describe('readConfig', () => {
     // @ts-expect-error patching a method for assertion
     process.stderr.write = warn;
     try {
-      await writeFile(
-        join(tmp, 'config.json'),
-        JSON.stringify({ version: 999, assetsRepo: 'fork/assets' }),
-      );
+      await writeFile(join(tmp, 'config.json'), JSON.stringify({ version: 999, assetsRepo: 'fork/assets' }));
       const cfg = readConfig();
       expect(cfg.assetsRepo).toBe('fork/assets');
       expect(warn).toHaveBeenCalled();
