@@ -324,11 +324,12 @@ function seedGraphFromTaskStatus(
   profile: import('./types.js').PipelineProfile,
   status: import('./types.js').TaskStatus,
 ): void {
-  const phaseOrder = ['implementing', 'verifying', 'reviewing', 'closing'] as const;
+  const phaseOrder = ['implementing', 'verifying', 'reviewing', 'evaluating', 'closing'] as const;
   const phaseToNode: Record<string, string> = {
     implementing: 'implement_0',
     verifying: 'verify_0',
     reviewing: 'review_0',
+    evaluating: 'review_0',
     closing: 'close',
   };
 

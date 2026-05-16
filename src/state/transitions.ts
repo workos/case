@@ -86,6 +86,7 @@ function determineRawEntryPhase(task: TaskJson): PipelinePhase {
       return 'review';
     }
 
+    case 'evaluating':
     case 'closing':
       return 'close';
 
