@@ -18,12 +18,15 @@ Canonical vocabulary for the case pipeline. Every term used in code, specs, and 
 | **evaluator**  | Collective term for verifier and reviewer — the two phases that assess implementation quality.                                                             | `assessor`, `checker`                                                   |
 | **marker**     | A file written to `.case/<task-slug>/` as evidence of a completed phase. E.g., `tested`, `reviewed`.                                                       | `flag`, `sentinel`                                                      |
 | **evidence**   | Proof that a phase completed successfully. Includes marker files, SHA-256 hashed test output, screenshots.                                                 | `artifact` (too broad)                                                  |
+| **ast-grep rule** | A YAML file defining a structural code pattern to match or ban. Processed by ast-grep against TypeScript ASTs. Lives in `ast-rules/`.                  | `lint rule` (too generic — we also have oxlint)                         |
+| **target rule** | An ast-grep rule enforcing golden principles in target repos. Run by the implementer before committing. Lives in `ast-rules/target/`.                     | `repo rule`, `external rule`                                            |
+| **self-enforcement rule** | An ast-grep rule enforcing case's own codebase invariants. Run in CI and pre-commit. Lives in `ast-rules/self/`.                                 | `internal rule`, `meta rule`                                            |
 
 ## Decisions Log
 
 Record vocabulary decisions here as they arise during implementation.
 
-_No decisions recorded yet._
+- **Phase 2**: "target rule" vs "self-enforcement rule" split. Target rules enforce golden principles in other repos; self-enforcement rules enforce case's own invariants. Mirrors mill's approach of dogfooding ast-grep on its own codebase.
 
 ## Rejected Names
 

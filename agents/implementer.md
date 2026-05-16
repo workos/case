@@ -174,6 +174,20 @@ git reset --soft $(git merge-base HEAD main) && git add -A -- ':!.case/'
 
 Then create the final commit as usual.
 
+### 3c. Pre-Commit: AST Lint
+
+Before committing, run the case AST rules against your changes:
+
+```bash
+fail=0
+for f in $CASE_ROOT/ast-rules/target/*.yml; do
+  ast-grep scan --rule "$f" . || fail=1
+done
+exit $fail
+```
+
+Fix any errors before proceeding. Warnings should be addressed if feasible but do not block the commit.
+
 ### 4. Record
 
 1. **Pipe test output through the marker script** to create evidence.

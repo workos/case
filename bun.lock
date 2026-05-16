@@ -10,6 +10,7 @@
         "@mariozechner/pi-coding-agent": "^0.63.2",
       },
       "devDependencies": {
+        "@ast-grep/cli": "^0.42.2",
         "@types/bun": "^1.3.13",
         "@types/node": "^22.0.0",
         "oxfmt": "^0.50.0",
@@ -18,8 +19,27 @@
       },
     },
   },
+  "trustedDependencies": [
+    "@ast-grep/cli",
+  ],
   "packages": {
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.73.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-URURVzhxXGJDGUGFunIOtBlSl7KWvZiAAKY/ttTkZAkXT9bTPqdk2eK0b8qqSxXpikh3QKPnPYpiyX98zf5ebw=="],
+
+    "@ast-grep/cli": ["@ast-grep/cli@0.42.2", "", { "dependencies": { "detect-libc": "2.1.2" }, "optionalDependencies": { "@ast-grep/cli-darwin-arm64": "0.42.2", "@ast-grep/cli-darwin-x64": "0.42.2", "@ast-grep/cli-linux-arm64-gnu": "0.42.2", "@ast-grep/cli-linux-x64-gnu": "0.42.2", "@ast-grep/cli-win32-arm64-msvc": "0.42.2", "@ast-grep/cli-win32-ia32-msvc": "0.42.2", "@ast-grep/cli-win32-x64-msvc": "0.42.2" }, "bin": { "sg": "sg", "ast-grep": "ast-grep" } }, "sha512-TojScwpaM40UQyvV5n5oa8PfOPFfHSD8Xf0WppPXn1+lq73u/jwvDmP8M2Oxj5YgebIpgkDUPoMixThtqwpNBA=="],
+
+    "@ast-grep/cli-darwin-arm64": ["@ast-grep/cli-darwin-arm64@0.42.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-li1RsB2fO5/qchdZHny+meg1I03xD+A5rug8axxOdqull8hdFUqxymZ5hg/tKh+/C04gyccEBgqcuJAsghuPXw=="],
+
+    "@ast-grep/cli-darwin-x64": ["@ast-grep/cli-darwin-x64@0.42.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-oKR1bRYsmc0G287q9Xj29m3SrxohEXhArKt647MswDYbG751LHG3aaEf6TtYjcxq+jKB4XaVJ5+q1jlIgKbVWQ=="],
+
+    "@ast-grep/cli-linux-arm64-gnu": ["@ast-grep/cli-linux-arm64-gnu@0.42.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-dfgQcTR2SI47J1yz/MMQuA3cFu/pzsum07aLgv+QcouCJY+AJcgjZTNUd26vZ/352wTXfJ/wpfziwbbI/Z4EEA=="],
+
+    "@ast-grep/cli-linux-x64-gnu": ["@ast-grep/cli-linux-x64-gnu@0.42.2", "", { "os": "linux", "cpu": "x64" }, "sha512-ygkLM/RLEKw8btFgFIl/BrU2ji2sH79YnxIzjVIC5np9NMWWvqZ/jy2++s0YYI8Y9XLmfa1+Pi8F5zFK+3qDww=="],
+
+    "@ast-grep/cli-win32-arm64-msvc": ["@ast-grep/cli-win32-arm64-msvc@0.42.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-fThbaAvwUFfW1kAYw7xAzX/VvWMcyfeyyKyHfwQWHbkT5bjqdbnb5yFPLu0Q2Qo3bHUudYYP4WLakegkRyHSkQ=="],
+
+    "@ast-grep/cli-win32-ia32-msvc": ["@ast-grep/cli-win32-ia32-msvc@0.42.2", "", { "os": "win32", "cpu": "ia32" }, "sha512-W7S+Hao/FMsXc8ZZny7YqA16J5C9O9b6UvT+0xpiWda6nNhOv0ebQHzjhtuSC/+SlV7S29uwjr+jT/T6+XmV0Q=="],
+
+    "@ast-grep/cli-win32-x64-msvc": ["@ast-grep/cli-win32-x64-msvc@0.42.2", "", { "os": "win32", "cpu": "x64" }, "sha512-EPMQyUIvl4P3wqOAs9V+2LIUaLZNUQyHkLXqP+PKtGT+tS/c+IBv+/FiQ2psMHs2u4PM8tg2rnQBQ8sU0Nr+Gw=="],
 
     "@aws-crypto/crc32": ["@aws-crypto/crc32@5.2.0", "", { "dependencies": { "@aws-crypto/util": "^5.2.0", "@aws-sdk/types": "^3.222.0", "tslib": "^2.6.2" } }, "sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg=="],
 
@@ -380,6 +400,8 @@
     "debug": ["debug@4.4.3", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
 
     "degenerator": ["degenerator@5.0.1", "", { "dependencies": { "ast-types": "^0.13.4", "escodegen": "^2.1.0", "esprima": "^4.0.1" } }, "sha512-TllpMR/t0M5sqCXfj85i4XaAzxmS5tVA16dqvdkMwGmzI+dXLXnw3J+3Vdv7VKw+ThlTMboK6i9rnZ6Nntj5CQ=="],
+
+    "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "diff": ["diff@8.0.3", "", {}, "sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ=="],
 

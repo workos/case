@@ -1,0 +1,3 @@
+ruleDirs:
+  - ast-rules/target
+  - ast-rules/self

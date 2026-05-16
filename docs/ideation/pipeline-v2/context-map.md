@@ -1,10 +1,22 @@
 # Context Map: pipeline-v2
 
-**Phase**: 1
-**Scout Confidence**: 87/100
+**Phase**: 2 (current) | Phase 1 (prior)
+**Scout Confidence**: 88/100 (Phase 2) | 87/100 (Phase 1)
 **Verdict**: GO
 
 ## Dimensions
+
+### Phase 2 (current)
+
+| Dimension            | Score | Notes                                                                                                                                                                                                |
+| -------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 19/20 | All 10 new files and 3 modified files enumerated; rule YAMLs have full bodies in spec.                                                                                                               |
+| Pattern familiarity  | 14/20 | No prior ast-grep usage in repo. Spec includes complete YAML examples.                                                                                                                               |
+| Dependency awareness | 19/20 | New files are self-contained. Modified files have no downstream code consumers. Zero TS blast radius.                                                                                                 |
+| Edge case coverage   | 18/20 | False positive on `console.error`/`console.warn` explicitly handled. Known `Bun.spawn(['open'...])` at `approve-server.ts:97`.                                                                       |
+| Test strategy        | 18/20 | Test harness is shell-script with `jq` filter. Bun test infrastructure unaffected.                                                                                                                    |
+
+### Phase 1 (prior)
 
 | Dimension            | Score | Notes                                                                                                                                                                                                          |
 | -------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

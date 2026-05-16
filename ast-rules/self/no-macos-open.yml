@@ -1,0 +1,6 @@
+id: no-macos-open
+language: typescript
+rule:
+  pattern: Bun.spawn(['open', $$$ARGS])
+message: "macOS-only 'open' command detected. Use a cross-platform opener or guard with platform detection."
+severity: warning

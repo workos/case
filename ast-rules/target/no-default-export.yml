@@ -1,0 +1,6 @@
+id: no-default-export
+language: typescript
+rule:
+  pattern: export default $EXPR
+message: 'Use named exports instead of export default. Enforces consistent import patterns across repos.'
+severity: error
