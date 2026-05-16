@@ -1,10 +1,16 @@
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
-import type { MetricsSnapshot } from '../metrics/collector.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
+
+export interface MetricsSnapshot {
+  revisionCycles: number;
+  humanOverrides: number;
+  profile: import('../types.js').PipelineProfile;
+  evaluatorEffectiveness: import('../types.js').EvaluatorEffectiveness;
+}
 
 /**
  * Step 9: Always runs — on success AND failure.
@@ -25,14 +31,12 @@ export async function runRetrospectivePhase(
     return;
   }
 
-  // Build retrospective-specific context
   const retroContext = [
     '## Pipeline Outcome',
     '',
     `- **Outcome**: ${outcome}`,
     failedAgent ? `- **Failed agent**: ${failedAgent}` : '',
     '',
-    // Include failed agent's AGENT_RESULT if available
     ...(failedAgent && previousResults.has(failedAgent)
       ? [
           `### ${failedAgent} AGENT_RESULT`,
@@ -47,9 +51,6 @@ export async function runRetrospectivePhase(
     .filter(Boolean)
     .join('\n');
 
-  // We reuse assemblePrompt with 'closer' role for minimal context,
-  // then prepend the retrospective template manually since 'retrospective'
-  // isn't in the AgentName type (not a pipeline agent)
   const { resolve } = await import('node:path');
   const template = await Bun.file(resolve(config.caseRoot, 'agents/retrospective.md')).text();
 
@@ -91,7 +92,8 @@ export async function runRetrospectivePhase(
     .join('\n');
 
   try {
-    await spawnAgent({
+    const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
+    await spawn({
       prompt,
       cwd: config.repoPath,
       agentName: 'retrospective',

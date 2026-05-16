@@ -8,19 +8,14 @@ import { createLogger } from '../util/logger.js';
 const log = createLogger();
 
 /**
- * Step 7: Set status to closing BEFORE spawning (matches SKILL.md).
- * Pass verifier and reviewer AGENT_RESULT to closer via context assembly.
+ * Step 7: Spawn closer to create PR.
+ * Status is managed by pipeline events — closer just runs the agent.
  */
 export async function runClosePhase(
   config: PipelineConfig,
   store: TaskStore,
   previousResults: Map<AgentName, AgentResult>,
 ): Promise<PhaseOutput> {
-  // Orchestrator sets closing — not the closer agent
-  await store.setStatus('closing');
-  await store.setAgentPhase('closer', 'status', 'running');
-  await store.setAgentPhase('closer', 'started', 'now');
-
   log.phase('close', 'started');
 
   if (config.dryRun) {
@@ -48,7 +43,8 @@ export async function runClosePhase(
   const repoContext = await prefetchRepoContext(config, 'closer');
   const prompt = await assemblePrompt('closer', config, task, repoContext, previousResults);
 
-  const { result } = await spawnAgent({
+  const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
+  const { result } = await spawn({
     prompt,
     cwd: config.repoPath,
     agentName: 'closer',
@@ -59,10 +55,6 @@ export async function runClosePhase(
   });
 
   if (result.status === 'completed') {
-    await store.setAgentPhase('closer', 'status', 'completed');
-    await store.setAgentPhase('closer', 'completed', 'now');
-
-    // Store PR URL and number from closer's artifacts
     if (result.artifacts.prUrl) {
       await store.setField('prUrl', result.artifacts.prUrl);
     }
@@ -75,7 +67,6 @@ export async function runClosePhase(
     return { result, nextPhase: 'retrospective' };
   }
 
-  await store.setAgentPhase('closer', 'status', 'failed');
   previousResults.set('closer', result);
   log.phase('close', 'failed', { error: result.error });
   return { result, nextPhase: 'abort' };

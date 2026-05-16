@@ -106,11 +106,6 @@ describe('runImplementPhase', () => {
     expect(output.nextPhase).toBe('verify');
     expect(output.result.status).toBe('completed');
     expect(results.get('implementer')).toBe(completedResult);
-    expect(store.setStatus).toHaveBeenCalledWith('implementing');
-    expect(store.setAgentPhase).toHaveBeenCalledWith('implementer', 'status', 'running');
-    expect(store.setAgentPhase).toHaveBeenCalledWith('implementer', 'started', 'now');
-    expect(store.setAgentPhase).toHaveBeenCalledWith('implementer', 'status', 'completed');
-    expect(store.setAgentPhase).toHaveBeenCalledWith('implementer', 'completed', 'now');
   });
 
   it('failure with retryViable=true -> retries once', async () => {

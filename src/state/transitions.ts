@@ -1,5 +1,6 @@
 import type { PipelinePhase, PipelineProfile, TaskJson } from '../types.js';
 import { PHASE_ORDER, PROFILE_PHASES } from '../types.js';
+import type { PipelineState } from '../events/types.js';
 
 /**
  * Determine which pipeline phase to enter based on current task state and profile.
@@ -7,7 +8,32 @@ import { PHASE_ORDER, PROFILE_PHASES } from '../types.js';
  *
  * If the raw entry phase is skipped by the profile, advances to the next allowed phase.
  */
-export function determineEntryPhase(task: TaskJson, profile?: PipelineProfile): PipelinePhase {
+export function determineEntryPhase(task: TaskJson, profile?: PipelineProfile): PipelinePhase;
+export function determineEntryPhase(state: PipelineState): PipelinePhase;
+export function determineEntryPhase(taskOrState: TaskJson | PipelineState, profile?: PipelineProfile): PipelinePhase {
+  if ('runId' in taskOrState) {
+    return determineEntryPhaseFromState(taskOrState);
+  }
+  return determineEntryPhaseFromTask(taskOrState, profile);
+}
+
+function determineEntryPhaseFromState(state: PipelineState): PipelinePhase {
+  if (state.pendingRevision) return 'implement';
+  if (state.outcome === 'completed') return 'complete';
+
+  const completedPhases = new Set<string>();
+  for (const [, phase] of state.phases) {
+    if (phase.status === 'completed') completedPhases.add(phase.phase);
+  }
+
+  if (!completedPhases.has('implement')) return 'implement';
+  if (!completedPhases.has('verify')) return 'verify';
+  if (!completedPhases.has('review')) return 'review';
+  if (!completedPhases.has('close')) return 'close';
+  return 'retrospective';
+}
+
+function determineEntryPhaseFromTask(task: TaskJson, profile?: PipelineProfile): PipelinePhase {
   const resolvedProfile = profile ?? task.profile ?? 'standard';
   const allowedPhases = new Set(PROFILE_PHASES[resolvedProfile]);
   const rawPhase = determineRawEntryPhase(task);
