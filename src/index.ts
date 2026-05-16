@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import './binary-env.js';
 import { dispatch } from './commands/index.js';
 import { createLogger } from './util/logger.js';
 
