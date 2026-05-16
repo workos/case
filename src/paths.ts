@@ -2,7 +2,7 @@
  * Canonical path resolver.
  *
  * Single source of truth for resolving:
- *   - packageRoot: static assets shipped with the package (agents/, scripts/, docs/)
+ *   - packageRoot: static assets shipped with the package (agents/, docs/)
  *   - dataDir:     mutable state (tasks/, .case/, learnings/)
  *
  * In Phase 1 both resolve to the same on-disk location by default — the package root.
@@ -17,13 +17,34 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 /**
- * Resolve the case package root by walking up from this module's directory
+ * Resolve the case package root by walking up from likely runtime anchors
  * until a package.json with `name === "case"` is found.
  *
  * @throws if the filesystem root is reached without finding a matching package.json.
  */
 export function resolvePackageRoot(): string {
-  const start = import.meta.dir;
+  const starts = packageRootStarts();
+  for (const start of starts) {
+    const found = findPackageRootFrom(start);
+    if (found) return found;
+  }
+
+  throw new Error(`Could not find case package.json walking up from: ${starts.join(', ')}`);
+}
+
+function packageRootStarts(): string[] {
+  const starts = [
+    process.env.CASE_PACKAGE_ROOT,
+    import.meta.dir,
+    process.cwd(),
+    dirname(process.execPath),
+    dirname(dirname(process.execPath)),
+  ].filter((start): start is string => Boolean(start));
+
+  return [...new Set(starts.map((start) => resolve(start)))];
+}
+
+function findPackageRootFrom(start: string): string | null {
   let current = start;
 
   while (true) {
@@ -41,7 +62,7 @@ export function resolvePackageRoot(): string {
 
     const parent = dirname(current);
     if (parent === current) {
-      throw new Error(`Could not find case package.json walking up from ${start}`);
+      return null;
     }
     current = parent;
   }
@@ -78,11 +99,6 @@ export function resolveDataDir(): string {
 /** Resolve the path to an agent prompt template under packageRoot/agents. */
 export function resolveAgent(role: string): string {
   return resolve(resolvePackageRoot(), 'agents', `${role}.md`);
-}
-
-/** Resolve the path to a script under packageRoot/scripts. */
-export function resolveScript(name: string): string {
-  return resolve(resolvePackageRoot(), 'scripts', name);
 }
 
 /** Resolve a doc path under packageRoot/docs. */

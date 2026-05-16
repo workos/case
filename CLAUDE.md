@@ -27,7 +27,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 - Architecture patterns that span multiple repos
 - Playbooks for recurring operations
 - Task files and templates
-- Enforcement scripts (check.sh, bootstrap.sh)
+- TypeScript CLI guardrails (`ca check`, `ca bootstrap`, evidence marker commands)
 - Pipeline orchestrator (TypeScript)
 
 **In individual repos:**
@@ -59,9 +59,9 @@ tasks/
   active/                 # Current task files for agent execution
   done/                   # Completed tasks (moved after PR merge)
   templates/              # Reusable task templates
-scripts/
-  check.sh               # Cross-repo convention enforcement
-  bootstrap.sh            # Per-repo readiness verification
+src/commands/
+  check.ts                # Cross-repo convention enforcement
+  bootstrap.ts            # Per-repo readiness verification
 ```
 
 ## Commands
@@ -71,11 +71,11 @@ scripts/
 node -e "JSON.parse(require('fs').readFileSync('projects.json','utf8'))"
 
 # Check conventions across repos
-bash scripts/check.sh
+ca check
 
 # Check a single repo
-bash scripts/check.sh --repo cli
+ca check --repo cli
 
 # Bootstrap a repo for agent work
-bash scripts/bootstrap.sh cli
+ca bootstrap cli
 ```

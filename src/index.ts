@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 import './binary-env.js';
-import { dispatch } from './commands/index.js';
 import { createLogger } from './util/logger.js';
 
 const log = createLogger();
 
 async function main() {
+  const { dispatch } = await import('./commands/index.js');
   const code = await dispatch(process.argv.slice(2));
   process.exit(code);
 }

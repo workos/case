@@ -121,7 +121,9 @@ ca mark-reviewed --critical 0
 ca upload <file>
 ca snapshot <agent-name>
 ca create --repo <name> --title <title> --description <text>
-ca analyze-failure <agent> <log>
+ca analyze-failure <task.json> <agent> <error>
+ca bootstrap <repo>
+ca check [--repo <repo>]
 ```
 
 Common flags:
@@ -160,7 +162,7 @@ Override with:
 CASE_DATA_DIR=/tmp/case-test ca init
 ```
 
-Static package assets stay in the repo or installed package: `agents/`, `docs/`, `scripts/`, `ast-rules/`, and source files.
+Static package assets stay in the repo or installed package: `agents/`, `docs/`, `ast-rules/`, and source files.
 
 ## Pipeline
 
@@ -245,7 +247,7 @@ Target repos are listed in `projects.json`.
 Add a repo by updating `projects.json`, adding any needed architecture notes under `docs/architecture/`, and verifying with:
 
 ```bash
-bash scripts/check.sh --repo <name>
+ca check --repo <name>
 ```
 
 ## Development Checks
@@ -262,8 +264,8 @@ bun run format:check
 For target repos:
 
 ```bash
-bash scripts/bootstrap.sh <repo>
-bash scripts/check.sh --repo <repo>
+ca bootstrap <repo>
+ca check --repo <repo>
 ```
 
 ## Philosophy

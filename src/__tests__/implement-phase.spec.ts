@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
-import { mockSpawnAgent, mockRunScript, mockGatherSessionContext, mockAnalyzeFailure } from './mocks.js';
+import { mockSpawnAgent, mockRunCommand, mockGatherSessionContext, mockAnalyzeFailure } from './mocks.js';
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -85,13 +85,13 @@ function makeMockStore() {
 describe('runImplementPhase', () => {
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
-    mockRunScript.mockReset();
+    mockRunCommand.mockReset();
     mockGatherSessionContext.mockReset();
     mockAnalyzeFailure.mockReset();
 
     await setupTempFiles();
 
-    mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockRunCommand.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
     mockGatherSessionContext.mockResolvedValue({});
     mockAnalyzeFailure.mockResolvedValue({
       failureClass: 'unknown',

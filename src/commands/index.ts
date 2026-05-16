@@ -22,6 +22,8 @@ import * as upload from './upload.js';
 import * as snapshot from './snapshot.js';
 import * as init from './init.js';
 import * as analyzeFailure from './analyze-failure.js';
+import * as bootstrap from './bootstrap.js';
+import * as check from './check.js';
 
 export interface Command {
   handler: (argv: string[]) => Promise<number>;
@@ -44,6 +46,8 @@ export const commandMap: Record<string, Command> = {
   snapshot: { handler: snapshot.handler, description: snapshot.description },
   init: { handler: init.handler, description: init.description },
   'analyze-failure': { handler: analyzeFailure.handler, description: analyzeFailure.description },
+  bootstrap: { handler: bootstrap.handler, description: bootstrap.description },
+  check: { handler: check.handler, description: check.description },
 };
 
 export async function dispatch(argv: string[]): Promise<number> {

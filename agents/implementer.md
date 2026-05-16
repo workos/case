@@ -23,7 +23,7 @@ You receive from the orchestrator:
 
 ### 0. Session Context
 
-Run the session-start script to orient yourself:
+Run the session command to orient yourself:
 
 ```bash
 SESSION=$(ca session <target-repo-path> --task <task.json>)
@@ -276,7 +276,7 @@ If you failed, set `"status":"failed"` and fill in the `"error"` field. Still en
 - **Never start example apps.** That's the verifier's job.
 - **Never run browser automation.** That's the verifier's job.
 - **Never create PRs or push.** That's the closer's job.
-- **Never create manual-tested markers.** That's the verifier's job via `mark-manual-tested.sh`.
+- **Never create manual-tested markers.** That's the verifier's job via `ca mark-manual-tested`.
 - **Never set `tested` or `manualTested` directly in task JSON.** The marker script handles `tested` as a side effect.
 - **Always commit before returning.** The verifier needs a clean diff to review.
 - **Always update the progress log.** The closer reads it to draft the PR description.

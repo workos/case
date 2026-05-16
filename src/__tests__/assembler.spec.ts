@@ -256,18 +256,6 @@ describe('assemblePrompt', () => {
     expect(prompt).toContain('{{someVar}}');
   });
 
-  it('substitutes {{scriptPath:NAME}} to an absolute script path', async () => {
-    const agentsDir = join(tempCaseRoot, 'agents');
-    await mkdir(agentsDir, { recursive: true });
-    await Bun.write(join(agentsDir, 'implementer.md'), '# Implementer\n\nRun {{scriptPath:check.sh}}\n');
-
-    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
-
-    expect(prompt).not.toContain('{{scriptPath:check.sh}}');
-    // The substitution uses the resolver, which points to the real case repo's scripts dir.
-    expect(prompt).toMatch(/Run \/.+\/scripts\/check\.sh/);
-  });
-
   it('substitutes multiple variables in one prompt', async () => {
     const agentsDir = join(tempCaseRoot, 'agents');
     await mkdir(agentsDir, { recursive: true });

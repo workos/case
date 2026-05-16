@@ -130,7 +130,7 @@ export interface PipelineConfig {
   taskMdPath: string;
   repoPath: string;
   repoName: string;
-  /** Static assets shipped with the package — agents/, scripts/, docs/. */
+  /** Static assets shipped with the package — agents/, docs/. */
   packageRoot: string;
   /** Mutable runtime state — tasks/, .case/, learnings/. In Phase 1 equals packageRoot. */
   dataDir: string;
@@ -198,7 +198,7 @@ export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
   agentName: AgentName | 'retrospective';
-  /** Static assets shipped with the package — agents/, scripts/. */
+  /** Static assets shipped with the package — agents/. */
   packageRoot: string;
   /** Mutable runtime state — tasks/, .case/, learnings/. */
   dataDir: string;

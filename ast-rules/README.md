@@ -58,7 +58,7 @@ bun run test:ast
 
 ast-grep's tree-sitter TypeScript parser represents the inner text of a string (without quotes) as `string_fragment`. Using `kind: string` would match the entire string node including quotes, which makes regex matching unreliable. `string_fragment` matches only the content.
 
-This rule only scans TypeScript files. Existing hardcoded paths in `.sh` and `.md` files are outside ast-grep's scope — use `grep -r '/Users/' scripts/ agents/` to find those.
+This rule only scans TypeScript files. Markdown path checks are handled by `bun run lint:paths`.
 
 ### `no-direct-taskjson-write` uses top-level `regex`
 

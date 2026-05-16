@@ -1,7 +1,7 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import {
   mockSpawnAgent,
-  mockRunScript,
+  mockRunCommand,
   mockWriteRunMetrics,
   mockGetCurrentPromptVersions,
   mockFindPriorRunId,
@@ -46,7 +46,7 @@ mock.module('../notify.js', () => ({
   createNotifier: mockCreateNotifier,
   formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
 }));
-// Evidence assembler is NOT mocked — it uses the already-mocked runScript and store
+// Evidence assembler is NOT mocked — it uses the already-mocked runCommand and store
 
 const { runPipeline } = await import('../pipeline.js');
 
@@ -142,7 +142,7 @@ describe('runPipeline', () => {
   beforeEach(async () => {
     // Reset all shared mocks
     mockSpawnAgent.mockReset();
-    mockRunScript.mockReset();
+    mockRunCommand.mockReset();
     mockWriteRunMetrics.mockReset();
     mockGetCurrentPromptVersions.mockReset();
     mockFindPriorRunId.mockReset();
@@ -168,7 +168,7 @@ describe('runPipeline', () => {
     mockStoreSetAgentPhase.mockResolvedValue(undefined);
     mockStoreSetField.mockResolvedValue(undefined);
     mockStoreSetPendingRevision.mockResolvedValue(undefined);
-    mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockRunCommand.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
     mockGatherSessionContext.mockReset();
     mockGatherSessionContext.mockResolvedValue({});
     mockAnalyzeFailure.mockReset();
@@ -687,7 +687,7 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
-    mockRunScript
+    mockRunCommand
       .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
       .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })

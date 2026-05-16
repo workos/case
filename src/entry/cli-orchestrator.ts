@@ -5,7 +5,8 @@ import { findTaskByIssue, findTaskByMarker } from './task-scanner.js';
 import { createTask } from './task-factory.js';
 import { buildPipelineConfig } from '../config.js';
 import { runPipeline } from '../pipeline.js';
-import { runScript } from '../util/run-script.js';
+import { runBootstrap } from '../commands/bootstrap.js';
+import { runCommand } from '../util/run-command.js';
 import type { IssueContext, PipelineMode, TaskCreateRequest } from '../types.js';
 import type { TaskMatch } from './task-scanner.js';
 
@@ -27,7 +28,7 @@ export interface CliOrchestratorOptions {
  *   0b. Check for existing task (re-entry)
  *   1. Fetch issue context
  *   2. Derive branch, create task files
- *   3. Run baseline (bootstrap.sh)
+ *   3. Run baseline
  *   4. Dispatch to runPipeline()
  */
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
@@ -97,15 +98,12 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   await Bun.write(resolve(caseDirPath, 'active'), `${taskResult.taskId}\n`);
 
   // --- Step 3: Run baseline ---
-  process.stdout.write('Running baseline (bootstrap.sh)...\n');
-  const bootstrapScript = resolve(caseRoot, 'scripts/bootstrap.sh');
-  const baseline = await runScript('bash', [bootstrapScript, detected.name], {
-    cwd: caseRoot,
-    timeout: 120_000,
-  });
+  process.stdout.write('Running baseline...\n');
+  const baseline = await runBootstrap(detected.name, caseRoot);
 
-  if (baseline.exitCode !== 0) {
-    process.stderr.write(`Baseline failed:\n${baseline.stdout}${baseline.stderr}\n`);
+  if (!baseline.ok) {
+    const failed = baseline.steps.find((step) => step.exitCode !== 0);
+    process.stderr.write(`Baseline failed:\n${failed?.output ?? ''}\n`);
     process.stderr.write('Fix the issues above before retrying.\n');
     process.exit(1);
   }
@@ -187,10 +185,10 @@ function deriveBranchPrefix(labels: string[]): string {
  * When `warnOnCreate` is true (resume flow), warns that the branch was recreated.
  */
 async function ensureBranch(branchName: string, repoPath: string, warnOnCreate = false): Promise<void> {
-  const check = await runScript('git', ['rev-parse', '--verify', branchName], { cwd: repoPath });
+  const check = await runCommand('git', ['rev-parse', '--verify', branchName], { cwd: repoPath });
 
   if (check.exitCode === 0) {
-    const co = await runScript('git', ['checkout', branchName], { cwd: repoPath });
+    const co = await runCommand('git', ['checkout', branchName], { cwd: repoPath });
     if (co.exitCode !== 0) {
       throw new Error(`Failed to checkout branch ${branchName}: ${co.stderr.trim()}`);
     }
@@ -198,7 +196,7 @@ async function ensureBranch(branchName: string, repoPath: string, warnOnCreate =
     if (warnOnCreate) {
       process.stdout.write(`  Warning: branch ${branchName} not found, recreating from HEAD\n`);
     }
-    const create = await runScript('git', ['checkout', '-b', branchName], { cwd: repoPath });
+    const create = await runCommand('git', ['checkout', '-b', branchName], { cwd: repoPath });
     if (create.exitCode !== 0) {
       throw new Error(`Failed to create branch ${branchName}: ${create.stderr.trim()}`);
     }

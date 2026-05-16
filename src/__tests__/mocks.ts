@@ -2,7 +2,7 @@
  * Shared module mocks — loaded via bunfig.toml [test] preload.
  *
  * These mock.module calls apply globally to all test files in the process.
- * Only mock I/O boundaries here (agent spawning, scripts, file writes).
+ * Only mock I/O boundaries here (agent spawning, process execution, file writes).
  * NEVER mock modules that are directly tested (assembler, phases, etc.).
  */
 import { mock } from 'bun:test';
@@ -13,9 +13,12 @@ import { mock } from 'bun:test';
 export const mockSpawnAgent = mock();
 mock.module('../agent/pi-runner.js', () => ({ spawnAgent: mockSpawnAgent }));
 
-/** Mock for runScript — prevents real shell execution (git calls in prefetch) */
-export const mockRunScript = mock();
-mock.module('../util/run-script.js', () => ({ runScript: mockRunScript }));
+/** Mock for runCommand — prevents real process execution (git calls in prefetch/baseline) */
+export const mockRunCommand = mock();
+mock.module('../util/run-command.js', () => ({
+  runCommand: mockRunCommand,
+  runCommandLine: mockRunCommand,
+}));
 
 /** Mock for gatherSessionContext — prevents real git/fs access in tests */
 export const mockGatherSessionContext = mock();

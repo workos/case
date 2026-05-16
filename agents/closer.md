@@ -21,7 +21,7 @@ You receive from the orchestrator:
 
 ### 0. Session Context
 
-Run the session-start script to orient yourself:
+Run the session command to orient yourself:
 
 ```bash
 SESSION=$(ca session <target-repo-path> --task <task.json>)
@@ -113,7 +113,7 @@ Before running `gh pr create`, verify every requirement.
 1. **Reviewer ran**: Read the task JSON and confirm `agents.reviewer.status` is `"completed"`
 
    ```bash
-   python3 -c "import json; d=json.load(open('<task.json>')); r=d.get('agents',{}).get('reviewer',{}); assert r.get('status')=='completed', f'Reviewer not completed: {r}'"
+   test "$(ca status <task.json> agent reviewer status)" = "completed"
    ```
 
 2. **Branch**: Verify not on main/master

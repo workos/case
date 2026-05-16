@@ -68,12 +68,12 @@
     "tested": {
       "type": "boolean",
       "default": false,
-      "description": "Set by mark-tested.sh only (via --from-marker flag). Do not set directly."
+      "description": "Set by ca mark-tested only. Do not set directly."
     },
     "manualTested": {
       "type": "boolean",
       "default": false,
-      "description": "Set by mark-manual-tested.sh only (via --from-marker flag). Do not set directly."
+      "description": "Set by ca mark-manual-tested only. Do not set directly."
     },
     "prUrl": {
       "type": ["string", "null"],

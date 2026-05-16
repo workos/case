@@ -52,7 +52,7 @@ tasks/active/authkit-nextjs-1-issue-53.md         # human-readable
 tasks/active/authkit-nextjs-1-issue-53.task.json   # machine-touched
 ```
 
-The JSON file stores structured metadata that agents and scripts update programmatically. Schema: `tasks/task.schema.json`.
+The JSON file stores structured metadata that agents and CLI commands update programmatically. Schema: `tasks/task.schema.json`.
 
 Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `profile`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`, `contractPath`.
 
@@ -76,7 +76,7 @@ Evidence markers live under `.case/<task-slug>/` in the target repo. The `.case/
 
 #### `tested` structured format
 
-When piped JSON output from `vitest --reporter=json`, the marker contains structured fields parsed by `scripts/parse-test-output.sh`:
+When piped JSON output from `vitest --reporter=json`, `ca mark-tested` writes structured fields:
 
 ```
 timestamp: ...

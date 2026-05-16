@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { loadProjects, resolveRepoPath } from '../config.js';
-import { runScript } from '../util/run-script.js';
+import { runCommand } from '../util/run-command.js';
 import type { ProjectEntry } from '../types.js';
 
 export interface DetectedRepo {
@@ -88,7 +88,7 @@ export async function detectRepo(caseRoot: string, cwd?: string): Promise<Detect
 /** Run `git remote get-url origin` in the given directory. Returns URL or null. */
 async function getGitRemoteUrl(cwd: string): Promise<string | null> {
   try {
-    const result = await runScript('git', ['remote', 'get-url', 'origin'], { cwd });
+    const result = await runCommand('git', ['remote', 'get-url', 'origin'], { cwd });
     if (result.exitCode !== 0) return null;
     return result.stdout.trim() || null;
   } catch {

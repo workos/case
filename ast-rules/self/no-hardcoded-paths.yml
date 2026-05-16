@@ -6,4 +6,4 @@ rule:
   regex: '/Users/'
 message: 'Hardcoded absolute path detected. Use environment variables or computed paths.'
 severity: error
-note: 'Catches new hardcoded paths in TypeScript. Existing violations in .sh/.md files are outside ast-grep scope — use grep for those.'
+note: 'Catches new hardcoded paths in TypeScript. Markdown path checks run through bun run lint:paths.'

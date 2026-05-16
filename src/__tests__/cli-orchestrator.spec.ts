@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { mockSpawnAgent, mockRunScript } from './mocks.js';
+import { mockSpawnAgent, mockRunCommand } from './mocks.js';
 import type { TaskJson } from '../types.js';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -28,6 +28,9 @@ mock.module('../config.js', () => ({
 
 const mockRunPipeline = mock();
 mock.module('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
+
+const mockRunBootstrap = mock();
+mock.module('../commands/bootstrap.js', () => ({ runBootstrap: mockRunBootstrap }));
 
 // We need to mock findTaskByIssue and findTaskByMarker
 const mockFindTaskByIssue = mock();
@@ -80,7 +83,8 @@ describe('runCliOrchestrator — re-entry', () => {
     mockCreateTask.mockReset();
     mockBuildPipelineConfig.mockReset();
     mockRunPipeline.mockReset();
-    mockRunScript.mockReset();
+    mockRunBootstrap.mockReset();
+    mockRunCommand.mockReset();
     mockSpawnAgent.mockReset();
     mockFindTaskByIssue.mockReset();
     mockFindTaskByMarker.mockReset();
@@ -106,6 +110,7 @@ describe('runCliOrchestrator — re-entry', () => {
     });
 
     mockRunPipeline.mockResolvedValue(undefined);
+    mockRunBootstrap.mockResolvedValue({ ok: true, steps: [], totalDurationMs: 0 });
   });
 
   it('resumes from existing task when findTaskByIssue matches', async () => {
@@ -157,7 +162,7 @@ describe('runCliOrchestrator — re-entry', () => {
       taskJsonPath: join(tempDir, 'tasks/active/cli-new-task.task.json'),
       taskMdPath: join(tempDir, 'tasks/active/cli-new-task.md'),
     });
-    mockRunScript.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    mockRunCommand.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 
     // Need repo dir to exist for .case/active write — make it a git repo
     const repoDir = join(tempDir, 'repo');

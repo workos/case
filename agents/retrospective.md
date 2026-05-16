@@ -93,7 +93,7 @@ For each finding, classify where the fix belongs:
 
 ### 4. Propose Amendments (staged, not direct)
 
-**ETH Zurich finding: auto-generated agent instructions hurt performance.** Do NOT edit agent prompts, scripts, conventions, or golden principles directly. Instead, write proposals to a staging area for human review.
+**ETH Zurich finding: auto-generated agent instructions hurt performance.** Do NOT edit agent prompts, CLI commands, conventions, or golden principles directly. Instead, write proposals to a staging area for human review.
 
 **Priority guide:**
 
@@ -124,7 +124,7 @@ For each finding, create a proposal file in `docs/proposed-amendments/` under th
 **Target file:** {path relative to case/}
 **Triggered by:** {task filename} — {brief description of what happened}
 **Metrics motivation:** {what measurement or observation led to this}
-**Prompt version:** {version tag from snapshot-agent.sh, if target is agents/\*.md — otherwise omit}
+**Prompt version:** {version tag from `ca snapshot`, if target is agents/\*.md — otherwise omit}
 
 ## Current behavior
 
@@ -144,7 +144,7 @@ Filename format: `{YYYY-MM-DD}-{slug}.md` (e.g., `2026-03-14-implementer-esm-rem
 **What gets proposed** (human must review and promote):
 
 - `agents/` — agent prompt changes
-- `scripts/` — harness script changes
+- `src/commands/` — CLI guardrail changes
 - `src/phases/` — pipeline logic changes
 - `skills/` — skill file changes
 - `docs/golden-principles.md` — principle changes
@@ -219,7 +219,7 @@ AGENT_RESULT>>>
 ## Rules
 
 - **Propose, don't apply.** Write amendments to `docs/proposed-amendments/`, not direct edits. Exception: repo learnings in `docs/learnings/` can be appended directly.
-- **Target the harness, not the code.** Your improvements go to `case/` docs, scripts, agents, and pipeline code — not to the target repo's source code.
+- **Target the harness, not the code.** Your improvements go to `case/` docs, CLI commands, agents, and pipeline code — not to the target repo's source code.
 - **Be precise.** Make proposals with exact diffs or replacement text. Don't propose rewriting entire files when a few lines will do.
 - **Don't invent problems.** If the pipeline worked cleanly, say "no improvements needed." Not every run produces findings.
 - **One proposal per signal.** Don't bundle multiple fixes into one amendment file.

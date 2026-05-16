@@ -121,7 +121,7 @@ export async function handler(argv: string[]): Promise<number> {
   // Evidence flag guard
   if ((field === 'tested' || field === 'manualTested') && extra !== '--from-marker') {
     process.stderr.write(
-      `Error: ${field} can only be set by marker scripts (pass --from-marker)\nUse ca mark-tested or ca mark-manual-tested instead.\n`,
+      `Error: ${field} can only be set by marker commands (pass --from-marker)\nUse ca mark-tested or ca mark-manual-tested instead.\n`,
     );
     return 1;
   }

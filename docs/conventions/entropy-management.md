@@ -8,13 +8,13 @@ including suboptimal ones. Continuous scanning catches drift early.
 Run a one-time scan across all repos:
 
 ```bash
-bash scripts/entropy-scan.sh
+ca check
 ```
 
 Scan a specific repo:
 
 ```bash
-bash scripts/entropy-scan.sh --repo cli
+ca check --repo cli
 ```
 
 ## Continuous Scanning with /loop
@@ -22,22 +22,21 @@ bash scripts/entropy-scan.sh --repo cli
 During active work sessions, scan periodically:
 
 ```
-/loop 30m bash scripts/entropy-scan.sh
+/loop 30m ca check
 ```
 
 This runs every 30 minutes while your session is active. The scan:
 
-- Always exits 0 (won't break the loop)
-- Reports status as JSON (`clean` or `drift_detected`)
-- Lists specific failures for you to address
+- Reports convention failures for you to address
+- Exits non-zero when drift is detected
 
 ### Recommended intervals
 
-| Scenario                 | Interval | Command                                               |
-| ------------------------ | -------- | ----------------------------------------------------- |
-| Active multi-repo work   | 30m      | `/loop 30m bash scripts/entropy-scan.sh`              |
-| Focused single-repo work | 1h       | `/loop 1h bash scripts/entropy-scan.sh --repo {name}` |
-| Background monitoring    | 2h       | `/loop 2h bash scripts/entropy-scan.sh`               |
+| Scenario                 | Interval | Command                           |
+| ------------------------ | -------- | --------------------------------- |
+| Active multi-repo work   | 30m      | `/loop 30m ca check`              |
+| Focused single-repo work | 1h       | `/loop 1h ca check --repo {name}` |
+| Background monitoring    | 2h       | `/loop 2h ca check`               |
 
 ### Limitations
 
@@ -48,7 +47,7 @@ This runs every 30 minutes while your session is active. The scan:
 
 ## What Gets Checked
 
-`entropy-scan.sh` wraps `check.sh`, which validates:
+`ca check` validates:
 
 1. CLAUDE.md exists in each repo
 2. Required commands in package.json
@@ -65,4 +64,4 @@ When drift is detected:
 1. Read the failures array in the JSON output
 2. Fix the lowest-effort issues first (commit format, missing fields)
 3. For structural issues (file sizes, missing tests), create a task in `tasks/active/`
-4. Run `check.sh --repo {name}` to verify fixes
+4. Run `ca check --repo {name}` to verify fixes
