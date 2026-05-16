@@ -181,12 +181,14 @@ Every run writes an append-only event log under `~/.config/case/.case/<task-slug
 
 | Agent         | Responsibility                                                       | Does Not Do                         |
 | ------------- | -------------------------------------------------------------------- | ----------------------------------- |
-| Orchestrator  | Parses issues, creates tasks, runs baseline, dispatches the pipeline | Implement code                      |
+| Orchestrator¹ | Parses issues, creates tasks, runs baseline, dispatches the pipeline | Implement code                      |
 | Implementer   | Writes the fix, runs automated tests, commits                        | Manual browser testing, PR creation |
 | Verifier      | Tests the specific user-facing scenario and records evidence         | Edit code                           |
 | Reviewer      | Reviews the diff against golden principles and conventions           | Edit code or create PRs             |
 | Closer        | Creates the PR after evidence gates pass                             | Implement or test                   |
 | Retrospective | Records learnings and proposes harness improvements                  | Edit target repo code               |
+
+¹ The orchestrator is TypeScript runtime code (`src/agent/orchestrator-session.ts`), not an LLM agent prompt like the others.
 
 The key boundary is context isolation. Implementer context includes task details, playbooks, repo learnings, and revision feedback. Verifier context is intentionally fresher. Reviewer context is focused on the diff and principles.
 

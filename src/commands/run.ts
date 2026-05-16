@@ -19,10 +19,8 @@ export const description = 'Run the agent pipeline (default)';
  * slice via `parseArgs` so the router stays verb-agnostic.
  */
 export async function handler(argv: string[]): Promise<number> {
-  // Per-verb help flag — defer to the router's help output.
   if (argv.includes('--help') || argv.includes('-h')) {
-    const { printHelp } = await import('./index.js');
-    printHelp();
+    printRunHelp();
     return 0;
   }
 
@@ -98,6 +96,25 @@ export async function handler(argv: string[]): Promise<number> {
     process.stderr.write(`Fatal: ${msg}\n`);
     return 1;
   }
+}
+
+function printRunHelp(): void {
+  const text = `Usage: ca run [options] [issue]
+       ca [issue]
+       ca --agent [issue]
+
+Run the agent pipeline for a GitHub or Linear issue.
+
+Options:
+  --task, -t <file>       Run an existing task JSON file directly
+  --agent                 Start an interactive steering session
+  --model <model>         Override model for all agents in this run
+  --mode, -m <mode>       "attended" (default) or "unattended"
+  --dry-run               Validate without spawning agents
+  --fresh                 Ignore existing task state and start clean
+  --help, -h              Show this help
+`;
+  process.stdout.write(text);
 }
 
 async function runTaskFlow(values: Record<string, unknown>): Promise<number> {

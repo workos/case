@@ -21,7 +21,7 @@ echo "$SESSION"
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management                | TS/pnpm |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK                           | TS/pnpm |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                                  | TS/pnpm |
-| workos-node            | `../workos-node`            | WorkOS Node.js SDK                                   | TS/pnpm |
+| workos-node            | `../workos-node/main`       | WorkOS Node.js SDK                                   | TS/pnpm |
 
 Full metadata (commands, remotes, language): `projects.json`
 
