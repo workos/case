@@ -24,7 +24,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -35,8 +35,8 @@ Read the output to understand: current branch, last commits, task status, which 
 Mark yourself as running with a start timestamp immediately:
 
 ```bash
-case status <task.json> agent closer status running
-case status <task.json> agent closer started now
+ca status <task.json> agent closer status running
+ca status <task.json> agent closer started now
 ```
 
 ### 1. Gather Context
@@ -191,10 +191,10 @@ Only post if there are actual findings to share. Skip this step if the reviewer 
 1. **Update task JSON** — set agent phase completed, then transition status and record PR URL:
 
    ```bash
-   case status <task.json> agent closer status completed
-   case status <task.json> agent closer completed now
-   case status <task.json> status pr-opened
-   case status <task.json> prUrl "<PR URL>"
+   ca status <task.json> agent closer status completed
+   ca status <task.json> agent closer completed now
+   ca status <task.json> status pr-opened
+   ca status <task.json> prUrl "<PR URL>"
    ```
 
    Extract the PR URL from the `gh pr create` output. A null `prUrl` makes the task record incomplete — this is not optional.

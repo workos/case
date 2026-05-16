@@ -1,5 +1,5 @@
 /**
- * `case init` — scaffold the data directory and write a default `config.json`.
+ * `ca init` — scaffold the data directory and write a default `config.json`.
  *
  * Idempotent and non-destructive: re-running prints the current path and exits 0.
  * Pass `--force` to rewrite `config.json` (state directories are never deleted).
@@ -93,7 +93,7 @@ export async function handler(argv: string[]): Promise<number> {
       strict: true,
     });
   } catch (err) {
-    process.stderr.write(`case init: ${(err as Error).message}\n`);
+    process.stderr.write(`ca init: ${(err as Error).message}\n`);
     printHelp();
     return 1;
   }
@@ -110,7 +110,7 @@ export async function handler(argv: string[]): Promise<number> {
       (err as NodeJS.ErrnoException).code === 'EACCES'
         ? `permission denied at ${resolveDataDir()} — try CASE_DATA_DIR=/writable/path`
         : (err as Error).message;
-    process.stderr.write(`case init: ${msg}\n`);
+    process.stderr.write(`ca init: ${msg}\n`);
     return 1;
   }
 }
@@ -118,7 +118,7 @@ export async function handler(argv: string[]): Promise<number> {
 function printHelp(): void {
   process.stdout.write(
     [
-      'Usage: case init [options]',
+      'Usage: ca init [options]',
       '',
       'Scaffold the case data directory (default: ~/.config/case/) and write config.json.',
       'Idempotent and non-destructive: re-running prints the current path and exits 0.',

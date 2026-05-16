@@ -23,7 +23,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -33,9 +33,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON:
    ```bash
-   case status <task.json> status verifying
-   case status <task.json> agent verifier status running
-   case status <task.json> agent verifier started now
+   ca status <task.json> status verifying
+   ca status <task.json> agent verifier status running
+   ca status <task.json> agent verifier started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
@@ -185,7 +185,7 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 9. **Create the manual-tested marker** with combined test + scenario output:
 
    ```bash
-   cat /tmp/verifier-test-output.txt | case mark-manual-tested --library
+   cat /tmp/verifier-test-output.txt | ca mark-manual-tested --library
    ```
 
 10. Continue to step 5 (Record).
@@ -299,9 +299,9 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 1. **Upload before/after screenshots** for PR inclusion:
 
    ```bash
-   BEFORE=$(case upload .playwright-cli/before.png)
+   BEFORE=$(ca upload .playwright-cli/before.png)
    echo "$BEFORE"
-   AFTER=$(case upload .playwright-cli/after.png)
+   AFTER=$(ca upload .playwright-cli/after.png)
    echo "$AFTER"
    ```
 
@@ -310,7 +310,7 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 2. **(Optional) Upload video** if you recorded one for a complex flow:
 
    ```bash
-   VIDEO=$(case upload /tmp/verification.webm)
+   VIDEO=$(ca upload /tmp/verification.webm)
    echo "$VIDEO"
    ```
 
@@ -318,7 +318,7 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 3. **Create the manual testing evidence marker:**
    ```bash
-   case mark-manual-tested
+   ca mark-manual-tested
    ```
    This checks for recent playwright screenshots and creates `.case/<task-slug>/manual-tested` with evidence. It also updates the task JSON `manualTested` field. You do NOT set `manualTested` directly.
 
@@ -341,8 +341,8 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 2. **Update task JSON**:
    ```bash
-   case status <task.json> agent verifier status completed
-   case status <task.json> agent verifier completed now
+   ca status <task.json> agent verifier status completed
+   ca status <task.json> agent verifier completed now
    ```
 
 ### 5b. Score Rubric

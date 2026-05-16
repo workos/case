@@ -26,7 +26,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -36,9 +36,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON: set status to `implementing` and agent phase to running
    ```bash
-   case status <task.json> status implementing
-   case status <task.json> agent implementer status running
-   case status <task.json> agent implementer started now
+   ca status <task.json> status implementing
+   ca status <task.json> agent implementer status running
+   ca status <task.json> agent implementer started now
    ```
 2. Read the task file (`.md`) — understand the objective, acceptance criteria, and checklist
 3. Read the target repo's `CLAUDE.md` for project-specific instructions
@@ -53,7 +53,7 @@ Read the output to understand: current branch, last commits, task status, which 
    ```
    If `checkBaseline` is null in the task JSON, save the baseline:
    ```bash
-   case status <task.json> checkBaseline "$BASELINE"
+   ca status <task.json> checkBaseline "$BASELINE"
    ```
 
 ### 2. Implement
@@ -195,9 +195,9 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
    ```bash
    # Preferred — structured evidence via vitest JSON reporter
-   pnpm test --reporter=json 2>&1 | case mark-tested
+   pnpm test --reporter=json 2>&1 | ca mark-tested
    # Fallback — if JSON reporter is unavailable or the repo doesn't use vitest
-   pnpm test 2>&1 | case mark-tested
+   pnpm test 2>&1 | ca mark-tested
    ```
 
    This creates `.case/<task-slug>/tested` with a hash of test output AND updates the task JSON `tested` field. You do NOT set `tested` directly.
@@ -224,8 +224,8 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
 4. **Update task JSON**:
    ```bash
-   case status <task.json> agent implementer status completed
-   case status <task.json> agent implementer completed now
+   ca status <task.json> agent implementer status completed
+   ca status <task.json> agent implementer completed now
    ```
 
 ### 4b. Update Working Memory

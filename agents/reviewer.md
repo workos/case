@@ -23,7 +23,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -33,9 +33,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON:
    ```bash
-   case status <task.json> status reviewing
-   case status <task.json> agent reviewer status running
-   case status <task.json> agent reviewer started now
+   ca status <task.json> status reviewing
+   ca status <task.json> agent reviewer status running
+   ca status <task.json> agent reviewer started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
@@ -125,7 +125,7 @@ Format each finding as:
 1. If **no critical findings**: create the evidence marker:
 
    ```bash
-   case mark-reviewed \
+   ca mark-reviewed \
      --critical 0 --warnings <N> --info <N>
    ```
 
@@ -145,8 +145,8 @@ Format each finding as:
 
 4. **Update task JSON**:
    ```bash
-   case status <task.json> agent reviewer status completed
-   case status <task.json> agent reviewer completed now
+   ca status <task.json> agent reviewer status completed
+   ca status <task.json> agent reviewer completed now
    ```
 
 ### 4b. Score Rubric

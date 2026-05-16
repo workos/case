@@ -79,7 +79,7 @@ export async function dispatch(argv: string[]): Promise<number> {
 
 export function printHelp(): void {
   const lines: string[] = [];
-  lines.push('Usage: case <command> [options]');
+  lines.push('Usage: ca <command> [options]');
   lines.push('');
   lines.push('Commands:');
 
@@ -89,7 +89,7 @@ export function printHelp(): void {
     lines.push(`  ${verb.padEnd(pad)}${commandMap[verb]!.description}`);
   }
   lines.push('');
-  lines.push('Run `case <command> --help` for command-specific options.');
+  lines.push('Run `ca <command> --help` for command-specific options.');
   lines.push('');
   process.stdout.write(lines.join('\n'));
 }

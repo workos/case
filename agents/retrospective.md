@@ -24,7 +24,7 @@ You receive from the orchestrator:
 Run the session-start command to orient yourself:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -106,7 +106,7 @@ For each finding, classify where the fix belongs:
 If any of your proposals target an agent prompt (`agents/*.md`), create a snapshot before proposing:
 
 ```bash
-case snapshot <agent-name> \
+ca snapshot <agent-name> \
   --task "<task-filename>" \
   --reason "<1-line: what metric or failure motivated this change>"
 ```

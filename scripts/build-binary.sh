@@ -15,8 +15,8 @@ cat > "$DIST/package.json" <<EOF
 EOF
 
 echo "--- Compiling binary ---"
-bun build --compile "$ROOT/src/index.ts" --outfile "$DIST/case"
+bun build --compile "$ROOT/src/index.ts" --outfile "$DIST/ca"
 
 echo "--- Done ---"
-echo "Binary: $DIST/case"
-echo "Test:   PI_PACKAGE_DIR=$DIST $DIST/case --help"
+echo "Binary: $DIST/ca"
+echo "Test:   $DIST/ca --help"
