@@ -13,9 +13,25 @@ import { mock } from 'bun:test';
 export const mockSpawnAgent = mock();
 mock.module('../agent/pi-runner.js', () => ({ spawnAgent: mockSpawnAgent }));
 
-/** Mock for runScript — prevents real shell script execution */
+/** Mock for runScript — prevents real shell execution (git calls in prefetch) */
 export const mockRunScript = mock();
 mock.module('../util/run-script.js', () => ({ runScript: mockRunScript }));
+
+/** Mock for gatherSessionContext — prevents real git/fs access in tests */
+export const mockGatherSessionContext = mock();
+mock.module('../commands/session.js', () => ({
+  description: 'Print session context',
+  handler: mock(),
+  gatherSessionContext: mockGatherSessionContext,
+}));
+
+/** Mock for analyzeFailure — prevents real git/fs access in tests */
+export const mockAnalyzeFailure = mock();
+mock.module('../commands/analyze-failure.js', () => ({
+  description: 'Analyze failure',
+  handler: mock(),
+  analyzeFailure: mockAnalyzeFailure,
+}));
 
 /** Mock for writeRunMetrics — prevents real file writes */
 export const mockWriteRunMetrics = mock();

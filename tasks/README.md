@@ -60,9 +60,9 @@ Profile values: `tiny` (skip verify — docs, config, typos), `standard` (all ph
 
 Issue types: `github`, `linear`, `freeform`, `ideation`. Ideation tasks include `contractPath` pointing to the ideation contract.md.
 
-Read/write via: `bash /Users/nicknisi/Developer/case/scripts/task-status.sh <file> <field> [value]`
+Read/write via: `case status <file> <field> [value]`
 
-**Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`mark-tested.sh`, `mark-manual-tested.sh`) — not by agents directly.
+**Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`case mark-tested`, `case mark-manual-tested`) — not by agents directly.
 
 ### Evidence Markers
 

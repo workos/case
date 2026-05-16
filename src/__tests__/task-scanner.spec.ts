@@ -31,12 +31,18 @@ async function writeTask(taskId: string, task: TaskJson): Promise<string> {
 }
 
 describe('task-scanner', () => {
+  const originalEnv = { ...process.env };
+
   beforeEach(async () => {
     tempDir = join(process.env.TMPDIR ?? '/tmp', `case-scanner-test-${Date.now()}`);
     await mkdir(join(tempDir, 'tasks/active'), { recursive: true });
+    // Phase 3: scanner consults dataDir first. Point it at a sibling temp dir so
+    // legacy fallback (caseRoot=tempDir/tasks/active) is exercised.
+    process.env.CASE_DATA_DIR = join(tempDir, '.case-data-empty');
   });
 
   afterEach(async () => {
+    process.env = { ...originalEnv };
     await rm(tempDir, { recursive: true, force: true });
   });
 

@@ -30,7 +30,8 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
     const timeout = options.timeout ?? 600_000;
     const start = Date.now();
 
-    const systemPrompt = await loadSystemPrompt(options.caseRoot, options.agentName);
+    // Agent prompt templates ship with the package — read from packageRoot.
+    const systemPrompt = await loadSystemPrompt(options.packageRoot, options.agentName);
     const tools = this.createPiTools(options.agentName, options.cwd);
 
     const modelOverride = process.env.CASE_MODEL_OVERRIDE;

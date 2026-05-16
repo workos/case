@@ -20,21 +20,21 @@ ast-rules/
 
 Rules that enforce golden principles across WorkOS open source repos. The implementer agent runs these before committing.
 
-| Rule | Severity | Rationale |
-|------|----------|-----------|
-| `no-require` | error | Enforce ESM imports. `require()` breaks tree-shaking and is banned per golden-principles.md #4. |
-| `no-default-export` | error | Enforce named exports for consistent import patterns across repos. Default exports create ambiguous naming. |
-| `no-console-log` | warning | Enforce structured logger usage. `console.error` and `console.warn` are allowed for CLI output. |
+| Rule                | Severity | Rationale                                                                                                   |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `no-require`        | error    | Enforce ESM imports. `require()` breaks tree-shaking and is banned per golden-principles.md #4.             |
+| `no-default-export` | error    | Enforce named exports for consistent import patterns across repos. Default exports create ambiguous naming. |
+| `no-console-log`    | warning  | Enforce structured logger usage. `console.error` and `console.warn` are allowed for CLI output.             |
 
 ## Self-Enforcement Rules
 
 Rules that enforce case's own codebase invariants, inspired by mill's ast-grep discipline.
 
-| Rule | Severity | Rationale |
-|------|----------|-----------|
-| `no-hardcoded-paths` | error | Catch `/Users/` literals in TypeScript. Hardcoded absolute paths are non-portable. |
-| `no-direct-taskjson-write` | error | `.task.json` must be written through `TaskStore`, not via direct `writeFile`/`writeFileSync`. `task-store*` files are excluded. |
-| `no-macos-open` | warning | Catch `Bun.spawn(['open', ...])` — macOS-only. Use cross-platform opener or platform guard. |
+| Rule                       | Severity | Rationale                                                                                                                       |
+| -------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `no-hardcoded-paths`       | error    | Catch `/Users/` literals in TypeScript. Hardcoded absolute paths are non-portable.                                              |
+| `no-direct-taskjson-write` | error    | `.task.json` must be written through `TaskStore`, not via direct `writeFile`/`writeFileSync`. `task-store*` files are excluded. |
+| `no-macos-open`            | warning  | Catch `Bun.spawn(['open', ...])` — macOS-only. Use cross-platform opener or platform guard.                                     |
 
 ## Usage
 

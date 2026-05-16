@@ -21,10 +21,10 @@ You receive from the orchestrator:
 
 ### 0. Session Context
 
-Run the session-start script to orient yourself:
+Run the session-start command to orient yourself:
 
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -106,7 +106,7 @@ For each finding, classify where the fix belongs:
 If any of your proposals target an agent prompt (`agents/*.md`), create a snapshot before proposing:
 
 ```bash
-bash /Users/nicknisi/Developer/case/scripts/snapshot-agent.sh <agent-name> \
+ca snapshot <agent-name> \
   --task "<task-filename>" \
   --reason "<1-line: what metric or failure motivated this change>"
 ```
@@ -115,7 +115,7 @@ This preserves the current version for one-step rollback and feeds the prompt ve
 
 **How to propose:**
 
-For each finding, create a proposal file in `/Users/nicknisi/Developer/case/docs/proposed-amendments/`:
+For each finding, create a proposal file in `docs/proposed-amendments/` under the case install:
 
 ```markdown
 # Amendment: {one-line summary}

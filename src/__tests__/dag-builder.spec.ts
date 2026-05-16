@@ -33,11 +33,15 @@ describe('buildGraph', () => {
       }
     });
 
-    test('implement_0 has edges to verify_0 and review_0', () => {
-      const outEdges = graph.edges.filter((e) => e.from === 'implement_0');
-      const targets = outEdges.map((e) => e.to);
-      expect(targets).toContain('verify_0');
-      expect(targets).toContain('review_0');
+    test('implement_0 has edge to verify_0, verify_0 has edge to review_0', () => {
+      const implEdges = graph.edges.filter((e) => e.from === 'implement_0');
+      const implTargets = implEdges.map((e) => e.to);
+      expect(implTargets).toContain('verify_0');
+      expect(implTargets).not.toContain('review_0');
+
+      const verifyEdges = graph.edges.filter((e) => e.from === 'verify_0' && e.to === 'review_0');
+      expect(verifyEdges.length).toBe(1);
+      expect(verifyEdges[0].predicate).toBeDefined();
     });
 
     test('verify_0 and review_0 have predicated edges to close', () => {

@@ -77,9 +77,9 @@ Fix any failures before proceeding.
 
 ## Step 5: Record & Commit
 
-1. Pipe test output through `mark-tested.sh`:
+1. Pipe test output through `case mark-tested`:
    ```bash
-   {test command} 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   {test command} 2>&1 | case mark-tested
    ```
 2. Commit with a conventional message:
    ```

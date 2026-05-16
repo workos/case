@@ -140,7 +140,10 @@ export interface PipelineConfig {
   taskMdPath: string;
   repoPath: string;
   repoName: string;
-  caseRoot: string;
+  /** Static assets shipped with the package — agents/, scripts/, docs/. */
+  packageRoot: string;
+  /** Mutable runtime state — tasks/, .case/, learnings/. In Phase 1 equals packageRoot. */
+  dataDir: string;
   maxRetries: number;
   dryRun: boolean;
   /** Enable human approval gate between review and close */
@@ -252,7 +255,10 @@ export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
   agentName: AgentName | 'retrospective';
-  caseRoot: string;
+  /** Static assets shipped with the package — agents/, scripts/. */
+  packageRoot: string;
+  /** Mutable runtime state — tasks/, .case/, learnings/. */
+  dataDir: string;
   timeout?: number;
   /** Model provider (default: "anthropic") */
   provider?: string;
@@ -370,11 +376,7 @@ export interface EvaluatorEffectiveness {
 
 // --- Wave 5: Entry points ---
 
-export type TriggerSource =
-  | { type: 'cli'; user: string }
-  | { type: 'webhook'; event: string; deliveryId: string }
-  | { type: 'scanner'; scanner: string; runId: string }
-  | { type: 'manual'; description: string };
+export type TriggerSource = { type: 'cli'; user: string } | { type: 'manual'; description: string };
 
 export interface TaskCreateRequest {
   repo: string;
@@ -385,7 +387,6 @@ export interface TaskCreateRequest {
   mode?: PipelineMode;
   profile?: PipelineProfile;
   trigger: TriggerSource;
-  autoStart?: boolean;
   checkCommand?: string;
   checkBaseline?: number;
   checkTarget?: number;
@@ -398,26 +399,6 @@ export interface TaskCreateRequest {
   edgeCases?: string;
   /** What evidence proves the fix works (done contract) */
   evidenceExpectations?: string;
-}
-
-// --- Wave 5: Scanners ---
-
-export interface ScannerConfig {
-  enabled: boolean;
-  intervalMs: number;
-  repos: string[];
-  autoStart: boolean;
-}
-
-export interface ServerConfig {
-  port: number;
-  host: string;
-  webhookSecret?: string;
-  scanners: {
-    ci: ScannerConfig;
-    staleDocs: ScannerConfig;
-    deps: ScannerConfig;
-  };
 }
 
 // Event system re-exports

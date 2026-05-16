@@ -34,7 +34,26 @@ fi
 
 CASE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AGENT_FILE="$CASE_ROOT/agents/${AGENT_NAME}.md"
-VERSIONS_DIR="$CASE_ROOT/docs/agent-versions"
+
+# Phase 3: write snapshots into the data dir (XDG layout). The CLI sets
+# CASE_DATA_DIR when invoking; otherwise we fall back to the XDG default,
+# and finally to the legacy in-repo path for back-compat.
+if [[ -n "${CASE_DATA_DIR:-}" ]]; then
+  DATA_ROOT="$CASE_DATA_DIR"
+elif [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+  DATA_ROOT="$XDG_CONFIG_HOME/case"
+elif [[ -n "${HOME:-}" ]]; then
+  DATA_ROOT="$HOME/.config/case"
+else
+  DATA_ROOT="$CASE_ROOT"
+fi
+
+VERSIONS_DIR="$DATA_ROOT/agent-versions"
+# Legacy: keep using docs/agent-versions when it already exists in the repo.
+if [[ ! -d "$VERSIONS_DIR" ]] && [[ -d "$CASE_ROOT/docs/agent-versions" ]]; then
+  VERSIONS_DIR="$CASE_ROOT/docs/agent-versions"
+fi
+mkdir -p "$VERSIONS_DIR"
 CHANGELOG="$VERSIONS_DIR/changelog.jsonl"
 
 if [[ ! -f "$AGENT_FILE" ]]; then
@@ -66,7 +85,7 @@ CONTENT_HASH=$(shasum -a 256 "$AGENT_FILE" | cut -d' ' -f1 | head -c 16)
 
 # Append to changelog
 AGENT="$AGENT_NAME" VER="$VERSION_TAG" TASK="$TASK_ID" RSN="$REASON" HASH="$CONTENT_HASH" \
-  python3 -c "
+  SNAPDIR="$VERSIONS_DIR" python3 -c "
 import json, os
 from datetime import datetime, timezone
 
@@ -77,7 +96,7 @@ entry = {
     'task': os.environ['TASK'] or None,
     'reason': os.environ['RSN'] or None,
     'contentHash': os.environ['HASH'],
-    'snapshotFile': f'docs/agent-versions/{os.environ[\"VER\"]}.md',
+    'snapshotFile': os.path.join(os.environ['SNAPDIR'], os.environ['VER'] + '.md'),
 }
 
 print(json.dumps(entry, separators=(',', ':')))

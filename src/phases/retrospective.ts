@@ -52,7 +52,7 @@ export async function runRetrospectivePhase(
     .join('\n');
 
   const { resolve } = await import('node:path');
-  const template = await Bun.file(resolve(config.caseRoot, 'agents/retrospective.md')).text();
+  const template = await Bun.file(resolve(config.packageRoot, 'agents/retrospective.md')).text();
 
   const metricsContext = metricsSnapshot
     ? [
@@ -97,7 +97,8 @@ export async function runRetrospectivePhase(
       prompt,
       cwd: config.repoPath,
       agentName: 'retrospective',
-      caseRoot: config.caseRoot,
+      packageRoot: config.packageRoot,
+      dataDir: config.dataDir,
       onHeartbeat: config.onAgentHeartbeat,
       traceWriter: config.traceWriter,
       eventAppender: config.eventAppender,

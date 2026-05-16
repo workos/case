@@ -1,4 +1,5 @@
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest } from './types.js';
+import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { createNotifier, formatDuration } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
@@ -19,11 +20,13 @@ import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
 import type { DagNode } from './dag/types.js';
 import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
 import { restoreGraphState } from './dag/restore.js';
+import type { PipelineGraph } from './dag/types.js';
 
 const log = createLogger();
 
 export async function runPipeline(config: PipelineConfig): Promise<void> {
-  const store = new TaskStore(config.taskJsonPath, config.caseRoot);
+  // TaskStore reads scripts/task-status.sh from the package; task JSON itself lives under dataDir.
+  const store = new TaskStore(config.taskJsonPath, config.packageRoot);
   const notifier = createNotifier(config.mode);
   const previousResults = new Map<AgentName, AgentResult>();
 
@@ -43,21 +46,23 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   const runId = crypto.randomUUID();
   config.runtime ??= new PiRuntimeAdapter();
 
-  const appender = new EventAppender(config.caseRoot, task.id, runId, store);
+  // Event log is mutable runtime state — lives under dataDir/.case/<taskId>/events/.
+  const appender = new EventAppender(config.dataDir, task.id, runId, store);
   config.eventAppender = appender;
 
   const plan = generatePlan(task, config, runId);
 
   const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
   const { resolve: resolvePlan } = await import('node:path');
-  const planDir = resolvePlan(config.caseRoot, '.case', task.id);
+  // Plan + event log live under dataDir/.case/<taskId>/ — mutable runtime state.
+  const planDir = resolvePlan(config.dataDir, '.case', task.id);
   await mkdirPlan(planDir, { recursive: true });
   await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
 
   const graph = buildGraph(profile, maxRevisionCycles, { approve: config.approve });
 
   // Crash recovery: restore graph state from event log if a prior run didn't complete
-  const existingEventLogPath = resolvePlan(config.caseRoot, '.case', task.id, 'events');
+  const existingEventLogPath = resolvePlan(config.dataDir, '.case', task.id, 'events');
   let resumed = false;
   try {
     const { readdir: readdirFs } = await import('node:fs/promises');
@@ -82,11 +87,29 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     // No existing event log — fresh start
   }
 
+  let initialRevisionRequests: Map<number, RevisionRequest[]> | undefined;
+
   if (!resumed) {
     await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+
+    if (task.pendingRevision) {
+      const revCycle = task.pendingRevision.cycle ?? 1;
+      const prevCycle = revCycle - 1;
+      markCyclesCompleted(graph, profile, 0, prevCycle);
+      seedPendingRevision(graph, task.pendingRevision);
+      initialRevisionRequests = new Map([[prevCycle, [task.pendingRevision]]]);
+      const state = appender.getState();
+      state.revisionCycles = revCycle;
+      state.pendingRevision = task.pendingRevision;
+      resumed = true;
+    } else if (task.status !== 'active') {
+      seedGraphFromTaskStatus(graph, profile, task.status);
+      resumed = true;
+    }
   }
 
-  const promptVersions = await getCurrentPromptVersions(config.caseRoot);
+  // Prompt versions / run log live under docs/ — static package assets.
+  const promptVersions = await getCurrentPromptVersions(config.packageRoot);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
 
@@ -97,6 +120,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     appender,
     config,
     notifier,
+    initialRevisionRequests,
     dispatchPhase: async (node: DagNode, revision?: RevisionRequest) => {
       return dispatchNode(node, config, store, previousResults, notifier, revision, {
         getApprovalDecision: () => approvalDecision,
@@ -119,6 +143,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         setFailedAgent: (a) => {
           failedAgent = a;
         },
+        hasVerify: PROFILE_PHASES[profile].includes('verify'),
       });
     },
   };
@@ -136,6 +161,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     }
   }
 
+  if (approvalDecision === null && !config.approve) {
+    approvalDecision = 'skipped';
+  }
+
   await appender.append({ event: 'pipeline_end', outcome, failedAgent, durationMs: totalDurationMs });
 
   const runMetrics = projectMetrics(appender.getState());
@@ -144,8 +173,11 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   runMetrics.approvalTimeMs = approvalTimeMs;
   runMetrics.humanOverrides = humanOverrides;
   runMetrics.humanRevisionCycles = humanRevisionCycles;
-  const priorRunId = await findPriorRunId(config.caseRoot, task.id);
-  await writeRunMetrics(config.caseRoot, task.id, config.repoName, runMetrics, {
+  if (humanRevisionCycles > 0) {
+    runMetrics.revisionCycles = Math.max(runMetrics.revisionCycles, humanRevisionCycles);
+  }
+  const priorRunId = await findPriorRunId(config.packageRoot, task.id);
+  await writeRunMetrics(config.packageRoot, task.id, config.repoName, runMetrics, {
     priorRunId,
     parentTaskId: task.contractPath,
   });
@@ -174,6 +206,7 @@ interface PipelineCallbacks {
   outcome: () => 'completed' | 'failed';
   setOutcome: (o: 'completed' | 'failed') => void;
   setFailedAgent: (a: AgentName) => void;
+  hasVerify: boolean;
 }
 
 async function dispatchNode(
@@ -187,6 +220,9 @@ async function dispatchNode(
 ): Promise<AgentResult> {
   switch (node.phase) {
     case 'implement': {
+      if (revision) {
+        await store.setPendingRevision(revision);
+      }
       const output = await runImplementPhase(config, store, previousResults, revision);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'implementer', output.result, [
@@ -246,34 +282,8 @@ async function dispatchNode(
       return output.result;
     }
 
-    case 'approve': {
-      if (!config.approve || config.mode === 'unattended') {
-        callbacks.setApprovalDecision('skipped');
-        return {
-          status: 'completed',
-          summary: 'Approval skipped',
-          artifacts: {
-            commit: null,
-            filesChanged: [],
-            testsPassed: null,
-            screenshotUrls: [],
-            evidenceMarkers: [],
-            prUrl: null,
-            prNumber: null,
-          },
-          error: null,
-        };
-      }
-      const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
-      if (approveOutput.nextPhase === 'abort') {
-        callbacks.setApprovalDecision('rejected');
-        callbacks.setOutcome('failed');
-        return approveOutput.result;
-      }
-      callbacks.setApprovalDecision('approved');
-      return approveOutput.result;
-    }
-
+    case 'approve':
+      return runApproveLoop(node, config, store, previousResults, notifier, callbacks);
     case 'close': {
       const output = await runClosePhase(config, store, previousResults);
       if (output.nextPhase === 'abort') {
@@ -318,6 +328,174 @@ async function dispatchNode(
 
     default:
       throw new Error(`Unknown phase: ${node.phase}`);
+  }
+}
+
+async function runApproveLoop(
+  node: DagNode,
+  config: PipelineConfig,
+  store: TaskStore,
+  previousResults: Map<AgentName, AgentResult>,
+  notifier: ReturnType<typeof createNotifier>,
+  callbacks: PipelineCallbacks,
+): Promise<AgentResult> {
+  if (!config.approve || config.mode === 'unattended') {
+    callbacks.setApprovalDecision('skipped');
+    return {
+      status: 'completed',
+      summary: 'Approval skipped',
+      artifacts: {
+        commit: null,
+        filesChanged: [],
+        testsPassed: null,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      error: null,
+    };
+  }
+
+  const maxCycles = config.maxRevisionCycles ?? 2;
+  const approveStart = Date.now();
+  let usedCycles = 0;
+
+  for (;;) {
+    const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
+
+    if (approveOutput.nextPhase === 'abort') {
+      callbacks.setApprovalDecision('rejected');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      callbacks.setOutcome('failed');
+      return approveOutput.result;
+    }
+
+    if (approveOutput.nextPhase === 'close' || approveOutput.nextPhase === 'approve') {
+      callbacks.setApprovalDecision('approved');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      return approveOutput.result;
+    }
+
+    if (usedCycles >= maxCycles) {
+      notifier.send(`Revision budget exhausted (${maxCycles} cycles used). Proceeding to close.`);
+      callbacks.setApprovalDecision('approved');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      return approveOutput.result;
+    }
+
+    callbacks.incrementHumanRevisionCycles();
+    usedCycles++;
+
+    if (approveOutput.nextPhase === 'implement') {
+      notifier.send(`Human requested changes: ${approveOutput.revision?.summary ?? 'no details'}`);
+      await dispatchNode(
+        { ...node, phase: 'implement', agent: 'implementer', id: `implement_${usedCycles}` },
+        config,
+        store,
+        previousResults,
+        notifier,
+        approveOutput.revision,
+        callbacks,
+      );
+    } else {
+      notifier.send('Manual edit complete — re-verifying.');
+    }
+
+    if (callbacks.hasVerify || approveOutput.nextPhase === 'verify') {
+      await dispatchNode(
+        { ...node, phase: 'verify', agent: 'verifier', id: `verify_${usedCycles}` },
+        config,
+        store,
+        previousResults,
+        notifier,
+        undefined,
+        callbacks,
+      );
+    }
+
+    await dispatchNode(
+      { ...node, phase: 'review', agent: 'reviewer', id: `review_${usedCycles}` },
+      config,
+      store,
+      previousResults,
+      notifier,
+      undefined,
+      callbacks,
+    );
+  }
+}
+
+function markCyclesCompleted(
+  graph: PipelineGraph,
+  profile: import('./types.js').PipelineProfile,
+  fromCycle: number,
+  toCycle: number,
+): void {
+  const phases = PROFILE_PHASES[profile];
+  for (let c = fromCycle; c <= toCycle; c++) {
+    for (const phase of ['implement', 'verify', 'review']) {
+      if (phase === 'verify' && !phases.includes('verify')) continue;
+      const node = graph.nodes.get(`${phase}_${c}`);
+      if (node && node.state === 'pending') {
+        node.state = 'completed';
+        node.startedAt = new Date().toISOString();
+        node.completedAt = new Date().toISOString();
+      }
+    }
+  }
+}
+
+function seedGraphFromTaskStatus(
+  graph: PipelineGraph,
+  profile: import('./types.js').PipelineProfile,
+  status: import('./types.js').TaskStatus,
+): void {
+  const phaseOrder = ['implementing', 'verifying', 'reviewing', 'closing'] as const;
+  const phaseToNode: Record<string, string> = {
+    implementing: 'implement_0',
+    verifying: 'verify_0',
+    reviewing: 'review_0',
+    closing: 'close',
+  };
+
+  for (const phase of phaseOrder) {
+    if (phase === status) break;
+    const nodeId = phaseToNode[phase];
+    if (!nodeId) continue;
+    if (phase === 'verifying' && !PROFILE_PHASES[profile].includes('verify')) continue;
+    const node = graph.nodes.get(nodeId);
+    if (node && node.state === 'pending') {
+      node.state = 'completed';
+      node.startedAt = new Date().toISOString();
+      node.completedAt = new Date().toISOString();
+    }
+  }
+}
+
+function seedPendingRevision(graph: PipelineGraph, revision: RevisionRequest): void {
+  const sourceCycle = (revision.cycle ?? 1) - 1;
+  const sourcePhase = revision.source === 'reviewer' ? 'review' : 'verify';
+  const sourceNode = graph.nodes.get(`${sourcePhase}_${sourceCycle}`);
+  if (sourceNode) {
+    sourceNode.result = {
+      status: 'completed',
+      summary: revision.summary,
+      artifacts: {
+        commit: null,
+        filesChanged: revision.suggestedFocus,
+        testsPassed: null,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      rubric: {
+        role: revision.source === 'reviewer' ? 'reviewer' : 'verifier',
+        categories: revision.failedCategories,
+      },
+      error: null,
+    };
   }
 }
 

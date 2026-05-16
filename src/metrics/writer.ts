@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { RunMetrics } from '../types.js';
+import { resolveRunLogPath } from '../paths.js';
+import { ensureDataDir } from '../data-dir.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -20,7 +22,16 @@ export async function writeRunMetrics(
     parentTaskId?: string | null;
   },
 ): Promise<void> {
-  const logFile = resolve(caseRoot, 'docs/run-log.jsonl');
+  // Phase 3: prefer the dataDir path. Back-compat: if dataDir log is absent
+  // but a legacy `<caseRoot>/docs/run-log.jsonl` exists, keep appending there
+  // so we don't split the history mid-transition.
+  ensureDataDir();
+  const dataDirLog = resolveRunLogPath();
+  const legacyLog = resolve(caseRoot, 'docs/run-log.jsonl');
+  let logFile = dataDirLog;
+  if (!(await Bun.file(dataDirLog).exists()) && (await Bun.file(legacyLog).exists())) {
+    logFile = legacyLog;
+  }
 
   const entry = {
     runId: metrics.runId,

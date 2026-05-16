@@ -1,4 +1,4 @@
-import { resolve, basename } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { spawnAgent } from './pi-runner.js';
 import { createTask } from '../entry/task-factory.js';
@@ -6,6 +6,7 @@ import { runScript } from '../util/run-script.js';
 import { loadSystemPrompt } from './prompt-loader.js';
 import { buildPipelineConfig } from '../config.js';
 import { runPipeline } from '../pipeline.js';
+import { resolveTaskDir } from '../paths.js';
 import type { FromIdeationOptions, PhaseResult, TaskCreateRequest, TaskJson } from '../types.js';
 
 interface ContractInfo {
@@ -321,7 +322,8 @@ ${specContent}`;
       prompt,
       cwd: repoPath,
       agentName: 'implementer',
-      caseRoot,
+      packageRoot: caseRoot,
+      dataDir: caseRoot,
       timeout: 600_000,
     });
 
@@ -349,24 +351,32 @@ ${specContent}`;
  * Find an existing task by contractPath in tasks/active/.
  */
 async function findTaskByContractPath(caseRoot: string, contractPath: string): Promise<TaskJson | null> {
-  const activeDir = resolve(caseRoot, 'tasks/active');
-
-  let entries: string[];
+  const candidates: string[] = [];
   try {
-    entries = await readdir(activeDir);
+    candidates.push(join(resolveTaskDir(), 'active'));
   } catch {
-    return null;
+    // resolveDataDir() may throw if no env set
   }
+  candidates.push(resolve(caseRoot, 'tasks/active'));
 
-  for (const file of entries.filter((f) => f.endsWith('.task.json'))) {
+  for (const activeDir of candidates) {
+    let entries: string[];
     try {
-      const raw = await readFile(resolve(activeDir, file), 'utf-8');
-      const task = JSON.parse(raw) as TaskJson;
-      if (task.contractPath === contractPath) {
-        return task;
-      }
+      entries = await readdir(activeDir);
     } catch {
       continue;
+    }
+
+    for (const file of entries.filter((f) => f.endsWith('.task.json'))) {
+      try {
+        const raw = await readFile(resolve(activeDir, file), 'utf-8');
+        const task = JSON.parse(raw) as TaskJson;
+        if (task.contractPath === contractPath) {
+          return task;
+        }
+      } catch {
+        continue;
+      }
     }
   }
 

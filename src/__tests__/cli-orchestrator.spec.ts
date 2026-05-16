@@ -99,7 +99,8 @@ describe('runCliOrchestrator — re-entry', () => {
       taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
       repoPath: join(tempDir, 'repo'),
       repoName: 'cli',
-      caseRoot: tempDir,
+      packageRoot: tempDir,
+      dataDir: tempDir,
       maxRetries: 1,
       dryRun: false,
     });

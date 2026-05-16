@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, mock, beforeEach, beforeAll, afterEach, afterAll } from 'bun:test';
 import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -188,6 +188,7 @@ describe('discoverSpecs', () => {
 describe('executeFromIdeation', () => {
   let ideationFolder: string;
   let caseRoot: string;
+  const originalEnv = { ...process.env };
 
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
@@ -202,6 +203,8 @@ describe('executeFromIdeation', () => {
       'spec.md': '# Spec\n\nImplement the feature.',
     });
     caseRoot = await createCaseRoot(`case-${testId}`);
+    // Phase 3: createTask writes to dataDir. Point it at caseRoot so tests stay hermetic.
+    process.env.CASE_DATA_DIR = caseRoot;
 
     // runScript: git rev-parse (exit 1 = no branch), git checkout -b (exit 0), baseline (exit 0)
     mockRunScript
@@ -221,6 +224,10 @@ describe('executeFromIdeation', () => {
       task.status = 'pr-opened';
       await writeFile(config.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
     });
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
   });
 
   it('creates task, spawns implementer per phase, then delegates to pipeline', async () => {

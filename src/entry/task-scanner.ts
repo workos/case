@@ -1,6 +1,7 @@
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { readdir, stat } from 'node:fs/promises';
 import { determineEntryPhase } from '../state/transitions.js';
+import { resolveTaskDir } from '../paths.js';
 import type { TaskJson, PipelinePhase } from '../types.js';
 
 const STALE_MARKER_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -15,6 +16,8 @@ export interface TaskMatch {
 /**
  * Scan `tasks/active/*.task.json` for a task matching the given issue.
  * Returns the match with its resolved entry phase, or null if not found.
+ *
+ * Phase 3: scans the dataDir first, falls back to the legacy in-repo `<caseRoot>/tasks/active`.
  */
 export async function findTaskByIssue(
   caseRoot: string,
@@ -22,36 +25,45 @@ export async function findTaskByIssue(
   issueType: 'github' | 'linear' | 'freeform',
   issueNumber: string,
 ): Promise<TaskMatch | null> {
-  const activeDir = resolve(caseRoot, 'tasks/active');
-
-  let entries: string[];
-  try {
-    entries = await readdir(activeDir);
-  } catch {
-    return null;
-  }
-
-  const taskFiles = entries.filter((f) => f.endsWith('.task.json'));
-
-  for (const file of taskFiles) {
-    const taskJsonPath = resolve(activeDir, file);
+  for (const activeDir of activeDirCandidates(caseRoot)) {
+    let entries: string[];
     try {
-      const raw = await Bun.file(taskJsonPath).text();
-      const task = JSON.parse(raw) as TaskJson;
-
-      if (task.repo === repoName && task.issueType === issueType && task.issue === issueNumber) {
-        const entryPhase = determineEntryPhase(task);
-        const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
-
-        return { taskJson: task, taskJsonPath, taskMdPath, entryPhase };
-      }
+      entries = await readdir(activeDir);
     } catch {
-      // Skip unparseable files
       continue;
+    }
+
+    for (const file of entries.filter((f) => f.endsWith('.task.json'))) {
+      const taskJsonPath = resolve(activeDir, file);
+      try {
+        const raw = await Bun.file(taskJsonPath).text();
+        const task = JSON.parse(raw) as TaskJson;
+
+        if (task.repo === repoName && task.issueType === issueType && task.issue === issueNumber) {
+          const entryPhase = determineEntryPhase(task);
+          const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
+          return { taskJson: task, taskJsonPath, taskMdPath, entryPhase };
+        }
+      } catch {
+        // Skip unparseable files
+        continue;
+      }
     }
   }
 
   return null;
+}
+
+/** Candidate active-tasks dirs in resolution order. */
+function activeDirCandidates(caseRoot: string): string[] {
+  const list: string[] = [];
+  try {
+    list.push(join(resolveTaskDir(), 'active'));
+  } catch {
+    // resolveDataDir() may throw if HOME/XDG/CASE_DATA_DIR unset
+  }
+  list.push(resolve(caseRoot, 'tasks/active'));
+  return list;
 }
 
 /**
@@ -85,18 +97,24 @@ export async function findTaskByMarker(caseRoot: string, repoPath: string): Prom
     return null;
   }
 
-  // Load the task JSON
-  const taskJsonPath = resolve(caseRoot, 'tasks/active', `${taskId}.task.json`);
-  const taskFile = Bun.file(taskJsonPath);
+  // Load the task JSON — try dataDir first, then legacy in-repo path.
+  let taskJsonPath: string | null = null;
+  for (const activeDir of activeDirCandidates(caseRoot)) {
+    const candidate = resolve(activeDir, `${taskId}.task.json`);
+    if (await Bun.file(candidate).exists()) {
+      taskJsonPath = candidate;
+      break;
+    }
+  }
 
-  if (!(await taskFile.exists())) {
+  if (!taskJsonPath) {
     await cleanupCaseDir(resolve(repoPath, '.case'));
     process.stdout.write('Stale marker cleaned. No active task.\n');
     return null;
   }
 
   try {
-    const raw = await taskFile.text();
+    const raw = await Bun.file(taskJsonPath).text();
     const task = JSON.parse(raw) as TaskJson;
     const entryPhase = determineEntryPhase(task);
     const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');

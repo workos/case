@@ -114,12 +114,12 @@ describe('findReadyNodes', () => {
     expect(ready).toHaveLength(0);
   });
 
-  test('returns verify_0 and review_0 when implement_0 is completed', () => {
+  test('returns only verify_0 when implement_0 is completed (review waits for verify)', () => {
     const graph = buildGraph('standard', 2);
     graph.nodes.get('implement_0')!.state = 'completed';
     const ready = findReadyNodes(graph);
     const ids = ready.map((n) => n.id).sort();
-    expect(ids).toEqual(['review_0', 'verify_0']);
+    expect(ids).toEqual(['verify_0']);
   });
 
   test('returns nothing when evaluators complete but predicates not satisfied', () => {
