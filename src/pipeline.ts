@@ -196,8 +196,9 @@ async function dispatchNode(
         if (choice === 'Abort') {
           callbacks.setOutcome('failed');
           callbacks.setFailedAgent('implementer');
+          return output.result;
         }
-        return output.result;
+        return { ...output.result, status: 'completed' };
       }
       await store.setPendingRevision(null);
       previousResults.set('implementer', output.result);
@@ -215,8 +216,9 @@ async function dispatchNode(
         if (choice === 'Abort') {
           callbacks.setOutcome('failed');
           callbacks.setFailedAgent('verifier');
+          return output.result;
         }
-        return output.result;
+        return { ...output.result, status: 'completed' };
       }
       previousResults.set('verifier', output.result);
       return output.result;
@@ -233,8 +235,12 @@ async function dispatchNode(
         if (choice === 'Abort') {
           callbacks.setOutcome('failed');
           callbacks.setFailedAgent('reviewer');
+          return output.result;
         }
-        return output.result;
+        if (choice === 'Override and continue') {
+          callbacks.incrementHumanOverrides();
+        }
+        return { ...output.result, status: 'completed' };
       }
       previousResults.set('reviewer', output.result);
       return output.result;
@@ -275,8 +281,9 @@ async function dispatchNode(
         if (choice === 'Abort') {
           callbacks.setOutcome('failed');
           callbacks.setFailedAgent('closer');
+          return output.result;
         }
-        return output.result;
+        return { ...output.result, status: 'completed' };
       }
       const prUrl = output.result.artifacts.prUrl;
       if (prUrl) notifier.send(`PR created: ${prUrl}`);

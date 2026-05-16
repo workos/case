@@ -39,7 +39,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
 
     case 'phase_start': {
       const s = ensureState(state, event);
-      const key = `${event.phase}_${s.revisionCycles}`;
+      const key = isTerminalPhase(event.phase) ? event.phase : `${event.phase}_${s.revisionCycles}`;
       const updated = cloneState(s);
       updated.phases.set(key, {
         phase: event.phase,
@@ -56,7 +56,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
     case 'phase_end': {
       const s = ensureState(state, event);
       const updated = cloneState(s);
-      const key = `${event.phase}_${s.revisionCycles}`;
+      const key = isTerminalPhase(event.phase) ? event.phase : `${event.phase}_${s.revisionCycles}`;
       // Find the matching phase — try the key first, fall back to currentPhase
       const phaseState =
         updated.phases.get(key) ?? (updated.currentPhase ? updated.phases.get(updated.currentPhase) : undefined);
@@ -144,6 +144,12 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
       return state!;
     }
   }
+}
+
+const TERMINAL_PHASES = new Set(['close', 'retrospective', 'approve']);
+
+function isTerminalPhase(phase: string): boolean {
+  return TERMINAL_PHASES.has(phase);
 }
 
 function ensureState(state: PipelineState | null, event: PipelineEvent): PipelineState {
