@@ -20,7 +20,9 @@
     "test:ast": "bash tests/ast-rules/run-tests.sh",
     "lint:ast": "bash -c 'fail=0; for f in ast-rules/target/*.yml; do ast-grep scan --rule \"$f\" . || fail=1; done; exit $fail'",
     "lint:ast:self": "bash -c 'fail=0; for f in ast-rules/self/*.yml; do ast-grep scan --rule \"$f\" src/ || fail=1; done; exit $fail'",
-    "lint:ast:all": "bun run lint:ast && bun run lint:ast:self",
+    "lint:paths": "bash scripts/lint-paths.sh",
+    "lint:ast:all": "bun run lint:ast && bun run lint:ast:self && bun run lint:paths",
+    "build:binary": "bash scripts/build-binary.sh",
     "start": "bun src/index.ts",
     "serve": "bun src/index.ts serve"
   },
