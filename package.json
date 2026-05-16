@@ -7,7 +7,8 @@
     "node": ">=20"
   },
   "bin": {
-    "ca": "src/index.ts"
+    "ca": "src/index.ts",
+    "case": "src/index.ts"
   },
   "scripts": {
     "build": "tsc",
