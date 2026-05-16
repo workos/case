@@ -1,5 +1,12 @@
 import { resolve } from 'node:path';
-import type { AgentName, AgentResult, FailureAnalysis, PhaseOutput, PipelineConfig, RevisionRequest } from '../types.js';
+import type {
+  AgentName,
+  AgentResult,
+  FailureAnalysis,
+  PhaseOutput,
+  PipelineConfig,
+  RevisionRequest,
+} from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
@@ -19,11 +26,6 @@ export async function runImplementPhase(
   previousResults: Map<AgentName, AgentResult>,
   revision?: RevisionRequest,
 ): Promise<PhaseOutput> {
-  // Update task state: implementing + agent running
-  await store.setStatus('implementing');
-  await store.setAgentPhase('implementer', 'status', 'running');
-  await store.setAgentPhase('implementer', 'started', 'now');
-
   log.phase('implement', 'started');
 
   if (config.dryRun) {
@@ -31,31 +33,28 @@ export async function runImplementPhase(
     return dryRunResult('implement');
   }
 
-  // Prefetch context and assemble prompt
   const task = await store.read();
   const repoContext = await prefetchRepoContext(config, 'implementer');
   const prompt = await assemblePrompt('implementer', config, task, repoContext, previousResults, revision);
 
-  // Spawn implementer
-  const { result } = await spawnAgent({
+  const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
+  const { result } = await spawn({
     prompt,
     cwd: config.repoPath,
     agentName: 'implementer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 
   if (result.status === 'completed') {
-    await store.setAgentPhase('implementer', 'status', 'completed');
-    await store.setAgentPhase('implementer', 'completed', 'now');
     previousResults.set('implementer', result);
     log.phase('implement', 'completed');
     return { result, nextPhase: 'verify' };
   }
 
-  // Failed — attempt intelligent retry (Step 4b)
   log.phase('implement', 'failed', { error: result.error });
 
   if (config.maxRetries > 0) {
@@ -63,8 +62,6 @@ export async function runImplementPhase(
     if (retryResult) return retryResult;
   }
 
-  // No retry or retry also failed
-  await store.setAgentPhase('implementer', 'status', 'failed');
   previousResults.set('implementer', result);
   log.phase('implement', 'aborted');
   return { result, nextPhase: 'abort' };
@@ -103,7 +100,6 @@ async function attemptRetry(
     return null;
   }
 
-  // Build retry prompt with failure context prepended
   const retryContext = [
     '## RETRY CONTEXT — Previous attempt failed',
     '',
@@ -120,19 +116,19 @@ async function attemptRetry(
   const retryPrompt = retryContext + originalPrompt;
 
   log.phase('implement', 'retrying', { failureClass: analysis.failureClass });
-  const { result: retryResult } = await spawnAgent({
+  const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
+  const { result: retryResult } = await spawn({
     prompt: retryPrompt,
     cwd: config.repoPath,
     agentName: 'implementer',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 
   if (retryResult.status === 'completed') {
-    await store.setAgentPhase('implementer', 'status', 'completed');
-    await store.setAgentPhase('implementer', 'completed', 'now');
     previousResults.set('implementer', retryResult);
     log.phase('implement', 'retry-succeeded');
     return { result: retryResult, nextPhase: 'verify' };

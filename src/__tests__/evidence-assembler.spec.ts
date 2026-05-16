@@ -1,12 +1,20 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { mockSpawnAgent, mockRunScript, mockWriteRunMetrics, mockGetCurrentPromptVersions, mockFindPriorRunId } from './mocks.js';
+import {
+  mockSpawnAgent,
+  mockRunScript,
+  mockWriteRunMetrics,
+  mockGetCurrentPromptVersions,
+  mockFindPriorRunId,
+} from './mocks.js';
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
 import { assembleEvidence } from '../phases/evidence-assembler.js';
 import { parseDiff } from '../phases/evidence-assembler.js';
 
 // Suppress unused import warnings — mocks.ts must be imported for its side effects
-void mockSpawnAgent; void mockWriteRunMetrics;
-void mockGetCurrentPromptVersions; void mockFindPriorRunId;
+void mockSpawnAgent;
+void mockWriteRunMetrics;
+void mockGetCurrentPromptVersions;
+void mockFindPriorRunId;
 
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
@@ -210,9 +218,7 @@ describe('assembleEvidence', () => {
   });
 
   it('handles git diff failure gracefully', async () => {
-    mockRunScript.mockImplementation(() =>
-      Promise.resolve({ stdout: '', stderr: 'fatal: no commits', exitCode: 1 }),
-    );
+    mockRunScript.mockImplementation(() => Promise.resolve({ stdout: '', stderr: 'fatal: no commits', exitCode: 1 }));
 
     const evidence = await assembleEvidence(makeConfig(), makeStore(), previousResults);
 

@@ -20,7 +20,7 @@ export async function runApprovePhase(
   previousResults: Map<AgentName, AgentResult>,
   notifier: Notifier,
 ): Promise<PhaseOutput> {
-  await store.setStatus('approving');
+  // Status is now derived from DAG node state via projectStatusFromGraph()
   log.phase('approve', 'started');
 
   if (config.dryRun) {

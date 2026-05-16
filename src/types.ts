@@ -1,5 +1,14 @@
-/** Status lifecycle — mirrors task-status.sh TRANSITIONS map */
-export type TaskStatus = 'active' | 'implementing' | 'verifying' | 'reviewing' | 'approving' | 'closing' | 'pr-opened' | 'merged';
+/** Status lifecycle — derived from DAG node state via projectStatusFromGraph() */
+export type TaskStatus =
+  | 'active'
+  | 'implementing'
+  | 'verifying'
+  | 'reviewing'
+  | 'evaluating'
+  | 'approving'
+  | 'closing'
+  | 'pr-opened'
+  | 'merged';
 
 export type AgentName = 'orchestrator' | 'implementer' | 'verifier' | 'reviewer' | 'closer';
 
@@ -112,7 +121,15 @@ export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   complex: ['implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
-export type PipelinePhase = 'implement' | 'verify' | 'review' | 'approve' | 'close' | 'retrospective' | 'complete' | 'abort';
+export type PipelinePhase =
+  | 'implement'
+  | 'verify'
+  | 'review'
+  | 'approve'
+  | 'close'
+  | 'retrospective'
+  | 'complete'
+  | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
 export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'approve', 'close', 'retrospective'];
@@ -132,8 +149,12 @@ export interface PipelineConfig {
   maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
   onAgentHeartbeat?: (elapsedMs: number) => void;
-  /** Per-run trace writer for tool-level observability. */
-  traceWriter?: import('./tracing/writer.js').TraceWriter;
+  /** Per-run trace writer for tool-level observability (deprecated — use eventAppender). */
+  traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
+  /** Event appender for unified event logging. */
+  eventAppender?: import('./events/appender.js').EventAppender;
+  /** Agent runtime for spawning agents. */
+  runtime?: import('./agent/runtime.js').CaseAgentRuntime;
 }
 
 export interface ProjectEntry {
@@ -239,8 +260,10 @@ export interface SpawnAgentOptions {
   model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;
-  /** Trace writer for per-run observability. */
-  traceWriter?: import('./tracing/writer.js').TraceWriter;
+  /** Trace writer for per-run observability (deprecated — use eventAppender). */
+  traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
+  /** Event appender for unified event logging. */
+  eventAppender?: import('./events/appender.js').EventAppender;
   /** Current pipeline phase (used for trace events). */
   phase?: PipelinePhase;
 }
@@ -396,3 +419,8 @@ export interface ServerConfig {
     deps: ScannerConfig;
   };
 }
+
+// Event system re-exports
+export type { PipelineEvent } from './events/schema.js';
+export type { PipelineState } from './events/types.js';
+export type { PlanArtifact } from './events/plan.js';

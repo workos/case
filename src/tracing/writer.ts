@@ -1,12 +1,9 @@
 import { appendFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { TraceEvent } from './types.js';
 
 /**
- * Append-only JSONL trace writer for a single pipeline run.
- *
- * Writes to: .case/<task-slug>/traces/run-<runId>.jsonl
- * One JSON line per TraceEvent — designed for `jq` and `grep` analysis.
+ * @deprecated Use EventAppender from src/events/appender.ts instead.
+ * Retained for backward compat with tool-level tracing in the Pi adapter.
  */
 export class TraceWriter {
   private buffer: string[] = [];
@@ -19,12 +16,10 @@ export class TraceWriter {
     this.dirReady = mkdir(traceDir, { recursive: true }).then(() => {});
   }
 
-  /** Buffer an event. Call flush() to write to disk. */
-  write(event: TraceEvent): void {
+  write(event: Record<string, unknown>): void {
     this.buffer.push(JSON.stringify(event));
   }
 
-  /** Flush buffered events to the trace file. */
   async flush(): Promise<void> {
     if (this.buffer.length === 0) return;
     if (this.dirReady) {
@@ -36,7 +31,6 @@ export class TraceWriter {
     await appendFile(this.filePath, chunk);
   }
 
-  /** Returns the trace file path (for logging / retrospective). */
   get path(): string {
     return this.filePath;
   }

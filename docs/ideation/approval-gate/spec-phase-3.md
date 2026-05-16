@@ -9,7 +9,7 @@ Phase 3 completes the approval gate by wiring up the two "Request Changes" flows
 
 1. **Text feedback** — Human writes feedback in the UI textarea. This becomes a `RevisionRequest` with `source: 'human'` and re-enters the pipeline at implement → verify → review → approve. The implementer receives the human's feedback as structured revision context, just like it would from the verifier or reviewer.
 
-2. **Manual edit** — Human toggles "I'll edit manually" in the UI. The pipeline pauses and waits for a signal (via a second POST to the approval server). The human edits files directly in their editor, then signals ready. The pipeline re-enters at verify → review → approve (skipping implement since the human *is* the implementer).
+2. **Manual edit** — Human toggles "I'll edit manually" in the UI. The pipeline pauses and waits for a signal (via a second POST to the approval server). The human edits files directly in their editor, then signals ready. The pipeline re-enters at verify → review → approve (skipping implement since the human _is_ the implementer).
 
 Both flows eventually loop back to the approval gate, so the human can review the result of their feedback and approve or iterate again.
 
@@ -27,19 +27,19 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 
 ### Modified Files
 
-| File Path | Changes |
-| --- | --- |
-| `src/phases/approve.ts` | Implement text feedback → RevisionRequest flow, manual edit → wait-and-re-verify flow |
-| `src/phases/approve-server.ts` | Add `/api/ready` endpoint for manual edit signal, keep server alive during manual edit mode |
-| `src/phases/approve-ui.ts` | Add manual edit toggle UI, waiting state, ready button for manual edit mode |
-| `src/pipeline.ts` | Handle `nextPhase: 'verify'` from approve phase (manual edit re-entry), track approval metrics |
-| `src/context/assembler.ts` | Handle `source: 'human'` in `buildRevisionContext` — format human feedback differently than agent rubric failures |
-| `src/metrics/collector.ts` | Add approval metrics: decision type, time-in-gate, human revision cycles |
-| `src/types.ts` | Add approval metrics fields to `RunMetrics` |
-| `src/metrics/writer.ts` | Serialize new approval metrics fields |
-| `src/__tests__/approve-phase.spec.ts` | Add tests for text feedback and manual edit flows |
-| `src/__tests__/pipeline.spec.ts` | Add tests for approve → verify re-entry (manual edit) and approve → implement (text feedback) with revision cycling |
-| `src/__tests__/metrics-collector.spec.ts` | Add tests for approval metrics tracking |
+| File Path                                 | Changes                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `src/phases/approve.ts`                   | Implement text feedback → RevisionRequest flow, manual edit → wait-and-re-verify flow                               |
+| `src/phases/approve-server.ts`            | Add `/api/ready` endpoint for manual edit signal, keep server alive during manual edit mode                         |
+| `src/phases/approve-ui.ts`                | Add manual edit toggle UI, waiting state, ready button for manual edit mode                                         |
+| `src/pipeline.ts`                         | Handle `nextPhase: 'verify'` from approve phase (manual edit re-entry), track approval metrics                      |
+| `src/context/assembler.ts`                | Handle `source: 'human'` in `buildRevisionContext` — format human feedback differently than agent rubric failures   |
+| `src/metrics/collector.ts`                | Add approval metrics: decision type, time-in-gate, human revision cycles                                            |
+| `src/types.ts`                            | Add approval metrics fields to `RunMetrics`                                                                         |
+| `src/metrics/writer.ts`                   | Serialize new approval metrics fields                                                                               |
+| `src/__tests__/approve-phase.spec.ts`     | Add tests for text feedback and manual edit flows                                                                   |
+| `src/__tests__/pipeline.spec.ts`          | Add tests for approve → verify re-entry (manual edit) and approve → implement (text feedback) with revision cycling |
+| `src/__tests__/metrics-collector.spec.ts` | Add tests for approval metrics tracking                                                                             |
 
 ## Implementation Details
 
@@ -50,6 +50,7 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 **Overview**: When the human selects "Request Changes" and enters text feedback, this becomes a `RevisionRequest` that the implementer receives as structured context on re-entry.
 
 **Key decisions**:
+
 - `source: 'human'` distinguishes from agent feedback in the implementer's context
 - `failedCategories` is empty for human feedback — the human's text IS the feedback, not a rubric
 - `suggestedFocus` can optionally be extracted from the human's text if they mention file paths, but v1 keeps it simple: empty array
@@ -76,6 +77,7 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 3. Pipeline handles this identically to agent revision: increment cycle, store pending, re-enter implement
 
 **Feedback loop**:
+
 - **Playground**: `src/__tests__/approve-phase.spec.ts`
 - **Experiment**: Submit text feedback, verify RevisionRequest is built correctly with `source: 'human'`. Verify pipeline re-enters implement
 - **Check command**: `bun test src/__tests__/approve-phase.spec.ts`
@@ -85,6 +87,7 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 **Overview**: The human wants to edit code directly instead of describing changes. The pipeline pauses while they work, then re-enters at verify (not implement) since the human made the changes.
 
 **Key decisions**:
+
 - The approval server stays alive during manual edit mode — it needs to receive the "ready" signal
 - The UI transitions to a "waiting" state: hides action buttons, shows "Edit your files, then click Ready" with a Ready button
 - The `/api/ready` POST endpoint signals that manual edits are complete
@@ -114,10 +117,11 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
    - Walk status from `approving` → `verifying` (add to STATUS_TRANSITIONS)
 5. In `src/types.ts`, add `'verifying'` to `approving`'s allowed transitions:
    ```typescript
-   approving: ['closing', 'implementing', 'verifying']
+   approving: ['closing', 'implementing', 'verifying'];
    ```
 
 **Feedback loop**:
+
 - **Playground**: Run approval server with mock data, submit manual edit, verify UI transitions to waiting state, click Ready, verify server shuts down
 - **Experiment**: Test the full loop: approve → manual edit → wait → ready → verify → review → approve
 - **Check command**: `bun test src/__tests__/pipeline.spec.ts`
@@ -129,6 +133,7 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 **Overview**: Track approval-specific metrics as first-class fields in `RunMetrics`.
 
 **Key decisions**:
+
 - New metrics fields on `RunMetrics`:
   - `approvalDecision: 'approved' | 'revised' | 'rejected' | 'skipped' | null`
   - `approvalTimeMs: number | null` (time from gate open to decision)
@@ -152,6 +157,7 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 6. Wire into `writeRunMetrics` in `src/metrics/writer.ts` — serialize new fields to the metrics JSON
 
 **Feedback loop**:
+
 - **Playground**: `src/__tests__/metrics-collector.spec.ts`
 - **Experiment**: Verify metrics are recorded for: skipped gate, approved, revised (text), revised (manual edit), rejected
 - **Check command**: `bun test src/__tests__/metrics-collector.spec.ts`
@@ -160,11 +166,11 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 
 ### Unit Tests
 
-| Test File | Coverage |
-| --- | --- |
-| `src/__tests__/approve-phase.spec.ts` | Text feedback → RevisionRequest, manual edit → wait → verify re-entry |
-| `src/__tests__/pipeline.spec.ts` | Approve → verify transition (manual edit), approve → implement (text feedback), full revision loop back to approve |
-| `src/__tests__/metrics-collector.spec.ts` | Approval decision recording, time tracking, human revision cycle counting |
+| Test File                                 | Coverage                                                                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `src/__tests__/approve-phase.spec.ts`     | Text feedback → RevisionRequest, manual edit → wait → verify re-entry                                              |
+| `src/__tests__/pipeline.spec.ts`          | Approve → verify transition (manual edit), approve → implement (text feedback), full revision loop back to approve |
+| `src/__tests__/metrics-collector.spec.ts` | Approval decision recording, time tracking, human revision cycle counting                                          |
 
 **Key test cases**:
 
@@ -188,21 +194,21 @@ Metrics integration tracks approval decisions, time spent in the gate, and human
 
 ## Error Handling
 
-| Error Scenario | Handling Strategy |
-| --- | --- |
-| Human revision exceeds `maxRevisionCycles` | Same as agent revision: log warning, proceed to close with "revision budget exhausted" message |
-| Manual edit: user never clicks Ready | Server stays alive; log reminder every 60s; Ctrl+C triggers reject |
-| Manual edit: user's changes break tests | Verify phase catches this; loops back through review → approve for human to see the failure |
-| Feedback text is empty | Treat as "no specific feedback" — RevisionRequest summary becomes "Human requested changes (no specific feedback)" |
+| Error Scenario                             | Handling Strategy                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Human revision exceeds `maxRevisionCycles` | Same as agent revision: log warning, proceed to close with "revision budget exhausted" message                     |
+| Manual edit: user never clicks Ready       | Server stays alive; log reminder every 60s; Ctrl+C triggers reject                                                 |
+| Manual edit: user's changes break tests    | Verify phase catches this; loops back through review → approve for human to see the failure                        |
+| Feedback text is empty                     | Treat as "no specific feedback" — RevisionRequest summary becomes "Human requested changes (no specific feedback)" |
 
 ## Failure Modes
 
-| Component | Failure Mode | Trigger | Impact | Mitigation |
-|---|---|---|---|---|
-| Text feedback flow | Implementer ignores feedback | Vague human feedback | Changes don't address concern | Human reviews again at next approve gate; can provide more specific feedback |
-| Manual edit flow | Edits introduce new issues | Human makes a mistake | Verifier/reviewer catch it | Pipeline re-verifies and re-reviews; issues surface at next approve gate |
-| Manual edit flow | Server shutdown before ready | Process killed during manual edit | Edits are made but not verified | Edits persist in git working tree; re-run `ca --approve` to re-enter pipeline |
-| Metrics | Time-in-gate inflated | User walks away from approval gate | Metrics misleading | Note in metrics docs; consider adding idle detection in future |
+| Component          | Failure Mode                 | Trigger                            | Impact                          | Mitigation                                                                    |
+| ------------------ | ---------------------------- | ---------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| Text feedback flow | Implementer ignores feedback | Vague human feedback               | Changes don't address concern   | Human reviews again at next approve gate; can provide more specific feedback  |
+| Manual edit flow   | Edits introduce new issues   | Human makes a mistake              | Verifier/reviewer catch it      | Pipeline re-verifies and re-reviews; issues surface at next approve gate      |
+| Manual edit flow   | Server shutdown before ready | Process killed during manual edit  | Edits are made but not verified | Edits persist in git working tree; re-run `ca --approve` to re-enter pipeline |
+| Metrics            | Time-in-gate inflated        | User walks away from approval gate | Metrics misleading              | Note in metrics docs; consider adding idle detection in future                |
 
 ## Validation Commands
 

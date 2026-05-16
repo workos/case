@@ -9,7 +9,7 @@ import {
 } from '@mariozechner/pi-coding-agent';
 import type { ExtensionAPI, ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
 import { getModelForAgent } from './config.js';
 import { detectRepo } from '../entry/repo-detector.js';
 import { detectArgumentType, fetchIssue } from '../entry/issue-fetcher.js';
@@ -54,7 +54,6 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
 
   const settingsManager = SettingsManager.create(cwd, agentDir);
   settingsManager.setQuietStartup(true);
-
 
   const resourceLoader = new DefaultResourceLoader({
     cwd,
@@ -210,10 +209,8 @@ function minimalStatusline(cwd: string) {
               const filled = Math.round((pct / 100) * barWidth);
               const empty = barWidth - filled;
 
-              const barColor: 'error' | 'warning' | 'success' =
-                pct >= 80 ? 'error' : pct >= 60 ? 'warning' : 'success';
-              const bar =
-                theme.fg(barColor, '█'.repeat(filled)) + theme.fg('dim', '░'.repeat(empty));
+              const barColor: 'error' | 'warning' | 'success' = pct >= 80 ? 'error' : pct >= 60 ? 'warning' : 'success';
+              const bar = theme.fg(barColor, '█'.repeat(filled)) + theme.fg('dim', '░'.repeat(empty));
               barStr = bar + ' ' + theme.fg('dim', `${pct}%`);
             }
 
@@ -228,9 +225,7 @@ function minimalStatusline(cwd: string) {
               return [truncateToWidth(left, width)];
             }
 
-            const pad = ' '.repeat(
-              Math.max(1, width - visibleWidth(left) - visibleWidth(barStr)),
-            );
+            const pad = ' '.repeat(Math.max(1, width - visibleWidth(left) - visibleWidth(barStr)));
             return [truncateToWidth(left + pad + barStr, width)];
           },
         };

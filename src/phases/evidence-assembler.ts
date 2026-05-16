@@ -1,11 +1,5 @@
 import { resolve } from 'node:path';
-import type {
-  AgentName,
-  AgentResult,
-  ApprovalEvidence,
-  PipelineConfig,
-  RubricCategory,
-} from '../types.js';
+import type { AgentName, AgentResult, ApprovalEvidence, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { runScript } from '../util/run-script.js';
 
@@ -57,11 +51,12 @@ export async function assembleEvidence(
     },
     tests: {
       passed: implResult?.artifacts.testsPassed ?? null,
-      summary: implResult?.artifacts.testsPassed === true
-        ? 'All tests passed'
-        : implResult?.artifacts.testsPassed === false
-          ? 'Tests failed'
-          : null,
+      summary:
+        implResult?.artifacts.testsPassed === true
+          ? 'All tests passed'
+          : implResult?.artifacts.testsPassed === false
+            ? 'Tests failed'
+            : null,
     },
     verifier: {
       ran: !!verifierResult,

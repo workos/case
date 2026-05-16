@@ -1,0 +1,14 @@
+id: no-direct-taskjson-write
+language: typescript
+rule:
+  any:
+    - pattern: writeFileSync($$$ARGS)
+    - pattern: writeFile($$$ARGS)
+  regex: 'task\.json'
+message: 'Write .task.json through TaskStore, not directly. Use TaskStore.writeFromProjection() or the event appender.'
+severity: error
+ignores:
+  - '**/task-store*'
+  - '**/__tests__/**'
+  - '**/*.spec.ts'
+  - '**/*.test.ts'

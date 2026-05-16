@@ -1,0 +1,6 @@
+id: no-require
+language: typescript
+rule:
+  pattern: require($ARG)
+message: 'Use ESM import instead of require(). See golden-principles.md #4.'
+severity: error

@@ -77,19 +77,19 @@ Check each dimension:
 
 For each finding, classify where the fix belongs:
 
-| Signal                             | Fix Location                | Example                                                       |
-| ---------------------------------- | --------------------------- | ------------------------------------------------------------- |
-| Agent followed wrong pattern       | `docs/architecture/`        | "Add cookie-name configuration pattern to authkit-session.md" |
-| Convention unclear or missing      | `docs/conventions/`         | "Add ESM import rule for re-exports"                          |
-| Recurring mistake across runs      | `docs/golden-principles.md` | "Add: always check env vars before hardcoding defaults"       |
-| Playbook missing a step            | `docs/playbooks/`           | "Add 'check for custom config' step to fix-bug.md"            |
-| Agent prompt insufficient          | `agents/`                   | "Implementer should read example app .env before starting"    |
-| Pipeline logic too strict/lenient  | `src/phases/`               | "close phase should also verify build passes"                 |
-| Target repo CLAUDE.md missing info | Target repo's `CLAUDE.md`   | "Add cookie configuration section"                            |
-| Revision loop on same category 3+ times | `agents/implementer.md` | "Add explicit reminder to check edge cases before committing" |
-| Revision didn't fix the issue      | `agents/verifier.md` or `agents/reviewer.md` | "Evaluator feedback was too vague — make rubric detail more prescriptive" |
-| High human override rate           | `agents/reviewer.md`        | "Reviewer is too strict on pattern-fit for this repo type"    |
-| No improvement needed              | —                           | Pipeline worked as designed                                   |
+| Signal                                  | Fix Location                                 | Example                                                                   |
+| --------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- |
+| Agent followed wrong pattern            | `docs/architecture/`                         | "Add cookie-name configuration pattern to authkit-session.md"             |
+| Convention unclear or missing           | `docs/conventions/`                          | "Add ESM import rule for re-exports"                                      |
+| Recurring mistake across runs           | `docs/golden-principles.md`                  | "Add: always check env vars before hardcoding defaults"                   |
+| Playbook missing a step                 | `docs/playbooks/`                            | "Add 'check for custom config' step to fix-bug.md"                        |
+| Agent prompt insufficient               | `agents/`                                    | "Implementer should read example app .env before starting"                |
+| Pipeline logic too strict/lenient       | `src/phases/`                                | "close phase should also verify build passes"                             |
+| Target repo CLAUDE.md missing info      | Target repo's `CLAUDE.md`                    | "Add cookie configuration section"                                        |
+| Revision loop on same category 3+ times | `agents/implementer.md`                      | "Add explicit reminder to check edge cases before committing"             |
+| Revision didn't fix the issue           | `agents/verifier.md` or `agents/reviewer.md` | "Evaluator feedback was too vague — make rubric detail more prescriptive" |
+| High human override rate                | `agents/reviewer.md`                         | "Reviewer is too strict on pattern-fit for this repo type"                |
+| No improvement needed                   | —                                            | Pipeline worked as designed                                               |
 
 ### 4. Propose Amendments (staged, not direct)
 

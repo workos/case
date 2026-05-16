@@ -16,6 +16,10 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "bun test ./src/__tests__/ && bun test --cwd test/standalone",
+    "test:ast": "bash tests/ast-rules/run-tests.sh",
+    "lint:ast": "bash -c 'fail=0; for f in ast-rules/target/*.yml; do ast-grep scan --rule \"$f\" . || fail=1; done; exit $fail'",
+    "lint:ast:self": "bash -c 'fail=0; for f in ast-rules/self/*.yml; do ast-grep scan --rule \"$f\" src/ || fail=1; done; exit $fail'",
+    "lint:ast:all": "bun run lint:ast && bun run lint:ast:self",
     "start": "bun src/index.ts",
     "serve": "bun src/index.ts serve"
   },
@@ -25,10 +29,14 @@
     "@mariozechner/pi-coding-agent": "^0.63.2"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.11",
+    "@ast-grep/cli": "^0.42.2",
+    "@types/bun": "^1.3.13",
     "@types/node": "^22.0.0",
-    "oxfmt": "^0.42.0",
-    "oxlint": "^1.57.0",
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "trustedDependencies": [
+    "@ast-grep/cli"
+  ]
 }

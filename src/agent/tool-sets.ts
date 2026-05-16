@@ -1,15 +1,11 @@
-import { createReadTool, createWriteTool, createEditTool, createBashTool } from '@mariozechner/pi-coding-agent';
-import type { AgentTool } from '@mariozechner/pi-agent-core';
+/**
+ * @deprecated Use PiRuntimeAdapter.createTools() from './adapters/pi-adapter.js' instead.
+ * Retained as a convenience re-export.
+ */
+import { PiRuntimeAdapter } from './adapters/pi-adapter.js';
 
-export function getToolsForAgent(agentName: string, cwd: string): AgentTool<any>[] {
-  switch (agentName) {
-    case 'implementer':
-    case 'retrospective':
-      return [createReadTool(cwd), createWriteTool(cwd), createEditTool(cwd), createBashTool(cwd)];
-    case 'verifier':
-    case 'reviewer':
-    case 'closer':
-    default:
-      return [createReadTool(cwd), createBashTool(cwd)];
-  }
+const adapter = new PiRuntimeAdapter();
+
+export function getToolsForAgent(agentName: string, cwd: string) {
+  return adapter.createTools(agentName, cwd);
 }

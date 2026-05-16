@@ -129,7 +129,13 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
  * Resume an existing task from the correct pipeline phase.
  * Handles terminal states (pr-opened, ideation) and branch recovery.
  */
-async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode, dryRun: boolean, approve?: boolean): Promise<void> {
+async function resumeTask(
+  match: TaskMatch,
+  repoPath: string,
+  mode: PipelineMode,
+  dryRun: boolean,
+  approve?: boolean,
+): Promise<void> {
   const { taskJson, taskJsonPath, entryPhase } = match;
 
   // Guard: task already has a PR open

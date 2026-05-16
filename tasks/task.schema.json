@@ -106,10 +106,7 @@
       "description": "Target value for checkCommand. Task succeeds when checkCommand output >= checkTarget."
     },
     "pendingRevision": {
-      "oneOf": [
-        { "type": "null" },
-        { "$ref": "#/$defs/revisionRequest" }
-      ],
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/revisionRequest" }],
       "description": "Persisted evaluator revision request. Present when an evaluator found fixable issues and the pipeline was interrupted before the implementer could address them. Cleared after successful re-implementation."
     }
   },

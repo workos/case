@@ -355,9 +355,7 @@ describe('executeFromIdeation', () => {
       approve: true,
     });
 
-    expect(mockBuildPipelineConfig).toHaveBeenCalledWith(
-      expect.objectContaining({ approve: true }),
-    );
+    expect(mockBuildPipelineConfig).toHaveBeenCalledWith(expect.objectContaining({ approve: true }));
   });
 
   it('returns existing PR URL for re-entry when PR already exists', async () => {

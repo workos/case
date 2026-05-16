@@ -9,15 +9,19 @@ const taskParams = Type.Object({
   description: Type.String({ description: 'Task description' }),
   issue: Type.Optional(Type.String({ description: 'Issue identifier' })),
   issueType: Type.Optional(Type.Union([Type.Literal('github'), Type.Literal('linear'), Type.Literal('freeform')])),
-  profile: Type.Optional(Type.Union([
-    Type.Literal('tiny'),
-    Type.Literal('standard'),
-    Type.Literal('complex'),
-  ], { description: 'Pipeline profile — tiny (docs/config), standard (bug fixes), complex (multi-file features)' })),
-  verificationScenarios: Type.Optional(Type.String({ description: 'Markdown list of scenarios the verifier will test' })),
+  profile: Type.Optional(
+    Type.Union([Type.Literal('tiny'), Type.Literal('standard'), Type.Literal('complex')], {
+      description: 'Pipeline profile — tiny (docs/config), standard (bug fixes), complex (multi-file features)',
+    }),
+  ),
+  verificationScenarios: Type.Optional(
+    Type.String({ description: 'Markdown list of scenarios the verifier will test' }),
+  ),
   nonGoals: Type.Optional(Type.String({ description: 'What is explicitly NOT in scope for this task' })),
   edgeCases: Type.Optional(Type.String({ description: 'Edge cases the implementer should consider' })),
-  evidenceExpectations: Type.Optional(Type.String({ description: 'What evidence proves the fix works (screenshots, test output, etc.)' })),
+  evidenceExpectations: Type.Optional(
+    Type.String({ description: 'What evidence proves the fix works (screenshots, test output, etc.)' }),
+  ),
 });
 
 export function createTaskTool(caseRoot: string) {

@@ -1,0 +1,7 @@
+id: no-console-log
+language: typescript
+rule:
+  pattern: console.log($$$ARGS)
+message: 'Use the structured logger (createLogger) instead of console.log.'
+severity: warning
+note: 'console.error and console.warn are allowed for CLI output.'

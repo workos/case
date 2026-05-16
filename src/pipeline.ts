@@ -1,426 +1,161 @@
-import type { AgentName, AgentResult, PipelineConfig, PipelinePhase, RevisionRequest, TaskStatus } from './types.js';
-import { PROFILE_PHASES } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, RevisionRequest } from './types.js';
 import { TaskStore } from './state/task-store.js';
-import { determineEntryPhase, findNextAllowedPhase } from './state/transitions.js';
-import { createNotifier, formatDuration, type Notifier } from './notify.js';
+import { createNotifier, formatDuration } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
 import { runVerifyPhase } from './phases/verify.js';
 import { runReviewPhase } from './phases/review.js';
 import { runApprovePhase } from './phases/approve.js';
 import { runClosePhase } from './phases/close.js';
-import { runRetrospectivePhase } from './phases/retrospective.js';
-import { MetricsCollector } from './metrics/collector.js';
+import { runRetrospectivePhase, type MetricsSnapshot } from './phases/retrospective.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
-import { TraceWriter } from './tracing/writer.js';
+import { EventAppender } from './events/appender.js';
+import { generatePlan } from './events/plan.js';
+import { projectMetrics } from './events/projections.js';
+import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
 import { createLogger } from './util/logger.js';
+import { buildGraph } from './dag/builder.js';
+import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
+import type { DagNode } from './dag/types.js';
+import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
+import { restoreGraphState } from './dag/restore.js';
 
 const log = createLogger();
 
-/** Map pipeline phase to the task status that phase sets on entry. */
-const PHASE_TO_STATUS: Partial<Record<PipelinePhase, TaskStatus>> = {
-  implement: 'implementing',
-  verify: 'verifying',
-  review: 'reviewing',
-  approve: 'approving',
-  close: 'closing',
-};
-
-/** Mirrors task-status.sh TRANSITIONS — valid status transitions. */
-const STATUS_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  active: ['implementing'],
-  implementing: ['verifying', 'active'],
-  verifying: ['reviewing', 'closing', 'implementing'],
-  reviewing: ['closing', 'approving', 'verifying'],
-  approving: ['closing', 'implementing', 'verifying'],
-  closing: ['pr-opened', 'verifying'],
-  'pr-opened': ['pr-opened', 'merged'],
-  merged: [],
-};
-
-/**
- * Walk the task status through intermediate states to reach the target phase's status.
- * Uses BFS on STATUS_TRANSITIONS to find the shortest path, then applies each step.
- * Needed when the pipeline skips phases or loops back (e.g. tiny profile, revision loops).
- */
-async function walkStatusToPhase(store: TaskStore, targetPhase: PipelinePhase): Promise<void> {
-  const targetStatus = PHASE_TO_STATUS[targetPhase];
-  if (!targetStatus) return; // retrospective, complete, abort don't have status
-
-  const currentStatus = await store.readStatus();
-  if (currentStatus === targetStatus) return;
-
-  // BFS to find shortest path from current → target
-  const queue: TaskStatus[][] = [[currentStatus]];
-  const visited = new Set<TaskStatus>([currentStatus]);
-
-  while (queue.length > 0) {
-    const path = queue.shift()!;
-    const tail = path[path.length - 1];
-
-    for (const next of STATUS_TRANSITIONS[tail] ?? []) {
-      if (next === targetStatus) {
-        // Apply each intermediate transition (skip the starting status)
-        for (const status of [...path.slice(1), next]) {
-          await store.setStatus(status);
-        }
-        return;
-      }
-      if (!visited.has(next)) {
-        visited.add(next);
-        queue.push([...path, next]);
-      }
-    }
-  }
-
-  // No path found — log and let the phase's own setStatus attempt (and fail) naturally
-  log.error('no status path found', { from: currentStatus, to: targetStatus });
-}
-
-const PHASE_AGENT_MAP: Record<string, AgentName | 'retrospective'> = {
-  implement: 'implementer',
-  verify: 'verifier',
-  review: 'reviewer',
-  close: 'closer',
-  retrospective: 'retrospective',
-};
-
-/**
- * Core pipeline loop — while/switch replacing SKILL.md Steps 4-9.
- *
- * Each case calls the corresponding phase module and handles success/failure
- * branching based on the pipeline mode (attended/unattended).
- */
 export async function runPipeline(config: PipelineConfig): Promise<void> {
   const store = new TaskStore(config.taskJsonPath, config.caseRoot);
   const notifier = createNotifier(config.mode);
   const previousResults = new Map<AgentName, AgentResult>();
-  const metrics = new MetricsCollector();
 
-  // Wire up heartbeat: phases pass this to spawnAgent, which fires it every 30s
   config.onAgentHeartbeat = (elapsedMs) => {
     notifier.send(`  ... still running (${formatDuration(elapsedMs)})`);
   };
 
   const task = await store.read();
   const profile = task.profile ?? 'standard';
-  const allowedPhases = new Set(PROFILE_PHASES[profile]);
-  let currentPhase: PipelinePhase = determineEntryPhase(task, profile);
-  let outcome: 'completed' | 'failed' = 'completed';
-  let failedAgent: AgentName | undefined;
-  let pendingRevision: RevisionRequest | null = task.pendingRevision ?? null;
-  let revisionCycles = pendingRevision?.cycle ?? 0;
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
-  metrics.setRevisionCycles(revisionCycles);
+  let approvalDecision: 'approved' | 'revised' | 'rejected' | 'skipped' | null = null;
+  let approvalTimeMs: number | null = null;
+  let humanOverrides = 0;
+  let humanRevisionCycles = 0;
 
-  const traceWriter = new TraceWriter(config.caseRoot, task.id, metrics.runId);
-  config.traceWriter = traceWriter;
+  const runId = crypto.randomUUID();
+  config.runtime ??= new PiRuntimeAdapter();
 
-  metrics.setProfile(profile);
+  const appender = new EventAppender(config.caseRoot, task.id, runId, store);
+  config.eventAppender = appender;
 
-  // Load prompt versions for this run's metrics
+  const plan = generatePlan(task, config, runId);
+
+  const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
+  const { resolve: resolvePlan } = await import('node:path');
+  const planDir = resolvePlan(config.caseRoot, '.case', task.id);
+  await mkdirPlan(planDir, { recursive: true });
+  await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
+
+  const graph = buildGraph(profile, maxRevisionCycles, { approve: config.approve });
+
+  // Crash recovery: restore graph state from event log if a prior run didn't complete
+  const existingEventLogPath = resolvePlan(config.caseRoot, '.case', task.id, 'events');
+  let resumed = false;
+  try {
+    const { readdir: readdirFs } = await import('node:fs/promises');
+    const files = await readdirFs(existingEventLogPath);
+    const latestLog = files
+      .filter((f) => f.endsWith('.jsonl'))
+      .sort()
+      .pop();
+    if (latestLog) {
+      const events = await loadEventsFromFile(resolvePlan(existingEventLogPath, latestLog));
+      if (events.length > 0) {
+        const state = reduceEvents(events);
+        // Resume if the prior run didn't complete (no pipeline_end event)
+        if (state.outcome === 'running') {
+          restoreGraphState(graph, state);
+          appender.restoreState(state);
+          resumed = true;
+        }
+      }
+    }
+  } catch {
+    // No existing event log — fresh start
+  }
+
+  if (!resumed) {
+    await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+  }
+
   const promptVersions = await getCurrentPromptVersions(config.caseRoot);
-  metrics.setPromptVersions(promptVersions);
+  let outcome: 'completed' | 'failed' = 'completed';
+  let failedAgent: AgentName | undefined;
 
-  log.info('pipeline started', { phase: currentPhase, mode: config.mode, task: task.id, runId: metrics.runId });
+  log.info('pipeline started', { phase: 'dag', mode: config.mode, task: task.id, runId });
 
-  /** Handle the revision/budget-exhausted/clean-pass branching shared by verify and review. */
-  async function handleRevisionOutcome(
-    output: import('./types.js').PhaseOutput,
-    source: 'verifier' | 'reviewer',
-  ): Promise<PipelinePhase> {
-    if (output.revision && revisionCycles < maxRevisionCycles) {
-      pendingRevision = output.revision;
-      revisionCycles++;
-      pendingRevision.cycle = revisionCycles;
-      await store.setPendingRevision(pendingRevision);
-      metrics.addRevisionCycle();
-      notifier.send(`Revision cycle ${revisionCycles}: ${source} found fixable issues, re-implementing`);
-      log.phase(source === 'verifier' ? 'verify' : 'review', 'revision-requested', {
-        cycle: revisionCycles,
-        source,
-        failedCategories: output.revision.failedCategories.map((c) => c.category),
+  const ctx: ExecuteGraphContext = {
+    graph,
+    appender,
+    config,
+    notifier,
+    dispatchPhase: async (node: DagNode, revision?: RevisionRequest) => {
+      return dispatchNode(node, config, store, previousResults, notifier, revision, {
+        getApprovalDecision: () => approvalDecision,
+        setApprovalDecision: (d) => {
+          approvalDecision = d;
+        },
+        setApprovalTimeMs: (t) => {
+          approvalTimeMs = t;
+        },
+        incrementHumanOverrides: () => {
+          humanOverrides++;
+        },
+        incrementHumanRevisionCycles: () => {
+          humanRevisionCycles++;
+        },
+        outcome: () => outcome,
+        setOutcome: (o) => {
+          outcome = o;
+        },
+        setFailedAgent: (a) => {
+          failedAgent = a;
+        },
       });
-      return 'implement';
-    }
-    if (output.revision && revisionCycles >= maxRevisionCycles) {
-      metrics.setRevisionFixedIssues(false);
-      notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding with warnings.`);
-      log.phase(source === 'verifier' ? 'verify' : 'review', 'revision-budget-exhausted', { cycles: revisionCycles });
-      return output.nextPhase;
-    }
-    // Clean pass — if after a revision, record success
-    if (revisionCycles > 0) {
-      metrics.setRevisionFixedIssues(true);
-    }
-    return output.nextPhase;
-  }
+    },
+  };
 
-  while (currentPhase !== 'complete' && currentPhase !== 'abort') {
-    // Skip phases not in this profile
-    if (!allowedPhases.has(currentPhase) && currentPhase !== 'retrospective' && currentPhase !== 'approve') {
-      const skipped = currentPhase;
-      metrics.addSkippedPhase(skipped);
-      currentPhase = nextPhaseInProfile(currentPhase, allowedPhases);
-      log.phase(skipped, 'skipped-by-profile', { profile });
-      continue;
-    }
+  await executeGraph(ctx);
 
-    // Walk task status through intermediate transitions before entering the phase.
-    // Needed when the pipeline skips phases (tiny profile) or loops back (revision, re-implement).
-    await walkStatusToPhase(store, currentPhase);
+  const totalDurationMs = Date.now() - Date.parse(appender.getState().startedAt);
 
-    log.phase(currentPhase, 'entering');
-    const phaseAgent = PHASE_AGENT_MAP[currentPhase];
-    if (phaseAgent) {
-      metrics.startPhase(currentPhase, phaseAgent);
-      notifier.phaseStart(currentPhase, phaseAgent);
-      traceWriter.write({
-        ts: new Date().toISOString(),
-        phase: currentPhase,
-        agent: phaseAgent,
-        event: 'phase_start',
-      });
-    }
-    const phaseStartMs = Date.now();
-
-    switch (currentPhase) {
-      case 'implement': {
-        const output = await runImplementPhase(config, store, previousResults, pendingRevision ?? undefined);
-        const elapsed = Date.now() - phaseStartMs;
-        if (output.nextPhase === 'abort') {
-          // Keep pendingRevision intact — retry should receive the same evaluator context
-          notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'failed');
-          metrics.endPhase('failed', config.maxRetries > 0);
-          const choice = await handleFailure(notifier, config, 'implementer', output.result, [
-            'Retry with guidance',
-            'Abort',
-          ]);
-          if (choice === 'Retry with guidance') {
-            // In attended mode, human can re-enter implement indefinitely.
-            // Each attempt gets maxRetries intelligent retries (analyze + adjust).
-            // This is by design — attended mode means the human decides when to stop.
-            currentPhase = 'implement';
-          } else {
-            failedAgent = 'implementer';
-            outcome = 'failed';
-            currentPhase = 'retrospective';
-          }
-        } else {
-          pendingRevision = null;
-          await store.setPendingRevision(null);
-          notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
-          metrics.endPhase('completed');
-          if (output.result.artifacts.testsPassed !== null) {
-            metrics.setCiFirstPush(output.result.artifacts.testsPassed);
-          }
-          currentPhase = output.nextPhase;
-        }
-        break;
-      }
-
-      case 'verify': {
-        const output = await runVerifyPhase(config, store, previousResults);
-        const elapsed = Date.now() - phaseStartMs;
-        if (output.result.rubric?.role === 'verifier') {
-          metrics.setVerifierRubric(output.result.rubric.categories);
-        }
-        if (output.nextPhase === 'abort') {
-          notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'failed');
-          metrics.endPhase('failed');
-          const choice = await handleFailure(notifier, config, 'verifier', output.result, [
-            'Re-implement and re-verify',
-            'Skip verification',
-            'Abort',
-          ]);
-          if (choice === 'Re-implement and re-verify') {
-            currentPhase = 'implement';
-          } else if (choice === 'Skip verification') {
-            currentPhase = 'review';
-          } else {
-            failedAgent = 'verifier';
-            outcome = 'failed';
-            currentPhase = 'retrospective';
-          }
-        } else {
-          notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
-          metrics.endPhase('completed');
-          currentPhase = await handleRevisionOutcome(output, 'verifier');
-        }
-        break;
-      }
-
-      case 'review': {
-        const output = await runReviewPhase(config, store, previousResults);
-        const elapsed = Date.now() - phaseStartMs;
-        if (output.result.findings) {
-          metrics.setReviewFindings(output.result.findings);
-        }
-        if (output.result.rubric?.role === 'reviewer') {
-          metrics.setReviewerRubric(output.result.rubric.categories);
-        }
-        if (output.nextPhase === 'abort') {
-          notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'failed');
-          metrics.endPhase('failed');
-          const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
-            'Re-implement and re-review',
-            'Override and continue',
-            'Abort',
-          ]);
-          if (choice === 'Re-implement and re-review') {
-            currentPhase = 'implement';
-          } else if (choice === 'Override and continue') {
-            metrics.addHumanOverride();
-            currentPhase = 'approve';
-          } else {
-            failedAgent = 'reviewer';
-            outcome = 'failed';
-            currentPhase = 'retrospective';
-          }
-        } else {
-          notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
-          metrics.endPhase('completed');
-          currentPhase = await handleRevisionOutcome(output, 'reviewer');
-          // Route through approve gate (it handles skip logic if not enabled)
-          if (currentPhase === 'close') {
-            currentPhase = 'approve';
-          }
-        }
-        break;
-      }
-
-      case 'approve': {
-        // Flag-gated: skip if --approve not set or unattended mode
-        if (!config.approve || config.mode === 'unattended') {
-          log.phase('approve', 'skipped', { approve: config.approve, mode: config.mode });
-          metrics.setApprovalDecision('skipped');
-          currentPhase = 'close';
-          break;
-        }
-
-        const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
-        const approveElapsed = Date.now() - phaseStartMs;
-
-        if (approveOutput.nextPhase === 'abort') {
-          metrics.setApprovalDecision('rejected', approveElapsed);
-          notifier.phaseEnd('approve', 'human', approveElapsed, 'failed');
-          outcome = 'failed';
-          currentPhase = 'retrospective';
-        } else if ((approveOutput.nextPhase === 'implement' || approveOutput.nextPhase === 'verify') && revisionCycles >= maxRevisionCycles) {
-          // Revision budget exhausted — proceed to close
-          metrics.setApprovalDecision('revised', approveElapsed);
-          metrics.setRevisionFixedIssues(false);
-          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
-          notifier.send(`Revision budget exhausted (${maxRevisionCycles} cycles). Proceeding to close.`);
-          log.phase('approve', 'revision-budget-exhausted', { cycles: revisionCycles });
-          currentPhase = 'close';
-        } else if (approveOutput.nextPhase === 'implement' && approveOutput.revision) {
-          // Text feedback — feed revision back through the revision loop
-          metrics.setApprovalDecision('revised', approveElapsed);
-          metrics.addHumanRevisionCycle();
-          pendingRevision = approveOutput.revision;
-          revisionCycles++;
-          pendingRevision.cycle = revisionCycles;
-          await store.setPendingRevision(pendingRevision);
-          metrics.addRevisionCycle();
-          metrics.addHumanOverride();
-          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
-          notifier.send(`Human requested changes (cycle ${revisionCycles}): re-implementing`);
-          currentPhase = 'implement';
-        } else if (approveOutput.nextPhase === 'verify') {
-          // Manual edit — human edited files, re-enter at verify
-          metrics.setApprovalDecision('revised', approveElapsed);
-          metrics.addHumanRevisionCycle();
-          metrics.addHumanOverride();
-          revisionCycles++;
-          metrics.addRevisionCycle();
-          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
-          notifier.send(`Manual edit complete (cycle ${revisionCycles}): re-verifying`);
-          currentPhase = 'verify';
-        } else {
-          // Approved — proceed to close
-          metrics.setApprovalDecision('approved', approveElapsed);
-          notifier.phaseEnd('approve', 'human', approveElapsed, 'completed');
-          currentPhase = approveOutput.nextPhase;
-        }
-        break;
-      }
-
-      case 'close': {
-        const output = await runClosePhase(config, store, previousResults);
-        const elapsed = Date.now() - phaseStartMs;
-        if (output.nextPhase === 'abort') {
-          notifier.phaseEnd(currentPhase, 'closer', elapsed, 'failed');
-          metrics.endPhase('failed');
-          const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
-          if (choice === 'Retry') {
-            currentPhase = 'close';
-          } else {
-            failedAgent = 'closer';
-            outcome = 'failed';
-            currentPhase = 'retrospective';
-          }
-        } else {
-          notifier.phaseEnd(currentPhase, 'closer', elapsed, 'completed');
-          metrics.endPhase('completed');
-          const prUrl = output.result.artifacts.prUrl;
-          if (prUrl) {
-            notifier.send(`PR created: ${prUrl}`);
-          }
-          currentPhase = output.nextPhase;
-        }
-        break;
-      }
-
-      case 'retrospective': {
-        metrics.startPhase('retrospective', 'retrospective');
-        traceWriter.write({
-          ts: new Date().toISOString(),
-          phase: currentPhase,
-          agent: 'retrospective',
-          event: 'phase_start',
-        });
-        const retroStart = Date.now();
-        await runRetrospectivePhase(config, store, previousResults, outcome, failedAgent, metrics.snapshot());
-        notifier.phaseEnd(currentPhase, 'retrospective', Date.now() - retroStart, 'completed');
-        metrics.endPhase('completed');
-        currentPhase = outcome === 'completed' ? 'complete' : 'abort';
-        break;
-      }
-    }
-
-    // Flush trace events after each phase
-    if (phaseAgent) {
-      traceWriter.write({
-        ts: new Date().toISOString(),
-        phase: currentPhase === 'complete' || currentPhase === 'abort' ? 'retrospective' : currentPhase,
-        agent: phaseAgent,
-        event: 'phase_end',
-        outcome: outcome === 'failed' && failedAgent ? 'failed' : 'completed',
-        durationMs: Date.now() - phaseStartMs,
-      });
-      await traceWriter.flush();
+  // Check if any node failed
+  for (const [, node] of graph.nodes) {
+    if (node.state === 'failed' && node.agent !== 'retrospective') {
+      outcome = 'failed';
+      failedAgent = node.agent as AgentName;
+      break;
     }
   }
 
-  // Finalize and write metrics
-  const runMetrics = metrics.finalize(outcome, failedAgent);
+  await appender.append({ event: 'pipeline_end', outcome, failedAgent, durationMs: totalDurationMs });
+
+  const runMetrics = projectMetrics(appender.getState());
+  runMetrics.promptVersions = promptVersions;
+  runMetrics.approvalDecision = approvalDecision;
+  runMetrics.approvalTimeMs = approvalTimeMs;
+  runMetrics.humanOverrides = humanOverrides;
+  runMetrics.humanRevisionCycles = humanRevisionCycles;
   const priorRunId = await findPriorRunId(config.caseRoot, task.id);
   await writeRunMetrics(config.caseRoot, task.id, config.repoName, runMetrics, {
     priorRunId,
     parentTaskId: task.contractPath,
   });
 
-  // Final trace flush
-  await traceWriter.flush();
-
   log.info('pipeline finished', {
     outcome,
     failedAgent,
-    runId: runMetrics.runId,
+    runId,
     totalDurationMs: runMetrics.totalDurationMs,
-    traceFile: traceWriter.path,
+    eventLog: appender.path,
   });
 
   if (outcome === 'failed') {
@@ -430,13 +165,164 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   }
 }
 
-/** Given a phase that was skipped, determine the next phase to try. */
-function nextPhaseInProfile(skippedPhase: PipelinePhase, allowed: Set<PipelinePhase>): PipelinePhase {
-  return findNextAllowedPhase(skippedPhase, allowed) ?? 'complete';
+interface PipelineCallbacks {
+  getApprovalDecision: () => string | null;
+  setApprovalDecision: (d: 'approved' | 'revised' | 'rejected' | 'skipped') => void;
+  setApprovalTimeMs: (t: number) => void;
+  incrementHumanOverrides: () => void;
+  incrementHumanRevisionCycles: () => void;
+  outcome: () => 'completed' | 'failed';
+  setOutcome: (o: 'completed' | 'failed') => void;
+  setFailedAgent: (a: AgentName) => void;
+}
+
+async function dispatchNode(
+  node: DagNode,
+  config: PipelineConfig,
+  store: TaskStore,
+  previousResults: Map<AgentName, AgentResult>,
+  notifier: ReturnType<typeof createNotifier>,
+  revision: RevisionRequest | undefined,
+  callbacks: PipelineCallbacks,
+): Promise<AgentResult> {
+  switch (node.phase) {
+    case 'implement': {
+      const output = await runImplementPhase(config, store, previousResults, revision);
+      if (output.nextPhase === 'abort') {
+        const choice = await handleFailure(notifier, config, 'implementer', output.result, [
+          'Retry with guidance',
+          'Abort',
+        ]);
+        if (choice === 'Abort') {
+          callbacks.setOutcome('failed');
+          callbacks.setFailedAgent('implementer');
+          return output.result;
+        }
+        return { ...output.result, status: 'completed' };
+      }
+      await store.setPendingRevision(null);
+      previousResults.set('implementer', output.result);
+      return output.result;
+    }
+
+    case 'verify': {
+      const output = await runVerifyPhase(config, store, previousResults);
+      if (output.nextPhase === 'abort') {
+        const choice = await handleFailure(notifier, config, 'verifier', output.result, [
+          'Re-implement and re-verify',
+          'Skip verification',
+          'Abort',
+        ]);
+        if (choice === 'Abort') {
+          callbacks.setOutcome('failed');
+          callbacks.setFailedAgent('verifier');
+          return output.result;
+        }
+        return { ...output.result, status: 'completed' };
+      }
+      previousResults.set('verifier', output.result);
+      return output.result;
+    }
+
+    case 'review': {
+      const output = await runReviewPhase(config, store, previousResults);
+      if (output.nextPhase === 'abort') {
+        const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
+          'Re-implement and re-review',
+          'Override and continue',
+          'Abort',
+        ]);
+        if (choice === 'Abort') {
+          callbacks.setOutcome('failed');
+          callbacks.setFailedAgent('reviewer');
+          return output.result;
+        }
+        if (choice === 'Override and continue') {
+          callbacks.incrementHumanOverrides();
+        }
+        return { ...output.result, status: 'completed' };
+      }
+      previousResults.set('reviewer', output.result);
+      return output.result;
+    }
+
+    case 'approve': {
+      if (!config.approve || config.mode === 'unattended') {
+        callbacks.setApprovalDecision('skipped');
+        return {
+          status: 'completed',
+          summary: 'Approval skipped',
+          artifacts: {
+            commit: null,
+            filesChanged: [],
+            testsPassed: null,
+            screenshotUrls: [],
+            evidenceMarkers: [],
+            prUrl: null,
+            prNumber: null,
+          },
+          error: null,
+        };
+      }
+      const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
+      if (approveOutput.nextPhase === 'abort') {
+        callbacks.setApprovalDecision('rejected');
+        callbacks.setOutcome('failed');
+        return approveOutput.result;
+      }
+      callbacks.setApprovalDecision('approved');
+      return approveOutput.result;
+    }
+
+    case 'close': {
+      const output = await runClosePhase(config, store, previousResults);
+      if (output.nextPhase === 'abort') {
+        const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
+        if (choice === 'Abort') {
+          callbacks.setOutcome('failed');
+          callbacks.setFailedAgent('closer');
+          return output.result;
+        }
+        return { ...output.result, status: 'completed' };
+      }
+      const prUrl = output.result.artifacts.prUrl;
+      if (prUrl) notifier.send(`PR created: ${prUrl}`);
+      previousResults.set('closer', output.result);
+      return output.result;
+    }
+
+    case 'retrospective': {
+      const appenderState = config.eventAppender!.getState();
+      const metricsSnapshot: MetricsSnapshot = {
+        revisionCycles: appenderState.revisionCycles,
+        humanOverrides: 0,
+        profile: appenderState.profile,
+        evaluatorEffectiveness: projectMetrics(appenderState).evaluatorEffectiveness,
+      };
+      await runRetrospectivePhase(config, store, previousResults, callbacks.outcome(), undefined, metricsSnapshot);
+      return {
+        status: 'completed',
+        summary: 'Retrospective complete',
+        artifacts: {
+          commit: null,
+          filesChanged: [],
+          testsPassed: null,
+          screenshotUrls: [],
+          evidenceMarkers: [],
+          prUrl: null,
+          prNumber: null,
+        },
+        error: null,
+      };
+    }
+
+    default:
+      throw new Error(`Unknown phase: ${node.phase}`);
+  }
 }
 
 async function handleFailure(
-  notifier: Notifier,
+  notifier: ReturnType<typeof createNotifier>,
   config: PipelineConfig,
   agent: AgentName,
   result: AgentResult,
@@ -444,6 +330,5 @@ async function handleFailure(
 ): Promise<string> {
   const errorMsg = result.error ?? result.summary ?? 'unknown error';
   const prompt = `${agent} failed: ${errorMsg}`;
-
   return notifier.askUser(prompt, options);
 }

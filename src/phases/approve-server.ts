@@ -10,9 +10,7 @@ const log = createLogger();
  * for the user's decision. Returns a Promise that resolves when the
  * user submits a decision via the web UI.
  */
-export async function runApprovalServer(
-  evidence: ApprovalEvidence,
-): Promise<ApprovalDecision> {
+export async function runApprovalServer(evidence: ApprovalEvidence): Promise<ApprovalDecision> {
   let resolveDecision: (d: ApprovalDecision) => void;
   const decisionPromise = new Promise<ApprovalDecision>((res) => {
     resolveDecision = res;
@@ -26,9 +24,7 @@ export async function runApprovalServer(
   let waitingForReady = false;
 
   // Validate screenshot paths are absolute and within allowed directories
-  const validScreenshots = new Set(
-    evidence.screenshots.filter((p) => resolve(p) === p),
-  );
+  const validScreenshots = new Set(evidence.screenshots.filter((p) => resolve(p) === p));
 
   const server = Bun.serve({
     port: 0, // OS assigns available port

@@ -63,6 +63,14 @@ export class TaskStore {
     }
   }
 
+  /** Write projected TaskJson fields from the event system.
+   *  Bypasses task-status.sh because the event appender owns transition validation. */
+  async writeFromProjection(projected: Partial<import('../types.js').TaskJson>): Promise<void> {
+    const task = await this.read();
+    Object.assign(task, projected);
+    await Bun.write(this.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
+  }
+
   /** Persist or clear a pending revision request directly in the task JSON.
    *  Bypasses task-status.sh because that script has no subcommand for pendingRevision —
    *  this field is pipeline-internal state, not a status transition. */

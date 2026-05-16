@@ -16,10 +16,6 @@ export async function runVerifyPhase(
   store: TaskStore,
   previousResults: Map<AgentName, AgentResult>,
 ): Promise<PhaseOutput> {
-  await store.setStatus('verifying');
-  await store.setAgentPhase('verifier', 'status', 'running');
-  await store.setAgentPhase('verifier', 'started', 'now');
-
   log.phase('verify', 'started');
 
   if (config.dryRun) {
@@ -47,22 +43,21 @@ export async function runVerifyPhase(
   const repoContext = await prefetchRepoContext(config, 'verifier');
   const prompt = await assemblePrompt('verifier', config, task, repoContext, previousResults);
 
-  const { result } = await spawnAgent({
+  const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
+  const { result } = await spawn({
     prompt,
     cwd: config.repoPath,
     agentName: 'verifier',
     caseRoot: config.caseRoot,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
+    eventAppender: config.eventAppender,
     phase: 'verify',
   });
 
   if (result.status === 'completed') {
-    await store.setAgentPhase('verifier', 'status', 'completed');
-    await store.setAgentPhase('verifier', 'completed', 'now');
     previousResults.set('verifier', result);
 
-    // Check rubric for fails — generate revision request if any
     if (result.rubric?.role === 'verifier') {
       const fails = result.rubric.categories.filter((c) => c.verdict === 'fail');
       if (fails.length > 0) {
@@ -76,7 +71,6 @@ export async function runVerifyPhase(
     return { result, nextPhase: 'review' };
   }
 
-  await store.setAgentPhase('verifier', 'status', 'failed');
   previousResults.set('verifier', result);
   log.phase('verify', 'failed', { error: result.error });
   return { result, nextPhase: 'abort' };
