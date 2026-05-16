@@ -57,6 +57,8 @@ export async function startServer(caseRoot: string, config: ServerConfig): Promi
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  await new Promise<void>(() => {});
 }
 
 async function handleRequest(
