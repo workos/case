@@ -1,6 +1,6 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
 import { mockSpawnAgent, mockRunScript } from './mocks.js';
-import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
+import type { AgentResult, PipelineConfig } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 

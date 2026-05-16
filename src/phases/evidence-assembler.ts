@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { AgentName, AgentResult, ApprovalEvidence, PipelineConfig, RubricCategory } from '../types.js';
+import type { AgentName, AgentResult, ApprovalEvidence, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { runScript } from '../util/run-script.js';
 

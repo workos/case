@@ -9,7 +9,7 @@ import {
 } from '@mariozechner/pi-coding-agent';
 import type { ExtensionAPI, ToolDefinition } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
 import { getModelForAgent } from './config.js';
 import { detectRepo } from '../entry/repo-detector.js';
 import { detectArgumentType, fetchIssue } from '../entry/issue-fetcher.js';
