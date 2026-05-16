@@ -9,7 +9,8 @@ describe('MockRuntime', () => {
       prompt: 'test',
       cwd: '/tmp',
       agentName: 'implementer',
-      caseRoot: '/tmp',
+      packageRoot: '/tmp',
+      dataDir: '/tmp',
     });
 
     expect(result.result.status).toBe('completed');
@@ -41,7 +42,8 @@ describe('MockRuntime', () => {
       prompt: 'test',
       cwd: '/tmp',
       agentName: 'verifier',
-      caseRoot: '/tmp',
+      packageRoot: '/tmp',
+      dataDir: '/tmp',
     });
 
     expect(result.result.status).toBe('failed');
@@ -52,9 +54,9 @@ describe('MockRuntime', () => {
   test('records spawn calls for assertion', async () => {
     const mock = new MockRuntime();
 
-    await mock.spawn({ prompt: 'p1', cwd: '/a', agentName: 'implementer', caseRoot: '/r' });
-    await mock.spawn({ prompt: 'p2', cwd: '/b', agentName: 'verifier', caseRoot: '/r' });
-    await mock.spawn({ prompt: 'p3', cwd: '/c', agentName: 'reviewer', caseRoot: '/r' });
+    await mock.spawn({ prompt: 'p1', cwd: '/a', agentName: 'implementer', packageRoot: '/r', dataDir: '/r' });
+    await mock.spawn({ prompt: 'p2', cwd: '/b', agentName: 'verifier', packageRoot: '/r', dataDir: '/r' });
+    await mock.spawn({ prompt: 'p3', cwd: '/c', agentName: 'reviewer', packageRoot: '/r', dataDir: '/r' });
 
     expect(mock.spawnCalls).toHaveLength(3);
     expect(mock.spawnCalls[0].agentName).toBe('implementer');

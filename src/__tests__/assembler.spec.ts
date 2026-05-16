@@ -24,7 +24,8 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
     taskMdPath: join(tempCaseRoot, 'tasks/active/cli-1-issue-53.md'),
     repoPath: '/repos/cli',
     repoName: 'cli',
-    caseRoot: tempCaseRoot,
+    packageRoot: tempCaseRoot,
+    dataDir: tempCaseRoot,
     maxRetries: 1,
     dryRun: false,
     ...overrides,
@@ -248,5 +249,63 @@ describe('assemblePrompt', () => {
 
     expect(prompt).toContain('# Verifier Template');
     expect(prompt).not.toContain('REVISION CONTEXT');
+  });
+
+  it('substitutes {{packageRoot}} in agent prompts', async () => {
+    const agentsDir = join(tempCaseRoot, 'agents');
+    await mkdir(agentsDir, { recursive: true });
+    await Bun.write(
+      join(agentsDir, 'implementer.md'),
+      '# Implementer\n\nPackage at {{packageRoot}}\nData at {{dataDir}}\n',
+    );
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
+
+    expect(prompt).toContain(`Package at ${tempCaseRoot}`);
+    expect(prompt).toContain(`Data at ${tempCaseRoot}`);
+    expect(prompt).not.toContain('{{packageRoot}}');
+    expect(prompt).not.toContain('{{dataDir}}');
+  });
+
+  it('passes through unknown {{...}} tokens unchanged', async () => {
+    const agentsDir = join(tempCaseRoot, 'agents');
+    await mkdir(agentsDir, { recursive: true });
+    await Bun.write(
+      join(agentsDir, 'implementer.md'),
+      '# Implementer\n\nUser typed: {{userInput}}\nVar: {{someVar}}\n',
+    );
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
+
+    // Unknown tokens survive intact.
+    expect(prompt).toContain('{{userInput}}');
+    expect(prompt).toContain('{{someVar}}');
+  });
+
+  it('substitutes {{scriptPath:NAME}} to an absolute script path', async () => {
+    const agentsDir = join(tempCaseRoot, 'agents');
+    await mkdir(agentsDir, { recursive: true });
+    await Bun.write(join(agentsDir, 'implementer.md'), '# Implementer\n\nRun {{scriptPath:check.sh}}\n');
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
+
+    expect(prompt).not.toContain('{{scriptPath:check.sh}}');
+    // The substitution uses the resolver, which points to the real case repo's scripts dir.
+    expect(prompt).toMatch(/Run \/.+\/scripts\/check\.sh/);
+  });
+
+  it('substitutes multiple variables in one prompt', async () => {
+    const agentsDir = join(tempCaseRoot, 'agents');
+    await mkdir(agentsDir, { recursive: true });
+    await Bun.write(
+      join(agentsDir, 'implementer.md'),
+      '{{packageRoot}} / {{dataDir}} / {{packageRoot}}\n',
+    );
+
+    const prompt = await assemblePrompt('implementer', makeConfig(), makeTask(), emptyRepoContext, new Map());
+
+    // Both occurrences of {{packageRoot}} replaced via global flag.
+    const occurrences = (prompt.match(new RegExp(tempCaseRoot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length;
+    expect(occurrences).toBeGreaterThanOrEqual(3);
   });
 });

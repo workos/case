@@ -321,7 +321,8 @@ ${specContent}`;
       prompt,
       cwd: repoPath,
       agentName: 'implementer',
-      caseRoot,
+      packageRoot: caseRoot,
+      dataDir: caseRoot,
       timeout: 600_000,
     });
 

@@ -23,7 +23,8 @@ import { restoreGraphState } from './dag/restore.js';
 const log = createLogger();
 
 export async function runPipeline(config: PipelineConfig): Promise<void> {
-  const store = new TaskStore(config.taskJsonPath, config.caseRoot);
+  // TaskStore reads scripts/task-status.sh from the package; task JSON itself lives under dataDir.
+  const store = new TaskStore(config.taskJsonPath, config.packageRoot);
   const notifier = createNotifier(config.mode);
   const previousResults = new Map<AgentName, AgentResult>();
 
@@ -43,21 +44,23 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   const runId = crypto.randomUUID();
   config.runtime ??= new PiRuntimeAdapter();
 
-  const appender = new EventAppender(config.caseRoot, task.id, runId, store);
+  // Event log is mutable runtime state — lives under dataDir/.case/<taskId>/events/.
+  const appender = new EventAppender(config.dataDir, task.id, runId, store);
   config.eventAppender = appender;
 
   const plan = generatePlan(task, config, runId);
 
   const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
   const { resolve: resolvePlan } = await import('node:path');
-  const planDir = resolvePlan(config.caseRoot, '.case', task.id);
+  // Plan + event log live under dataDir/.case/<taskId>/ — mutable runtime state.
+  const planDir = resolvePlan(config.dataDir, '.case', task.id);
   await mkdirPlan(planDir, { recursive: true });
   await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
 
   const graph = buildGraph(profile, maxRevisionCycles, { approve: config.approve });
 
   // Crash recovery: restore graph state from event log if a prior run didn't complete
-  const existingEventLogPath = resolvePlan(config.caseRoot, '.case', task.id, 'events');
+  const existingEventLogPath = resolvePlan(config.dataDir, '.case', task.id, 'events');
   let resumed = false;
   try {
     const { readdir: readdirFs } = await import('node:fs/promises');
@@ -86,7 +89,8 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
   }
 
-  const promptVersions = await getCurrentPromptVersions(config.caseRoot);
+  // Prompt versions / run log live under docs/ — static package assets.
+  const promptVersions = await getCurrentPromptVersions(config.packageRoot);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
 
@@ -144,8 +148,8 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   runMetrics.approvalTimeMs = approvalTimeMs;
   runMetrics.humanOverrides = humanOverrides;
   runMetrics.humanRevisionCycles = humanRevisionCycles;
-  const priorRunId = await findPriorRunId(config.caseRoot, task.id);
-  await writeRunMetrics(config.caseRoot, task.id, config.repoName, runMetrics, {
+  const priorRunId = await findPriorRunId(config.packageRoot, task.id);
+  await writeRunMetrics(config.packageRoot, task.id, config.repoName, runMetrics, {
     priorRunId,
     parentTaskId: task.contractPath,
   });

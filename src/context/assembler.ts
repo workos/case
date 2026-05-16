@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
+import { resolveScript } from '../paths.js';
 
 /**
  * Read an agent .md prompt template and build a role-specific prompt.
@@ -19,8 +20,9 @@ export async function assemblePrompt(
   previousResults: Map<AgentName, AgentResult>,
   revision?: RevisionRequest,
 ): Promise<string> {
-  const templatePath = resolve(config.caseRoot, `agents/${role}.md`);
-  const template = await Bun.file(templatePath).text();
+  const templatePath = resolve(config.packageRoot, `agents/${role}.md`);
+  const rawTemplate = await Bun.file(templatePath).text();
+  const template = substitutePathVars(rawTemplate, config);
 
   const contextBlock = buildContextBlock(role, config, task, repoContext, previousResults);
 
@@ -32,6 +34,19 @@ export async function assemblePrompt(
   }
 
   return prompt;
+}
+
+/**
+ * Replace `{{packageRoot}}`, `{{dataDir}}`, and `{{scriptPath:NAME}}` tokens in agent prompts.
+ *
+ * Unknown `{{...}}` tokens pass through unchanged — only whitelisted variable names
+ * are substituted, so prompt content that happens to contain double braces is preserved.
+ */
+function substitutePathVars(content: string, config: PipelineConfig): string {
+  return content
+    .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
+    .replace(/\{\{dataDir\}\}/g, config.dataDir)
+    .replace(/\{\{scriptPath:([\w.-]+)\}\}/g, (_, name) => resolveScript(name));
 }
 
 function buildRevisionContext(revision: RevisionRequest): string {

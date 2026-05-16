@@ -28,7 +28,8 @@ describe('createPipelineTool', () => {
       taskMdPath: '/case/tasks/active/cli-1.md',
       repoPath: '/repos/cli',
       repoName: 'cli',
-      caseRoot: '/case',
+      packageRoot: '/case',
+      dataDir: '/case',
       maxRetries: 1,
       dryRun: false,
     });

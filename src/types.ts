@@ -140,7 +140,10 @@ export interface PipelineConfig {
   taskMdPath: string;
   repoPath: string;
   repoName: string;
-  caseRoot: string;
+  /** Static assets shipped with the package — agents/, scripts/, docs/. */
+  packageRoot: string;
+  /** Mutable runtime state — tasks/, .case/, learnings/. In Phase 1 equals packageRoot. */
+  dataDir: string;
   maxRetries: number;
   dryRun: boolean;
   /** Enable human approval gate between review and close */
@@ -252,7 +255,10 @@ export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
   agentName: AgentName | 'retrospective';
-  caseRoot: string;
+  /** Static assets shipped with the package — agents/, scripts/. */
+  packageRoot: string;
+  /** Mutable runtime state — tasks/, .case/, learnings/. */
+  dataDir: string;
   timeout?: number;
   /** Model provider (default: "anthropic") */
   provider?: string;

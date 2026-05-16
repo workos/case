@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { parseArgs } from 'node:util';
-import { resolve } from 'node:path';
 import { buildPipelineConfig } from './config.js';
 import { runPipeline } from './pipeline.js';
 import { startServer } from './server.js';
@@ -8,6 +7,7 @@ import { createTask } from './entry/task-factory.js';
 import { runCliOrchestrator } from './entry/cli-orchestrator.js';
 import { startOrchestratorSession } from './agent/orchestrator-session.js';
 import { createLogger } from './util/logger.js';
+import { resolvePackageRoot } from './paths.js';
 import type { PipelineMode, ServerConfig, TaskCreateRequest } from './types.js';
 
 const log = createLogger();
@@ -51,7 +51,7 @@ async function main() {
 
   if (values.agent) {
     const argument = command === 'run' ? positionals[1] : positionals[0];
-    const caseRoot = resolveCaseRoot();
+    const caseRoot = resolvePackageRoot();
 
     try {
       await startOrchestratorSession({
@@ -73,7 +73,7 @@ async function main() {
       process.stderr.write('Error: ca watch <taskSlug> is required\n');
       process.exit(1);
     }
-    const caseRoot = resolveCaseRoot();
+    const caseRoot = resolvePackageRoot();
     const { watchEventLog } = await import('./watch/watcher.js');
     const { renderWatchEvent } = await import('./watch/renderer.js');
     const format = values.raw ? ('raw' as const) : ('structured' as const);
@@ -100,7 +100,7 @@ async function main() {
       process.exit(1);
     }
 
-    const caseRoot = resolveCaseRoot();
+    const caseRoot = resolvePackageRoot();
 
     // Suppress structured JSON logs for interactive CLI use
     process.env.CASE_QUIET = '1';
@@ -122,19 +122,6 @@ async function main() {
       process.exit(1);
     }
   }
-}
-
-/**
- * Resolve the case root directory.
- * Uses CASE_ROOT env var if set, otherwise walks up from cwd looking for projects.json.
- */
-function resolveCaseRoot(): string {
-  if (process.env.CASE_ROOT) return resolve(process.env.CASE_ROOT);
-
-  // Walk up from script location (src/index.ts -> project root)
-  const scriptDir = import.meta.dir;
-  const candidate = resolve(scriptDir, '..');
-  return candidate;
 }
 
 async function runTask(values: Record<string, unknown>) {
@@ -185,7 +172,7 @@ async function runCreate(values: Record<string, unknown>) {
     process.exit(1);
   }
 
-  const caseRoot = resolve(process.cwd());
+  const caseRoot = resolvePackageRoot();
   const mode = (values.mode as PipelineMode | undefined) ?? 'attended';
   const issueType = values['issue-type'] as 'github' | 'linear' | 'freeform' | undefined;
 
@@ -213,7 +200,7 @@ async function runCreate(values: Record<string, unknown>) {
 }
 
 async function runServe(values: Record<string, unknown>) {
-  const caseRoot = resolve(process.cwd());
+  const caseRoot = resolvePackageRoot();
   const port = parseInt((values.port as string) ?? '3847', 10);
   const host = (values.host as string) ?? '127.0.0.1';
   const webhookSecret = (values['webhook-secret'] as string) ?? process.env.CASE_WEBHOOK_SECRET;

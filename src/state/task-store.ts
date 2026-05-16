@@ -17,9 +17,13 @@ export class TaskStore {
   private readonly taskJsonPath: string;
   private readonly taskStatusScript: string;
 
-  constructor(taskJsonPath: string, caseRoot: string) {
+  /**
+   * @param taskJsonPath Absolute path to the task JSON (lives under dataDir/tasks/active in Phase 3+).
+   * @param packageRoot  Path containing scripts/task-status.sh (static package asset).
+   */
+  constructor(taskJsonPath: string, packageRoot: string) {
     this.taskJsonPath = resolve(taskJsonPath);
-    this.taskStatusScript = resolve(caseRoot, 'scripts/task-status.sh');
+    this.taskStatusScript = resolve(packageRoot, 'scripts/task-status.sh');
   }
 
   /** Read and parse the task JSON file directly (faster than script). */

@@ -15,9 +15,10 @@ export interface RepoContext {
  * learnings in parallel for speed. Only fetches what the role needs.
  */
 export async function prefetchRepoContext(config: PipelineConfig, role: AgentName): Promise<RepoContext> {
-  const sessionStartScript = resolve(config.caseRoot, 'scripts/session-start.sh');
-  const learningsPath = resolve(config.caseRoot, `docs/learnings/${config.repoName}.md`);
-  const principlesPath = resolve(config.caseRoot, 'docs/golden-principles.md');
+  // session-start.sh, learnings/, golden-principles.md are all static package assets.
+  const sessionStartScript = resolve(config.packageRoot, 'scripts/session-start.sh');
+  const learningsPath = resolve(config.packageRoot, `docs/learnings/${config.repoName}.md`);
+  const principlesPath = resolve(config.packageRoot, 'docs/golden-principles.md');
 
   // Derive working memory path from task file
   const taskStem = config.taskJsonPath.replace(/\.task\.json$/, '');

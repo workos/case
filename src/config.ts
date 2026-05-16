@@ -1,5 +1,6 @@
-import { resolve, dirname } from 'node:path';
+import { resolve } from 'node:path';
 import type { PipelineConfig, PipelineMode, ProjectEntry } from './types.js';
+import { resolveDataDir, resolvePackageRoot } from './paths.js';
 
 interface ProjectsManifest {
   repos: ProjectEntry[];
@@ -29,16 +30,18 @@ export async function buildPipelineConfig(opts: {
   const raw = await Bun.file(taskJsonPath).text();
   const task = JSON.parse(raw) as { repo: string; mode?: PipelineMode };
 
-  // Derive caseRoot from taskJsonPath: tasks/active/foo.task.json -> ../../
-  const caseRoot = resolve(dirname(taskJsonPath), '../..');
+  const packageRoot = resolvePackageRoot();
+  // In Phase 1, dataDir defaults to packageRoot so the existing on-disk layout is unchanged.
+  // CASE_DATA_DIR / XDG_CONFIG_HOME overrides honored via resolveDataDir().
+  const dataDir = process.env.CASE_DATA_DIR || process.env.XDG_CONFIG_HOME ? resolveDataDir() : packageRoot;
 
-  const projects = await loadProjects(caseRoot);
+  const projects = await loadProjects(packageRoot);
   const project = projects.find((p) => p.name === task.repo);
   if (!project) {
     throw new Error(`Repo "${task.repo}" not found in projects.json`);
   }
 
-  const repoPath = resolveRepoPath(caseRoot, project.path);
+  const repoPath = resolveRepoPath(packageRoot, project.path);
 
   // Task .md path is same stem as .task.json but with .md extension
   const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
@@ -52,7 +55,8 @@ export async function buildPipelineConfig(opts: {
     taskMdPath,
     repoPath,
     repoName: task.repo,
-    caseRoot,
+    packageRoot,
+    dataDir,
     maxRetries: 1,
     dryRun: opts.dryRun ?? false,
     approve: opts.approve ?? false,

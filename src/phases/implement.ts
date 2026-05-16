@@ -42,7 +42,8 @@ export async function runImplementPhase(
     prompt,
     cwd: config.repoPath,
     agentName: 'implementer',
-    caseRoot: config.caseRoot,
+    packageRoot: config.packageRoot,
+    dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
@@ -74,7 +75,7 @@ async function attemptRetry(
   originalResult: AgentResult,
   originalPrompt: string,
 ): Promise<PhaseOutput | null> {
-  const analyzeScript = resolve(config.caseRoot, 'scripts/analyze-failure.sh');
+  const analyzeScript = resolve(config.packageRoot, 'scripts/analyze-failure.sh');
   const analysisRun = await runScript('bash', [
     analyzeScript,
     config.taskJsonPath,
@@ -121,7 +122,8 @@ async function attemptRetry(
     prompt: retryPrompt,
     cwd: config.repoPath,
     agentName: 'implementer',
-    caseRoot: config.caseRoot,
+    packageRoot: config.packageRoot,
+    dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
