@@ -1,4 +1,4 @@
-import type { AgentName, SpawnAgentOptions, SpawnAgentResult } from '../../types.js';
+import type { SpawnAgentOptions, SpawnAgentResult } from '../../types.js';
 import type { CaseAgentRuntime, WorkspacePolicy } from '../runtime.js';
 
 export class MockRuntime implements CaseAgentRuntime {

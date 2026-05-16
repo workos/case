@@ -14,7 +14,6 @@ import { parseAgentResult } from '../../util/parse-agent-result.js';
 import { createLogger } from '../../util/logger.js';
 import { sanitizeForTrace } from '../../tracing/sanitize.js';
 import type { AgentModelConfig, SpawnAgentOptions, SpawnAgentResult } from '../../types.js';
-import type { AgentTool } from '@mariozechner/pi-agent-core';
 import type { CaseAgentRuntime, WorkspacePolicy } from '../runtime.js';
 
 const log = createLogger();
