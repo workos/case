@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
@@ -22,7 +23,8 @@ export async function assemblePrompt(
 ): Promise<string> {
   const templatePath = resolve(config.packageRoot, `agents/${role}.md`);
   const rawTemplate = await Bun.file(templatePath).text();
-  const template = substitutePathVars(rawTemplate, config);
+  const substituted = substitutePathVars(rawTemplate, config);
+  const template = inlineDocs(substituted, config.packageRoot);
 
   const contextBlock = buildContextBlock(role, config, task, repoContext, previousResults);
 
@@ -47,6 +49,40 @@ function substitutePathVars(content: string, config: PipelineConfig): string {
     .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
     .replace(/\{\{dataDir\}\}/g, config.dataDir)
     .replace(/\{\{scriptPath:([\w.-]+)\}\}/g, (_, name) => resolveScript(name));
+}
+
+const INJECT_MARKER = /<!--\s*inject:\s*(\S+)\s*-->/g;
+
+/**
+ * Resolve `<!-- inject: docs/path.md -->` markers by inlining the referenced
+ * file's content (relative to `packageRoot`). Single-pass — inlined content is
+ * NOT re-scanned for nested markers, preventing recursive loops.
+ *
+ * Size limit (default 8KB, tunable via `CASE_INLINE_MAX_BYTES`): oversized files
+ * are truncated and footed with `[truncated]`. Missing files leave the marker
+ * verbatim and log a warning to stderr. Empty paths (`<!-- inject: -->`) are
+ * left verbatim.
+ */
+function inlineDocs(template: string, packageRoot: string): string {
+  const maxBytes = Number(process.env.CASE_INLINE_MAX_BYTES ?? 8192);
+
+  return template.replace(INJECT_MARKER, (marker, relPath: string) => {
+    if (!relPath) return marker;
+
+    const full = resolve(packageRoot, relPath);
+    try {
+      let content = readFileSync(full, 'utf8');
+      if (content.length > maxBytes) {
+        content = content.slice(0, maxBytes) + '\n\n[truncated]';
+        process.stderr.write(`[assembler] inlined doc truncated: ${relPath}\n`);
+      }
+      return content;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`[assembler] inline failed for ${relPath}: ${message}\n`);
+      return marker;
+    }
+  });
 }
 
 function buildRevisionContext(revision: RevisionRequest): string {

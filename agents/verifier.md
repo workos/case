@@ -12,7 +12,7 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
@@ -23,7 +23,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(case session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -33,9 +33,9 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status verifying
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier status running
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier started now
+   case status <task.json> status verifying
+   case status <task.json> agent verifier status running
+   case status <task.json> agent verifier started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
@@ -53,10 +53,11 @@ First, check if this is a library repo (no web UI):
 ```bash
 python3 -c "
 import json, os, sys
-projects = json.load(open('/Users/nicknisi/Developer/case/projects.json'))
+case_root = '{{packageRoot}}'
+projects = json.load(open(os.path.join(case_root, 'projects.json')))
 repo_root = os.path.realpath('$(git rev-parse --show-toplevel)')
 for repo in projects.get('repos', []):
-    abs_path = os.path.realpath(os.path.join('/Users/nicknisi/Developer/case', repo.get('path', '')))
+    abs_path = os.path.realpath(os.path.join(case_root, repo.get('path', '')))
     if abs_path == repo_root:
         print(repo.get('type', 'app'))
         sys.exit(0)
@@ -184,7 +185,7 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 9. **Create the manual-tested marker** with combined test + scenario output:
 
    ```bash
-   cat /tmp/verifier-test-output.txt | bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh --library
+   cat /tmp/verifier-test-output.txt | case mark-manual-tested --library
    ```
 
 10. Continue to step 5 (Record).
@@ -197,7 +198,7 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 
 1. Read the issue description from the task file's `## Issue Reference` or `## Objective` section
 2. Identify the specific bug/feature scenario to reproduce
-3. Read `/Users/nicknisi/Developer/case/projects.json` to find if the target repo has an example app
+3. Read the case install's `projects.json` to find if the target repo has an example app
 
 **3a. Port hygiene — MANDATORY before starting any app:**
 
@@ -298,9 +299,9 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 1. **Upload before/after screenshots** for PR inclusion:
 
    ```bash
-   BEFORE=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh .playwright-cli/before.png)
+   BEFORE=$(case upload .playwright-cli/before.png)
    echo "$BEFORE"
-   AFTER=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh .playwright-cli/after.png)
+   AFTER=$(case upload .playwright-cli/after.png)
    echo "$AFTER"
    ```
 
@@ -309,7 +310,7 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 2. **(Optional) Upload video** if you recorded one for a complex flow:
 
    ```bash
-   VIDEO=$(/Users/nicknisi/Developer/case/scripts/upload-screenshot.sh /tmp/verification.webm)
+   VIDEO=$(case upload /tmp/verification.webm)
    echo "$VIDEO"
    ```
 
@@ -317,7 +318,7 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 3. **Create the manual testing evidence marker:**
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/mark-manual-tested.sh
+   case mark-manual-tested
    ```
    This checks for recent playwright screenshots and creates `.case/<task-slug>/manual-tested` with evidence. It also updates the task JSON `manualTested` field. You do NOT set `manualTested` directly.
 
@@ -340,8 +341,8 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 2. **Update task JSON**:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent verifier completed now
+   case status <task.json> agent verifier status completed
+   case status <task.json> agent verifier completed now
    ```
 
 ### 5b. Score Rubric

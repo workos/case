@@ -12,11 +12,11 @@ Implement a fix or feature in the target repo. Write code, run automated tests, 
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file in `/Users/nicknisi/Developer/case/tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
 - **Task JSON path** — the `.task.json` companion (same stem as the .md)
 - **Target repo path** — absolute path to the repo where you'll work
 - **Issue summary** — title, body, and key details from the GitHub/Linear issue
-- **Playbook path** — reference to the relevant playbook in `/Users/nicknisi/Developer/case/docs/playbooks/`
+- **Playbook path** — reference to the relevant playbook under the case install's `docs/playbooks/`
 - **Root cause analysis** (for bug fixes) — orchestrator's reproduction findings including affected files, root cause, and evidence
 
 ## Workflow
@@ -26,7 +26,7 @@ You receive from the orchestrator:
 Run the session-start script to orient yourself:
 
 ```bash
-SESSION=$(bash /Users/nicknisi/Developer/case/scripts/session-start.sh <target-repo-path> --task <task.json>)
+SESSION=$(case session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -36,15 +36,15 @@ Read the output to understand: current branch, last commits, task status, which 
 
 1. Update task JSON: set status to `implementing` and agent phase to running
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> status implementing
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer status running
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer started now
+   case status <task.json> status implementing
+   case status <task.json> agent implementer status running
+   case status <task.json> agent implementer started now
    ```
 2. Read the task file (`.md`) — understand the objective, acceptance criteria, and checklist
 3. Read the target repo's `CLAUDE.md` for project-specific instructions
 4. Read the playbook referenced in the task file
-5. Read `/Users/nicknisi/Developer/case/projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
-6. Read `/Users/nicknisi/Developer/case/docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
+5. Read the case install's `projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
+6. Read the case install's `docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
 7. Check for working memory — if `{task-stem}.working.md` exists alongside the task file, read it. This contains state from previous runs: what was tried, what failed, blockers, files changed so far. Use this to avoid repeating failed approaches.
 8. If the task JSON has a `checkCommand`, run it now and record the output as your baseline:
    ```bash
@@ -53,7 +53,7 @@ Read the output to understand: current branch, last commits, task status, which 
    ```
    If `checkBaseline` is null in the task JSON, save the baseline:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> checkBaseline "$BASELINE"
+   case status <task.json> checkBaseline "$BASELINE"
    ```
 
 ### 2. Implement
@@ -195,9 +195,9 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
    ```bash
    # Preferred — structured evidence via vitest JSON reporter
-   pnpm test --reporter=json 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   pnpm test --reporter=json 2>&1 | case mark-tested
    # Fallback — if JSON reporter is unavailable or the repo doesn't use vitest
-   pnpm test 2>&1 | bash /Users/nicknisi/Developer/case/scripts/mark-tested.sh
+   pnpm test 2>&1 | case mark-tested
    ```
 
    This creates `.case/<task-slug>/tested` with a hash of test output AND updates the task JSON `tested` field. You do NOT set `tested` directly.
@@ -224,8 +224,8 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
 4. **Update task JSON**:
    ```bash
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer status completed
-   bash /Users/nicknisi/Developer/case/scripts/task-status.sh <task.json> agent implementer completed now
+   case status <task.json> agent implementer status completed
+   case status <task.json> agent implementer completed now
    ```
 
 ### 4b. Update Working Memory
