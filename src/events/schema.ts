@@ -8,34 +8,34 @@ export interface EventMeta {
 }
 
 export type PipelineEvent =
-  | EventMeta & {
+  | (EventMeta & {
       event: 'pipeline_start';
       taskId: string;
       profile: PipelineProfile;
       plan: PlanArtifact;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'phase_start';
       phase: PipelinePhase;
       agent: AgentName | 'retrospective';
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'phase_end';
       phase: PipelinePhase;
       agent: AgentName | 'retrospective';
       outcome: 'completed' | 'failed' | 'skipped';
       durationMs: number;
       result?: AgentResult;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'tool_start';
       phase: PipelinePhase;
       agent: AgentName | 'retrospective';
       toolCallId: string;
       tool: string;
       args: string;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'tool_end';
       phase: PipelinePhase;
       agent: AgentName | 'retrospective';
@@ -44,33 +44,33 @@ export type PipelineEvent =
       durationMs: number;
       isError: boolean;
       result: string;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'revision_requested';
       source: 'verifier' | 'reviewer' | 'human';
       cycle: number;
       failedCategories: RubricCategory[];
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'revision_budget_exhausted';
       cycles: number;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'status_changed';
       from: TaskStatus;
       to: TaskStatus;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'marker_written';
       marker: string;
       path: string;
-    }
-  | EventMeta & {
+    })
+  | (EventMeta & {
       event: 'pipeline_end';
       outcome: 'completed' | 'failed';
       failedAgent?: AgentName;
       durationMs: number;
-    };
+    });
 
 export type PipelineEventType = PipelineEvent['event'];
 

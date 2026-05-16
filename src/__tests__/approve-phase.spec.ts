@@ -1,12 +1,20 @@
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { mockSpawnAgent, mockRunScript, mockWriteRunMetrics, mockGetCurrentPromptVersions, mockFindPriorRunId } from './mocks.js';
+import {
+  mockSpawnAgent,
+  mockRunScript,
+  mockWriteRunMetrics,
+  mockGetCurrentPromptVersions,
+  mockFindPriorRunId,
+} from './mocks.js';
 import type { AgentName, AgentResult, ApprovalDecision, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import type { Notifier } from '../notify.js';
 
 // Suppress unused import warnings — mocks.ts must be imported for its side effects
-void mockSpawnAgent; void mockWriteRunMetrics;
-void mockGetCurrentPromptVersions; void mockFindPriorRunId;
+void mockSpawnAgent;
+void mockWriteRunMetrics;
+void mockGetCurrentPromptVersions;
+void mockFindPriorRunId;
 
 // --- Mock approval server (I/O boundary — starts real HTTP server) ---
 const mockRunApprovalServer = mock<() => Promise<ApprovalDecision>>();
@@ -44,19 +52,21 @@ function makeNotifier(): Notifier {
 function makeStore(): TaskStore {
   return {
     setStatus: mock(() => Promise.resolve()),
-    read: mock(() => Promise.resolve({
-      id: 'cli-42',
-      status: 'approving',
-      created: '2026-03-28T00:00:00Z',
-      repo: 'cli',
-      branch: 'fix/login',
-      issue: 'workos/cli#42',
-      agents: {},
-      tested: false,
-      manualTested: false,
-      prUrl: null,
-      prNumber: null,
-    })),
+    read: mock(() =>
+      Promise.resolve({
+        id: 'cli-42',
+        status: 'approving',
+        created: '2026-03-28T00:00:00Z',
+        repo: 'cli',
+        branch: 'fix/login',
+        issue: 'workos/cli#42',
+        agents: {},
+        tested: false,
+        manualTested: false,
+        prUrl: null,
+        prNumber: null,
+      }),
+    ),
     readStatus: mock(),
     setAgentPhase: mock(),
     setField: mock(),
@@ -93,9 +103,7 @@ describe('runApprovePhase', () => {
   });
 
   it('approve → close', async () => {
-    mockRunApprovalServer.mockImplementation(() =>
-      Promise.resolve({ decision: 'approve' }),
-    );
+    mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'approve' }));
     const store = makeStore();
     const output = await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
@@ -105,9 +113,7 @@ describe('runApprovePhase', () => {
   });
 
   it('reject → abort', async () => {
-    mockRunApprovalServer.mockImplementation(() =>
-      Promise.resolve({ decision: 'reject' }),
-    );
+    mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'reject' }));
     const store = makeStore();
     const output = await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
@@ -145,13 +151,11 @@ describe('runApprovePhase', () => {
   });
 
   it('sets status to approving', async () => {
-    mockRunApprovalServer.mockImplementation(() =>
-      Promise.resolve({ decision: 'approve' }),
-    );
+    mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'approve' }));
     const store = makeStore();
     await runApprovePhase(makeConfig(), store, previousResults, makeNotifier());
 
-    expect((store.setStatus as ReturnType<typeof mock>)).toHaveBeenCalledWith('approving');
+    expect(store.setStatus as ReturnType<typeof mock>).toHaveBeenCalledWith('approving');
   });
 
   it('dry-run skips and proceeds to close', async () => {
@@ -163,9 +167,7 @@ describe('runApprovePhase', () => {
   });
 
   it('passes assembled evidence to approval server', async () => {
-    mockRunApprovalServer.mockImplementation(() =>
-      Promise.resolve({ decision: 'approve' }),
-    );
+    mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'approve' }));
     await runApprovePhase(makeConfig(), makeStore(), previousResults, makeNotifier());
 
     // Verify the server received evidence with correct task metadata
@@ -175,9 +177,7 @@ describe('runApprovePhase', () => {
   });
 
   it('revise without feedback uses default text', async () => {
-    mockRunApprovalServer.mockImplementation(() =>
-      Promise.resolve({ decision: 'revise' }),
-    );
+    mockRunApprovalServer.mockImplementation(() => Promise.resolve({ decision: 'revise' }));
     const output = await runApprovePhase(makeConfig(), makeStore(), previousResults, makeNotifier());
 
     expect(output.revision!.summary).toBe('No feedback provided');

@@ -41,7 +41,13 @@ describe('reduceEvents', () => {
     const events: PipelineEvent[] = [
       makeEvent(1, { event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN }),
       makeEvent(2, { event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-      makeEvent(3, { event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 1000 }),
+      makeEvent(3, {
+        event: 'phase_end',
+        phase: 'implement',
+        agent: 'implementer',
+        outcome: 'completed',
+        durationMs: 1000,
+      }),
       makeEvent(4, { event: 'phase_start', phase: 'verify', agent: 'verifier' }),
       makeEvent(5, { event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: 500 }),
       makeEvent(6, { event: 'phase_start', phase: 'review', agent: 'reviewer' }),
@@ -49,7 +55,13 @@ describe('reduceEvents', () => {
       makeEvent(8, { event: 'phase_start', phase: 'close', agent: 'closer' }),
       makeEvent(9, { event: 'phase_end', phase: 'close', agent: 'closer', outcome: 'completed', durationMs: 200 }),
       makeEvent(10, { event: 'phase_start', phase: 'retrospective', agent: 'retrospective' }),
-      makeEvent(11, { event: 'phase_end', phase: 'retrospective', agent: 'retrospective', outcome: 'completed', durationMs: 300 }),
+      makeEvent(11, {
+        event: 'phase_end',
+        phase: 'retrospective',
+        agent: 'retrospective',
+        outcome: 'completed',
+        durationMs: 300,
+      }),
       makeEvent(12, { event: 'pipeline_end', outcome: 'completed', durationMs: 5000 }),
     ];
 
@@ -72,7 +84,13 @@ describe('reduceEvents', () => {
     const events: PipelineEvent[] = [
       makeEvent(1, { event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN }),
       makeEvent(2, { event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-      makeEvent(3, { event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 1000 }),
+      makeEvent(3, {
+        event: 'phase_end',
+        phase: 'implement',
+        agent: 'implementer',
+        outcome: 'completed',
+        durationMs: 1000,
+      }),
     ];
 
     const state = reduceEvents(events);
@@ -87,7 +105,13 @@ describe('reduceEvents', () => {
     const events: PipelineEvent[] = [
       makeEvent(1, { event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN }),
       makeEvent(2, { event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-      makeEvent(3, { event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 1000 }),
+      makeEvent(3, {
+        event: 'phase_end',
+        phase: 'implement',
+        agent: 'implementer',
+        outcome: 'completed',
+        durationMs: 1000,
+      }),
       makeEvent(4, { event: 'phase_start', phase: 'verify', agent: 'verifier' }),
       makeEvent(5, { event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: 500 }),
       makeEvent(6, { event: 'revision_requested', source: 'verifier', cycle: 1, failedCategories: [] }),
@@ -135,8 +159,24 @@ describe('reduceEvents', () => {
   test('tool events update lastSequence without changing state', () => {
     const events: PipelineEvent[] = [
       makeEvent(1, { event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN }),
-      makeEvent(2, { event: 'tool_start', phase: 'implement', agent: 'implementer', toolCallId: 'tc-1', tool: 'bash', args: 'ls' }),
-      makeEvent(3, { event: 'tool_end', phase: 'implement', agent: 'implementer', toolCallId: 'tc-1', tool: 'bash', durationMs: 50, isError: false, result: 'ok' }),
+      makeEvent(2, {
+        event: 'tool_start',
+        phase: 'implement',
+        agent: 'implementer',
+        toolCallId: 'tc-1',
+        tool: 'bash',
+        args: 'ls',
+      }),
+      makeEvent(3, {
+        event: 'tool_end',
+        phase: 'implement',
+        agent: 'implementer',
+        toolCallId: 'tc-1',
+        tool: 'bash',
+        durationMs: 50,
+        isError: false,
+        result: 'ok',
+      }),
     ];
 
     const state = reduceEvents(events);
@@ -152,7 +192,13 @@ describe('reduceEvents', () => {
     const events: PipelineEvent[] = [
       makeEvent(1, { event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN }),
       makeEvent(5, { event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-      makeEvent(10, { event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 }),
+      makeEvent(10, {
+        event: 'phase_end',
+        phase: 'implement',
+        agent: 'implementer',
+        outcome: 'completed',
+        durationMs: 100,
+      }),
     ];
 
     const state = reduceEvents(events);

@@ -61,9 +61,7 @@ export async function runReviewPhase(
 
   if (result.rubric?.role === 'reviewer') {
     const hardCategories = new Set<string>(REVIEWER_HARD_CATEGORIES);
-    const hardFails = result.rubric.categories.filter(
-      (c) => hardCategories.has(c.category) && c.verdict === 'fail',
-    );
+    const hardFails = result.rubric.categories.filter((c) => hardCategories.has(c.category) && c.verdict === 'fail');
     if (hardFails.length > 0) {
       log.phase('review', 'rubric-hard-fail', { categories: hardFails.map((c) => c.category) });
       return { result, nextPhase: 'abort' };
@@ -82,9 +80,7 @@ export async function runReviewPhase(
 
   if (result.rubric?.role === 'reviewer') {
     const softCategories = new Set<string>(REVIEWER_SOFT_CATEGORIES);
-    const softFails = result.rubric.categories.filter(
-      (c) => softCategories.has(c.category) && c.verdict === 'fail',
-    );
+    const softFails = result.rubric.categories.filter((c) => softCategories.has(c.category) && c.verdict === 'fail');
     if (softFails.length > 0) {
       const revision = buildRevisionRequest('reviewer', softFails);
       log.phase('review', 'completed-with-revision', { softFails: softFails.map((c) => c.category) });

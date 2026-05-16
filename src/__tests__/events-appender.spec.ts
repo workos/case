@@ -39,7 +39,9 @@ class MockTaskStore {
     await writeFile(this.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
   }
 
-  async readStatus() { return (await this.read()).status; }
+  async readStatus() {
+    return (await this.read()).status;
+  }
   async setStatus() {}
   async setAgentPhase() {}
   async setField() {}
@@ -50,17 +52,24 @@ beforeEach(async () => {
   writtenProjections = [];
   await mkdir(tmpDir, { recursive: true });
   taskJsonPath = resolve(tmpDir, '.task.json');
-  await writeFile(taskJsonPath, JSON.stringify({
-    id: 'task-1',
-    status: 'active',
-    created: '2026-01-01T00:00:00Z',
-    repo: 'test-repo',
-    agents: {},
-    tested: false,
-    manualTested: false,
-    prUrl: null,
-    prNumber: null,
-  }, null, 2) + '\n');
+  await writeFile(
+    taskJsonPath,
+    JSON.stringify(
+      {
+        id: 'task-1',
+        status: 'active',
+        created: '2026-01-01T00:00:00Z',
+        repo: 'test-repo',
+        agents: {},
+        tested: false,
+        manualTested: false,
+        prUrl: null,
+        prNumber: null,
+      },
+      null,
+      2,
+    ) + '\n',
+  );
 });
 
 afterAll(async () => {
@@ -74,7 +83,13 @@ describe('EventAppender', () => {
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-    await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 1000 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'implement',
+      agent: 'implementer',
+      outcome: 'completed',
+      durationMs: 1000,
+    });
 
     const content = await readFile(appender.path, 'utf-8');
     const lines = content.trim().split('\n');
@@ -94,7 +109,10 @@ describe('EventAppender', () => {
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
 
     const content = await readFile(appender.path, 'utf-8');
-    const events = content.trim().split('\n').map((l) => JSON.parse(l));
+    const events = content
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
 
     expect(events[0].sequence).toBe(1);
     expect(events[1].sequence).toBe(2);
@@ -108,7 +126,10 @@ describe('EventAppender', () => {
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
 
     const content = await readFile(appender.path, 'utf-8');
-    const events = content.trim().split('\n').map((l) => JSON.parse(l));
+    const events = content
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
 
     expect(events[0].runId).toBe('run-3');
     expect(events[1].runId).toBe('run-3');
@@ -123,9 +144,9 @@ describe('EventAppender', () => {
 
     const contentBefore = await readFile(appender.path, 'utf-8');
 
-    await expect(
-      appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' }),
-    ).rejects.toThrow(LifecycleValidationError);
+    await expect(appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' })).rejects.toThrow(
+      LifecycleValidationError,
+    );
 
     const contentAfter = await readFile(appender.path, 'utf-8');
     expect(contentAfter).toBe(contentBefore);
@@ -168,9 +189,21 @@ describe('EventAppender', () => {
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-    await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'implement',
+      agent: 'implementer',
+      outcome: 'completed',
+      durationMs: 100,
+    });
     await appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' });
-    await appender.append({ event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: 100 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'verify',
+      agent: 'verifier',
+      outcome: 'completed',
+      durationMs: 100,
+    });
 
     const { existsSync } = await import('node:fs');
     const markerPath = resolve(tmpDir, '.case/task-1/tested');
@@ -188,11 +221,29 @@ describe('EventAppender', () => {
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-    await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'implement',
+      agent: 'implementer',
+      outcome: 'completed',
+      durationMs: 100,
+    });
     await appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' });
-    await appender.append({ event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: 100 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'verify',
+      agent: 'verifier',
+      outcome: 'completed',
+      durationMs: 100,
+    });
     await appender.append({ event: 'phase_start', phase: 'review', agent: 'reviewer' });
-    await appender.append({ event: 'phase_end', phase: 'review', agent: 'reviewer', outcome: 'completed', durationMs: 100 });
+    await appender.append({
+      event: 'phase_end',
+      phase: 'review',
+      agent: 'reviewer',
+      outcome: 'completed',
+      durationMs: 100,
+    });
 
     const { existsSync } = await import('node:fs');
     expect(existsSync(resolve(tmpDir, '.case/task-1/reviewed'))).toBe(true);

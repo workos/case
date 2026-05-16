@@ -78,10 +78,7 @@ describe('validateTransition', () => {
   describe('phase_start', () => {
     test('allows phase_start when no phase is running', () => {
       expect(() =>
-        validateTransition(
-          makeEvent({ event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-          makeState(),
-        ),
+        validateTransition(makeEvent({ event: 'phase_start', phase: 'implement', agent: 'implementer' }), makeState()),
       ).not.toThrow();
     });
 
@@ -96,10 +93,7 @@ describe('validateTransition', () => {
 
     test('rejects phase_start when pipeline not started', () => {
       expect(() =>
-        validateTransition(
-          makeEvent({ event: 'phase_start', phase: 'implement', agent: 'implementer' }),
-          null,
-        ),
+        validateTransition(makeEvent({ event: 'phase_start', phase: 'implement', agent: 'implementer' }), null),
       ).toThrow(LifecycleValidationError);
     });
   });
@@ -107,11 +101,25 @@ describe('validateTransition', () => {
   describe('phase_end', () => {
     test('allows phase_end when matching phase is running', () => {
       const phases = new Map([
-        ['implement_0', { phase: 'implement' as const, agent: 'implementer' as const, status: 'running' as const, startedAt: '2026-01-01T00:00:00Z' }],
+        [
+          'implement_0',
+          {
+            phase: 'implement' as const,
+            agent: 'implementer' as const,
+            status: 'running' as const,
+            startedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
       ]);
       expect(() =>
         validateTransition(
-          makeEvent({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 }),
+          makeEvent({
+            event: 'phase_end',
+            phase: 'implement',
+            agent: 'implementer',
+            outcome: 'completed',
+            durationMs: 100,
+          }),
           makeState({ currentPhase: 'implement_0', phases }),
         ),
       ).not.toThrow();
@@ -120,7 +128,13 @@ describe('validateTransition', () => {
     test('rejects phase_end when no phase is running', () => {
       expect(() =>
         validateTransition(
-          makeEvent({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 }),
+          makeEvent({
+            event: 'phase_end',
+            phase: 'implement',
+            agent: 'implementer',
+            outcome: 'completed',
+            durationMs: 100,
+          }),
           makeState(),
         ),
       ).toThrow(LifecycleValidationError);
@@ -128,11 +142,25 @@ describe('validateTransition', () => {
 
     test('rejects phase_end when different phase is running', () => {
       const phases = new Map([
-        ['verify_0', { phase: 'verify' as const, agent: 'verifier' as const, status: 'running' as const, startedAt: '2026-01-01T00:00:00Z' }],
+        [
+          'verify_0',
+          {
+            phase: 'verify' as const,
+            agent: 'verifier' as const,
+            status: 'running' as const,
+            startedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
       ]);
       expect(() =>
         validateTransition(
-          makeEvent({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: 100 }),
+          makeEvent({
+            event: 'phase_end',
+            phase: 'implement',
+            agent: 'implementer',
+            outcome: 'completed',
+            durationMs: 100,
+          }),
           makeState({ currentPhase: 'verify_0', phases }),
         ),
       ).toThrow(LifecycleValidationError);
@@ -169,19 +197,13 @@ describe('validateTransition', () => {
   describe('pipeline_end', () => {
     test('allows pipeline_end when pipeline is running', () => {
       expect(() =>
-        validateTransition(
-          makeEvent({ event: 'pipeline_end', outcome: 'completed', durationMs: 5000 }),
-          makeState(),
-        ),
+        validateTransition(makeEvent({ event: 'pipeline_end', outcome: 'completed', durationMs: 5000 }), makeState()),
       ).not.toThrow();
     });
 
     test('rejects pipeline_end when pipeline not started', () => {
       expect(() =>
-        validateTransition(
-          makeEvent({ event: 'pipeline_end', outcome: 'completed', durationMs: 5000 }),
-          null,
-        ),
+        validateTransition(makeEvent({ event: 'pipeline_end', outcome: 'completed', durationMs: 5000 }), null),
       ).toThrow(LifecycleValidationError);
     });
   });
@@ -214,7 +236,14 @@ describe('validateTransition', () => {
     test('allows tool_start when pipeline is running', () => {
       expect(() =>
         validateTransition(
-          makeEvent({ event: 'tool_start', phase: 'implement', agent: 'implementer', toolCallId: 'tc-1', tool: 'bash', args: 'ls' }),
+          makeEvent({
+            event: 'tool_start',
+            phase: 'implement',
+            agent: 'implementer',
+            toolCallId: 'tc-1',
+            tool: 'bash',
+            args: 'ls',
+          }),
           makeState(),
         ),
       ).not.toThrow();
@@ -223,7 +252,14 @@ describe('validateTransition', () => {
     test('rejects tool_start when pipeline not started', () => {
       expect(() =>
         validateTransition(
-          makeEvent({ event: 'tool_start', phase: 'implement', agent: 'implementer', toolCallId: 'tc-1', tool: 'bash', args: 'ls' }),
+          makeEvent({
+            event: 'tool_start',
+            phase: 'implement',
+            agent: 'implementer',
+            toolCallId: 'tc-1',
+            tool: 'bash',
+            args: 'ls',
+          }),
           null,
         ),
       ).toThrow(LifecycleValidationError);

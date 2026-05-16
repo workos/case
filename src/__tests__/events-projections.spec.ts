@@ -51,7 +51,16 @@ describe('projectTaskJson', () => {
 
   test('maps agent phases from phase states', () => {
     const phases = new Map<string, PhaseState>([
-      ['implement_0', { phase: 'implement', agent: 'implementer', status: 'completed', startedAt: '2026-01-01T00:00:01Z', completedAt: '2026-01-01T00:00:10Z' }],
+      [
+        'implement_0',
+        {
+          phase: 'implement',
+          agent: 'implementer',
+          status: 'completed',
+          startedAt: '2026-01-01T00:00:01Z',
+          completedAt: '2026-01-01T00:00:10Z',
+        },
+      ],
       ['verify_0', { phase: 'verify', agent: 'verifier', status: 'running', startedAt: '2026-01-01T00:00:11Z' }],
     ]);
     const state = makeState({ phases });
@@ -63,17 +72,28 @@ describe('projectTaskJson', () => {
 
   test('extracts prUrl from close phase result', () => {
     const phases = new Map<string, PhaseState>([
-      ['close_0', {
-        phase: 'close',
-        agent: 'closer',
-        status: 'completed',
-        result: {
+      [
+        'close_0',
+        {
+          phase: 'close',
+          agent: 'closer',
           status: 'completed',
-          summary: 'PR created',
-          artifacts: { commit: 'abc123', filesChanged: [], testsPassed: true, screenshotUrls: [], evidenceMarkers: [], prUrl: 'https://github.com/org/repo/pull/42', prNumber: 42 },
-          error: null,
+          result: {
+            status: 'completed',
+            summary: 'PR created',
+            artifacts: {
+              commit: 'abc123',
+              filesChanged: [],
+              testsPassed: true,
+              screenshotUrls: [],
+              evidenceMarkers: [],
+              prUrl: 'https://github.com/org/repo/pull/42',
+              prNumber: 42,
+            },
+            error: null,
+          },
         },
-      }],
+      ],
     ]);
     const state = makeState({ phases });
     const result = projectTaskJson(state);
@@ -96,8 +116,28 @@ describe('projectTaskJson', () => {
 describe('projectMetrics', () => {
   test('produces RunMetrics from completed state', () => {
     const phases = new Map<string, PhaseState>([
-      ['implement_0', { phase: 'implement', agent: 'implementer', status: 'completed', startedAt: '2026-01-01T00:00:01Z', completedAt: '2026-01-01T00:00:10Z', durationMs: 9000 }],
-      ['verify_0', { phase: 'verify', agent: 'verifier', status: 'completed', startedAt: '2026-01-01T00:00:11Z', completedAt: '2026-01-01T00:00:15Z', durationMs: 4000 }],
+      [
+        'implement_0',
+        {
+          phase: 'implement',
+          agent: 'implementer',
+          status: 'completed',
+          startedAt: '2026-01-01T00:00:01Z',
+          completedAt: '2026-01-01T00:00:10Z',
+          durationMs: 9000,
+        },
+      ],
+      [
+        'verify_0',
+        {
+          phase: 'verify',
+          agent: 'verifier',
+          status: 'completed',
+          startedAt: '2026-01-01T00:00:11Z',
+          completedAt: '2026-01-01T00:00:15Z',
+          durationMs: 4000,
+        },
+      ],
     ]);
     const state = makeState({
       phases,

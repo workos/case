@@ -22,7 +22,15 @@ describe('MockRuntime', () => {
       result: {
         status: 'failed',
         summary: 'Custom failure',
-        artifacts: { commit: null, filesChanged: [], testsPassed: false, screenshotUrls: [], evidenceMarkers: [], prUrl: null, prNumber: null },
+        artifacts: {
+          commit: null,
+          filesChanged: [],
+          testsPassed: false,
+          screenshotUrls: [],
+          evidenceMarkers: [],
+          prUrl: null,
+          prNumber: null,
+        },
         error: 'test error',
       },
       durationMs: 42,

@@ -111,7 +111,9 @@ describe('determineEntryPhase', () => {
     const task = makeTask({
       status: 'implementing',
       profile: 'tiny',
-      agents: { implementer: { started: '2026-03-14T00:00:00Z', completed: '2026-03-14T00:01:00Z', status: 'completed' } },
+      agents: {
+        implementer: { started: '2026-03-14T00:00:00Z', completed: '2026-03-14T00:01:00Z', status: 'completed' },
+      },
     });
     // Raw phase would be 'verify', but tiny skips it -> review
     expect(determineEntryPhase(task, 'tiny')).toBe('review');

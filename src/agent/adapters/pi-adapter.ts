@@ -1,6 +1,13 @@
 import { Agent } from '@mariozechner/pi-agent-core';
 import { streamSimple } from '@mariozechner/pi-ai';
-import { AuthStorage, ModelRegistry, createReadTool, createWriteTool, createEditTool, createBashTool } from '@mariozechner/pi-coding-agent';
+import {
+  AuthStorage,
+  ModelRegistry,
+  createReadTool,
+  createWriteTool,
+  createEditTool,
+  createBashTool,
+} from '@mariozechner/pi-coding-agent';
 import { loadSystemPrompt } from '../prompt-loader.js';
 import { getModelForAgent } from '../config.js';
 import { parseAgentResult } from '../../util/parse-agent-result.js';
@@ -39,7 +46,9 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
 
     const model = this.registry.find(modelConfig.provider, modelConfig.model);
     if (!model) {
-      throw new Error(`Model not found: ${modelConfig.provider}/${modelConfig.model}. Check ~/.config/case/config.json`);
+      throw new Error(
+        `Model not found: ${modelConfig.provider}/${modelConfig.model}. Check ~/.config/case/config.json`,
+      );
     }
 
     log.info('spawning agent', {

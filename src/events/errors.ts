@@ -56,11 +56,7 @@ export function validateTransition(event: PipelineEvent, state: PipelineState | 
         (p) => (p.phase === 'verify' || p.phase === 'review') && p.status === 'completed',
       );
       if (!hasEvaluator) {
-        throw new LifecycleValidationError(
-          event,
-          state,
-          'Cannot request revision without evaluator output',
-        );
+        throw new LifecycleValidationError(event, state, 'Cannot request revision without evaluator output');
       }
       return;
     }

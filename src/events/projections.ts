@@ -1,4 +1,13 @@
-import type { AgentName, AgentPhase, PhaseMetrics, PipelinePhase, ReviewFindings, RubricCategory, RunMetrics, TaskJson } from '../types.js';
+import type {
+  AgentName,
+  AgentPhase,
+  PhaseMetrics,
+  PipelinePhase,
+  ReviewFindings,
+  RubricCategory,
+  RunMetrics,
+  TaskJson,
+} from '../types.js';
 import type { PipelineState } from './types.js';
 
 /**
@@ -15,7 +24,14 @@ export function projectTaskJson(state: PipelineState): Partial<TaskJson> {
     agents[agentName] = {
       started: phase.startedAt ?? null,
       completed: phase.completedAt ?? null,
-      status: phase.status === 'running' ? 'running' : phase.status === 'completed' ? 'completed' : phase.status === 'failed' ? 'failed' : 'pending',
+      status:
+        phase.status === 'running'
+          ? 'running'
+          : phase.status === 'completed'
+            ? 'completed'
+            : phase.status === 'failed'
+              ? 'failed'
+              : 'pending',
     };
   }
 
@@ -74,7 +90,11 @@ export function projectMetrics(state: PipelineState): RunMetrics {
     if (phase.result?.rubric?.role === 'reviewer') {
       reviewerRubric = phase.result.rubric.categories;
     }
-    if (phase.phase === 'implement' && phase.status === 'completed' && phase.result?.artifacts?.testsPassed !== undefined) {
+    if (
+      phase.phase === 'implement' &&
+      phase.status === 'completed' &&
+      phase.result?.artifacts?.testsPassed !== undefined
+    ) {
       ciFirstPush = phase.result.artifacts.testsPassed;
     }
   }

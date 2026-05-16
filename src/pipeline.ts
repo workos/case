@@ -172,7 +172,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'failed');
-          await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'failed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'implement',
+            agent: 'implementer',
+            outcome: 'failed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           const choice = await handleFailure(notifier, config, 'implementer', output.result, [
             'Retry with guidance',
             'Abort',
@@ -188,7 +195,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           pendingRevision = null;
           await store.setPendingRevision(null);
           notifier.phaseEnd(currentPhase, 'implementer', elapsed, 'completed');
-          await appender.append({ event: 'phase_end', phase: 'implement', agent: 'implementer', outcome: 'completed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'implement',
+            agent: 'implementer',
+            outcome: 'completed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           // ciFirstPush derived from phase_end result.artifacts.testsPassed in projectMetrics
           currentPhase = output.nextPhase;
         }
@@ -200,7 +214,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'failed');
-          await appender.append({ event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'failed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'verify',
+            agent: 'verifier',
+            outcome: 'failed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           const choice = await handleFailure(notifier, config, 'verifier', output.result, [
             'Re-implement and re-verify',
             'Skip verification',
@@ -217,7 +238,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           }
         } else {
           notifier.phaseEnd(currentPhase, 'verifier', elapsed, 'completed');
-          await appender.append({ event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'verify',
+            agent: 'verifier',
+            outcome: 'completed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           currentPhase = await handleRevisionOutcome(output, 'verifier');
         }
         break;
@@ -228,7 +256,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'failed');
-          await appender.append({ event: 'phase_end', phase: 'review', agent: 'reviewer', outcome: 'failed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'review',
+            agent: 'reviewer',
+            outcome: 'failed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
             'Re-implement and re-review',
             'Override and continue',
@@ -245,7 +280,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           }
         } else {
           notifier.phaseEnd(currentPhase, 'reviewer', elapsed, 'completed');
-          await appender.append({ event: 'phase_end', phase: 'review', agent: 'reviewer', outcome: 'completed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'review',
+            agent: 'reviewer',
+            outcome: 'completed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           currentPhase = await handleRevisionOutcome(output, 'reviewer');
           if (currentPhase === 'close') {
             currentPhase = 'approve';
@@ -271,7 +313,10 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           notifier.phaseEnd('approve', 'human', approveElapsed, 'failed');
           outcome = 'failed';
           currentPhase = 'retrospective';
-        } else if ((approveOutput.nextPhase === 'implement' || approveOutput.nextPhase === 'verify') && revisionCycles >= maxRevisionCycles) {
+        } else if (
+          (approveOutput.nextPhase === 'implement' || approveOutput.nextPhase === 'verify') &&
+          revisionCycles >= maxRevisionCycles
+        ) {
           approvalDecision = 'revised';
           approvalTimeMs = approveElapsed;
           await appender.append({ event: 'revision_budget_exhausted', cycles: revisionCycles });
@@ -326,7 +371,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         const elapsed = Date.now() - phaseStartMs;
         if (output.nextPhase === 'abort') {
           notifier.phaseEnd(currentPhase, 'closer', elapsed, 'failed');
-          await appender.append({ event: 'phase_end', phase: 'close', agent: 'closer', outcome: 'failed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'close',
+            agent: 'closer',
+            outcome: 'failed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
           if (choice === 'Retry') {
             currentPhase = 'close';
@@ -337,7 +389,14 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
           }
         } else {
           notifier.phaseEnd(currentPhase, 'closer', elapsed, 'completed');
-          await appender.append({ event: 'phase_end', phase: 'close', agent: 'closer', outcome: 'completed', durationMs: elapsed, result: output.result });
+          await appender.append({
+            event: 'phase_end',
+            phase: 'close',
+            agent: 'closer',
+            outcome: 'completed',
+            durationMs: elapsed,
+            result: output.result,
+          });
           const prUrl = output.result.artifacts.prUrl;
           if (prUrl) {
             await appender.append({ event: 'status_changed', from: 'closing', to: 'pr-opened' });
@@ -359,7 +418,13 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
         await runRetrospectivePhase(config, store, previousResults, outcome, failedAgent, metricsSnapshot);
         const retroElapsed = Date.now() - retroStart;
         notifier.phaseEnd(currentPhase, 'retrospective', retroElapsed, 'completed');
-        await appender.append({ event: 'phase_end', phase: 'retrospective', agent: 'retrospective', outcome: 'completed', durationMs: retroElapsed });
+        await appender.append({
+          event: 'phase_end',
+          phase: 'retrospective',
+          agent: 'retrospective',
+          outcome: 'completed',
+          durationMs: retroElapsed,
+        });
         currentPhase = outcome === 'completed' ? 'complete' : 'abort';
         break;
       }

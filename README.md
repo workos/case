@@ -105,8 +105,8 @@ All agents run as [Pi](https://shittycodingagent.ai/) sessions — the orchestra
 
 ### The Agents
 
-| Agent             | Responsibility                                                                                          | Never does                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Agent             | Responsibility                                                                                           | Never does                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | **Orchestrator**  | Parse issue, create task (with profile + done contract), smoke test, dispatch agents                     | Write code, run Playwright     |
 | **Implementer**   | Write fix, run unit tests, commit (with WIP checkpoints), read repo learnings, address revision feedback | Start example apps, create PRs |
 | **Verifier**      | Test the specific fix with Playwright, create evidence, score rubric (pass/fail per category)            | Edit code, commit              |
@@ -332,7 +332,6 @@ Agents verify their work using:
 - **Reviewer agent** — reviews the diff against golden principles and conventions. Critical findings block PR creation; warnings and info are posted as PR comments.
 - **Test credentials** — `~/.config/case/credentials` for sign-in flow testing.
 - **Chrome DevTools MCP** — secondary, for interactive debugging only.
-
 
 ## Verifying Repos
 

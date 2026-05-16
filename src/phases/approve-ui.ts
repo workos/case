@@ -34,36 +34,52 @@ ${CSS}
     <h2>Files <span class="count">${diff.files.length}</span></h2>
     <div class="stat-line">+${diff.summary.additions} −${diff.summary.deletions}</div>
     <ul class="file-list">
-      ${diff.files.map((f, i) => `<li>
+      ${diff.files
+        .map(
+          (f, i) => `<li>
         <a href="#file-${i}" class="file-link">
           <span class="file-status file-status-${f.status}">${fileStatusIcon(f.status)}</span>
           <span class="file-path">${escapeHtml(f.path)}</span>
           <span class="file-stats">+${f.additions} −${f.deletions}</span>
         </a>
-      </li>`).join('\n      ')}
+      </li>`,
+        )
+        .join('\n      ')}
     </ul>
   </aside>
 
   <main>
     <section class="diff-view">
       <h2>Diff</h2>
-      ${diff.files.length === 0
-        ? '<p class="empty">No changes detected</p>'
-        : diff.files.map((f, i) => `
+      ${
+        diff.files.length === 0
+          ? '<p class="empty">No changes detected</p>'
+          : diff.files
+              .map(
+                (f, i) => `
         <div class="diff-file" id="file-${i}">
           <div class="diff-file-header">
             <span class="file-status file-status-${f.status}">${fileStatusIcon(f.status)}</span>
             ${escapeHtml(f.path)}
             <span class="file-stats">+${f.additions} −${f.deletions}</span>
           </div>
-          ${f.hunks.length === 0
-            ? '<div class="diff-hunk"><pre class="diff-content"><span class="diff-binary">Binary file</span></pre></div>'
-            : f.hunks.map(h => `
+          ${
+            f.hunks.length === 0
+              ? '<div class="diff-hunk"><pre class="diff-content"><span class="diff-binary">Binary file</span></pre></div>'
+              : f.hunks
+                  .map(
+                    (h) => `
           <div class="diff-hunk">
             <div class="hunk-header">${escapeHtml(h.header)}</div>
             <pre class="diff-content">${renderHunkLines(h.lines, f.path)}</pre>
-          </div>`).join('')}
-        </div>`).join('')}
+          </div>`,
+                  )
+                  .join('')
+          }
+        </div>`,
+              )
+              .join('')
+      }
     </section>
 
     <section class="evidence">
@@ -82,22 +98,28 @@ ${CSS}
       ${reviewer.ran && reviewer.findings ? renderFindingsDetail(reviewer.findings) : ''}
     </section>
 
-    ${screenshots.length > 0 ? `
+    ${
+      screenshots.length > 0
+        ? `
     <section class="screenshots">
       <h2>Screenshots</h2>
       <div class="screenshot-gallery">
-        ${screenshots.map((s, i) => {
-          const filename = s.split('/').pop() ?? s;
-          return `<div class="screenshot-thumb" onclick="expandScreenshot(${i})">
+        ${screenshots
+          .map((s, i) => {
+            const filename = s.split('/').pop() ?? s;
+            return `<div class="screenshot-thumb" onclick="expandScreenshot(${i})">
             <img src="${apiBase}/screenshots/${encodeURIComponent(filename)}" alt="${escapeHtml(filename)}" loading="lazy">
             <span class="screenshot-name">${escapeHtml(filename)}</span>
           </div>`;
-        }).join('\n        ')}
+          })
+          .join('\n        ')}
       </div>
       <div id="screenshot-modal" class="modal" onclick="this.classList.remove('active')">
         <img id="screenshot-modal-img" src="" alt="Screenshot">
       </div>
-    </section>` : ''}
+    </section>`
+        : ''
+    }
   </main>
 </div>
 
@@ -136,43 +158,58 @@ function escapeHtml(str: string): string {
 
 function fileStatusIcon(status: string): string {
   switch (status) {
-    case 'added': return '+';
-    case 'deleted': return '−';
-    case 'renamed': return '→';
-    default: return '●';
+    case 'added':
+      return '+';
+    case 'deleted':
+      return '−';
+    case 'renamed':
+      return '→';
+    default:
+      return '●';
   }
 }
 
 function renderHunkLines(lines: string[], filePath: string): string {
   const isHighlightable = /\.(ts|tsx|js|jsx)$/.test(filePath);
 
-  return lines.map(line => {
-    const type = line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : 'ctx';
-    const content = escapeHtml(line);
-    const highlighted = isHighlightable ? tokenize(content) : content;
-    return `<span class="diff-line diff-${type}">${highlighted}</span>`;
-  }).join('\n');
+  return lines
+    .map((line) => {
+      const type = line.startsWith('+') ? 'add' : line.startsWith('-') ? 'del' : 'ctx';
+      const content = escapeHtml(line);
+      const highlighted = isHighlightable ? tokenize(content) : content;
+      return `<span class="diff-line diff-${type}">${highlighted}</span>`;
+    })
+    .join('\n');
 }
 
 function tokenize(escapedLine: string): string {
   // CSS-based token coloring for TS/JS — applied to already-escaped HTML
-  return escapedLine
-    // Strings (single, double, template)
-    .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;|`[^`]*?`)/g, '<span class="tok-string">$1</span>')
-    // Comments
-    .replace(/(\/\/.*)$/, '<span class="tok-comment">$1</span>')
-    // Keywords
-    .replace(/\b(import|export|from|const|let|var|function|return|if|else|for|while|switch|case|break|continue|new|class|extends|implements|interface|type|async|await|throw|try|catch|finally|default|typeof|instanceof)\b/g, '<span class="tok-keyword">$1</span>')
-    // Types (capitalized words after : or as, or common TS types)
-    .replace(/\b(string|number|boolean|void|null|undefined|never|any|unknown|Promise|Array|Map|Set|Record|Partial)\b/g, '<span class="tok-type">$1</span>')
-    // Numbers
-    .replace(/\b(\d+\.?\d*)\b/g, '<span class="tok-number">$1</span>');
+  return (
+    escapedLine
+      // Strings (single, double, template)
+      .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;|`[^`]*?`)/g, '<span class="tok-string">$1</span>')
+      // Comments
+      .replace(/(\/\/.*)$/, '<span class="tok-comment">$1</span>')
+      // Keywords
+      .replace(
+        /\b(import|export|from|const|let|var|function|return|if|else|for|while|switch|case|break|continue|new|class|extends|implements|interface|type|async|await|throw|try|catch|finally|default|typeof|instanceof)\b/g,
+        '<span class="tok-keyword">$1</span>',
+      )
+      // Types (capitalized words after : or as, or common TS types)
+      .replace(
+        /\b(string|number|boolean|void|null|undefined|never|any|unknown|Promise|Array|Map|Set|Record|Partial)\b/g,
+        '<span class="tok-type">$1</span>',
+      )
+      // Numbers
+      .replace(/\b(\d+\.?\d*)\b/g, '<span class="tok-number">$1</span>')
+  );
 }
 
 function renderVerifierCard(v: ApprovalEvidence['verifier']): string {
-  if (!v.ran) return '<div class="card card-na"><div class="card-title">Verifier</div><div class="card-value">Skipped</div></div>';
+  if (!v.ran)
+    return '<div class="card card-na"><div class="card-title">Verifier</div><div class="card-value">Skipped</div></div>';
   const total = v.rubric?.length ?? 0;
-  const passed = v.rubric?.filter(c => c.verdict === 'pass').length ?? 0;
+  const passed = v.rubric?.filter((c) => c.verdict === 'pass').length ?? 0;
   const allPass = passed === total;
   return `<div class="card ${allPass ? 'card-pass' : 'card-fail'}">
     <div class="card-title">Verifier</div>
@@ -181,7 +218,8 @@ function renderVerifierCard(v: ApprovalEvidence['verifier']): string {
 }
 
 function renderReviewerCard(r: ApprovalEvidence['reviewer']): string {
-  if (!r.ran) return '<div class="card card-na"><div class="card-title">Reviewer</div><div class="card-value">N/A</div></div>';
+  if (!r.ran)
+    return '<div class="card card-na"><div class="card-title">Reviewer</div><div class="card-value">N/A</div></div>';
   if (r.findings) {
     const hasIssues = r.findings.critical > 0;
     return `<div class="card ${hasIssues ? 'card-fail' : 'card-pass'}">
@@ -190,22 +228,29 @@ function renderReviewerCard(r: ApprovalEvidence['reviewer']): string {
     </div>`;
   }
   const total = r.rubric?.length ?? 0;
-  const passed = r.rubric?.filter(c => c.verdict === 'pass').length ?? 0;
+  const passed = r.rubric?.filter((c) => c.verdict === 'pass').length ?? 0;
   return `<div class="card ${passed === total ? 'card-pass' : 'card-fail'}">
     <div class="card-title">Reviewer</div>
     <div class="card-value">${passed}/${total} pass</div>
   </div>`;
 }
 
-function renderRubricDetail(title: string, categories: Array<{ category: string; verdict: string; detail: string }>): string {
+function renderRubricDetail(
+  title: string,
+  categories: Array<{ category: string; verdict: string; detail: string }>,
+): string {
   return `<details class="rubric-detail">
     <summary>${escapeHtml(title)}</summary>
     <div class="rubric-categories">
-      ${categories.map(c => `<div class="rubric-cat rubric-${c.verdict}">
+      ${categories
+        .map(
+          (c) => `<div class="rubric-cat rubric-${c.verdict}">
         <span class="rubric-verdict">${c.verdict.toUpperCase()}</span>
         <span class="rubric-name">${escapeHtml(c.category)}</span>
         <span class="rubric-text">${escapeHtml(c.detail)}</span>
-      </div>`).join('\n      ')}
+      </div>`,
+        )
+        .join('\n      ')}
     </div>
   </details>`;
 }
@@ -215,7 +260,11 @@ function renderFindingsDetail(findings: NonNullable<ApprovalEvidence['reviewer']
     return '';
   }
 
-  const grouped = { critical: [] as typeof findings.details, warning: [] as typeof findings.details, info: [] as typeof findings.details };
+  const grouped = {
+    critical: [] as typeof findings.details,
+    warning: [] as typeof findings.details,
+    info: [] as typeof findings.details,
+  };
   for (const d of findings.details) {
     const key = d.severity === 'critical' ? 'critical' : d.severity === 'warning' ? 'warning' : 'info';
     grouped[key].push(d);
@@ -223,16 +272,22 @@ function renderFindingsDetail(findings: NonNullable<ApprovalEvidence['reviewer']
 
   return `<details class="findings-detail">
     <summary>Review Findings (${findings.critical} critical, ${findings.warnings} warnings, ${findings.info} info)</summary>
-    ${(['critical', 'warning', 'info'] as const).map(sev => {
-      if (grouped[sev].length === 0) return '';
-      return `<div class="findings-group">
+    ${(['critical', 'warning', 'info'] as const)
+      .map((sev) => {
+        if (grouped[sev].length === 0) return '';
+        return `<div class="findings-group">
         <h4 class="findings-severity findings-${sev}">${sev}</h4>
-        ${grouped[sev].map(d => `<div class="finding">
+        ${grouped[sev]
+          .map(
+            (d) => `<div class="finding">
           <div class="finding-header">${escapeHtml(d.principle)} · ${escapeHtml(d.file)}${d.line ? `:${d.line}` : ''}</div>
           <div class="finding-message">${escapeHtml(d.message)}</div>
-        </div>`).join('')}
+        </div>`,
+          )
+          .join('')}
       </div>`;
-    }).join('')}
+      })
+      .join('')}
   </details>`;
 }
 

@@ -57,7 +57,8 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
       if (updated.currentPhase) {
         const phaseState = updated.phases.get(updated.currentPhase);
         if (phaseState) {
-          phaseState.status = event.outcome === 'completed' ? 'completed' : event.outcome === 'skipped' ? 'skipped' : 'failed';
+          phaseState.status =
+            event.outcome === 'completed' ? 'completed' : event.outcome === 'skipped' ? 'skipped' : 'failed';
           phaseState.completedAt = event.ts;
           phaseState.durationMs = event.durationMs;
           if (event.result) phaseState.result = event.result;
@@ -137,7 +138,10 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
 }
 
 function ensureState(state: PipelineState | null, event: PipelineEvent): PipelineState {
-  if (!state) throw new Error(`Event "${event.event}" (sequence ${event.sequence}) received before pipeline_start — event log may be missing or its first line may be corrupt`);
+  if (!state)
+    throw new Error(
+      `Event "${event.event}" (sequence ${event.sequence}) received before pipeline_start — event log may be missing or its first line may be corrupt`,
+    );
   return state;
 }
 

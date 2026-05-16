@@ -162,7 +162,10 @@ describe('runPipeline', () => {
     let currentStatus = 'active';
     mockStoreRead.mockResolvedValue(mockTask);
     mockStoreReadStatus.mockImplementation(() => Promise.resolve(currentStatus));
-    mockStoreSetStatus.mockImplementation((s: string) => { currentStatus = s; return Promise.resolve(undefined); });
+    mockStoreSetStatus.mockImplementation((s: string) => {
+      currentStatus = s;
+      return Promise.resolve(undefined);
+    });
     mockStoreSetAgentPhase.mockResolvedValue(undefined);
     mockStoreSetField.mockResolvedValue(undefined);
     mockStoreSetPendingRevision.mockResolvedValue(undefined);
@@ -338,9 +341,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Still failing' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Still failing' }],
       },
     };
 
@@ -396,9 +397,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Failing' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Failing' }],
       },
     };
 
@@ -421,9 +420,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' }],
       },
     };
 
@@ -454,9 +451,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' }],
       },
     };
 
@@ -512,18 +507,14 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'First issue: missing null check' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'First issue: missing null check' }],
       },
     };
     const verifierFail2: AgentResult = {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'evidence-proves-change', verdict: 'fail', detail: 'Second issue: no screenshot' },
-        ],
+        categories: [{ category: 'evidence-proves-change', verdict: 'fail', detail: 'Second issue: no screenshot' }],
       },
     };
 
@@ -671,9 +662,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Missing null check' }],
       },
     };
 
@@ -704,9 +693,7 @@ describe('runPipeline', () => {
       ...completedAgentOutput,
       rubric: {
         role: 'verifier',
-        categories: [
-          { category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' },
-        ],
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'Missing check' }],
       },
     };
 

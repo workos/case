@@ -348,12 +348,12 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 After testing, score each category honestly. `fail` means the evidence doesn't support this claim. `na` means the category genuinely doesn't apply (justify why in detail).
 
-| Category | Question | When to mark NA |
-|---|---|---|
-| `reproduced-scenario` | Did you reproduce the exact scenario from the issue? | Issue is a refactor with no user-visible behavior change |
-| `exercised-changed-path` | Did your test exercise the new/modified code path specifically? | Only config/docs changed (no src/ changes) |
-| `evidence-proves-change` | Would reverting the commit make your evidence look different? | No visual or behavioral difference to capture |
-| `edge-case-checked` | Did you test at least one edge case beyond the happy path? | Fix is trivially scoped (typo, import path) |
+| Category                 | Question                                                        | When to mark NA                                          |
+| ------------------------ | --------------------------------------------------------------- | -------------------------------------------------------- |
+| `reproduced-scenario`    | Did you reproduce the exact scenario from the issue?            | Issue is a refactor with no user-visible behavior change |
+| `exercised-changed-path` | Did your test exercise the new/modified code path specifically? | Only config/docs changed (no src/ changes)               |
+| `evidence-proves-change` | Would reverting the commit make your evidence look different?   | No visual or behavioral difference to capture            |
+| `edge-case-checked`      | Did you test at least one edge case beyond the happy path?      | Fix is trivially scoped (typo, import path)              |
 
 ### 6. Output
 

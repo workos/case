@@ -6,12 +6,12 @@
 
 ## Dimensions
 
-| Dimension            | Score | Notes                                                                                                                                                                          |
-| -------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Scope clarity        | 18/20 | All 15 new files, 9 modified, 4 deleted enumerated with file-level guidance. Minor ambiguity: spec says `tests/events/...` while project convention is `src/__tests__/*.spec.ts`. |
-| Pattern familiarity  | 18/20 | All three pattern files read: `src/tracing/types.ts` (TraceEvent union), `src/tracing/writer.ts` (TraceWriter NDJSON buffered append), `src/agent/pi-runner.ts` (current spawnAgent). |
-| Dependency awareness | 18/20 | All consumers mapped via grep. `TraceWriter`/`TraceEvent` referenced only in 9 src files; `MetricsCollector` in 5; `spawnAgent` in 12; `getToolsForAgent` only in 3.            |
-| Edge case coverage   | 17/20 | Crash mid-write, invalid transitions, corrupted trailing line, unknown event type, projection lock all enumerated in spec's Failure Modes table.                                |
+| Dimension            | Score | Notes                                                                                                                                                                                                          |
+| -------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope clarity        | 18/20 | All 15 new files, 9 modified, 4 deleted enumerated with file-level guidance. Minor ambiguity: spec says `tests/events/...` while project convention is `src/__tests__/*.spec.ts`.                              |
+| Pattern familiarity  | 18/20 | All three pattern files read: `src/tracing/types.ts` (TraceEvent union), `src/tracing/writer.ts` (TraceWriter NDJSON buffered append), `src/agent/pi-runner.ts` (current spawnAgent).                          |
+| Dependency awareness | 18/20 | All consumers mapped via grep. `TraceWriter`/`TraceEvent` referenced only in 9 src files; `MetricsCollector` in 5; `spawnAgent` in 12; `getToolsForAgent` only in 3.                                           |
+| Edge case coverage   | 17/20 | Crash mid-write, invalid transitions, corrupted trailing line, unknown event type, projection lock all enumerated in spec's Failure Modes table.                                                               |
 | Test strategy        | 16/20 | Bun test (`bun test`), `bunfig.toml` preloads module mocks. `bun test --filter <name>` for scoping. Phase pattern of dispatching mocks via `mocks.ts` clear; test directory convention conflict noted as risk. |
 
 ## Key Patterns
