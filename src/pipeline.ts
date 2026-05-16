@@ -282,93 +282,8 @@ async function dispatchNode(
       return output.result;
     }
 
-    case 'approve': {
-      if (!config.approve || config.mode === 'unattended') {
-        callbacks.setApprovalDecision('skipped');
-        return {
-          status: 'completed',
-          summary: 'Approval skipped',
-          artifacts: {
-            commit: null,
-            filesChanged: [],
-            testsPassed: null,
-            screenshotUrls: [],
-            evidenceMarkers: [],
-            prUrl: null,
-            prNumber: null,
-          },
-          error: null,
-        };
-      }
-
-      const maxCycles = config.maxRevisionCycles ?? 2;
-      const approveStart = Date.now();
-      let usedCycles = 0;
-
-      for (;;) {
-        const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
-
-        if (approveOutput.nextPhase === 'abort') {
-          callbacks.setApprovalDecision('rejected');
-          callbacks.setApprovalTimeMs(Date.now() - approveStart);
-          callbacks.setOutcome('failed');
-          return approveOutput.result;
-        }
-
-        if (approveOutput.nextPhase === 'close' || approveOutput.nextPhase === 'approve') {
-          callbacks.setApprovalDecision('approved');
-          callbacks.setApprovalTimeMs(Date.now() - approveStart);
-          return approveOutput.result;
-        }
-
-        if (usedCycles >= maxCycles) {
-          notifier.send(`Revision budget exhausted (${maxCycles} cycles used). Proceeding to close.`);
-          callbacks.setApprovalDecision('approved');
-          callbacks.setApprovalTimeMs(Date.now() - approveStart);
-          return approveOutput.result;
-        }
-
-        callbacks.incrementHumanRevisionCycles();
-        usedCycles++;
-
-        if (approveOutput.nextPhase === 'implement') {
-          notifier.send(`Human requested changes: ${approveOutput.revision?.summary ?? 'no details'}`);
-          await dispatchNode(
-            { ...node, phase: 'implement', agent: 'implementer', id: `implement_${usedCycles}` },
-            config,
-            store,
-            previousResults,
-            notifier,
-            approveOutput.revision,
-            callbacks,
-          );
-        } else {
-          notifier.send('Manual edit complete — re-verifying.');
-        }
-
-        if (callbacks.hasVerify || approveOutput.nextPhase === 'verify') {
-          await dispatchNode(
-            { ...node, phase: 'verify', agent: 'verifier', id: `verify_${usedCycles}` },
-            config,
-            store,
-            previousResults,
-            notifier,
-            undefined,
-            callbacks,
-          );
-        }
-
-        await dispatchNode(
-          { ...node, phase: 'review', agent: 'reviewer', id: `review_${usedCycles}` },
-          config,
-          store,
-          previousResults,
-          notifier,
-          undefined,
-          callbacks,
-        );
-      }
-    }
+    case 'approve':
+      return runApproveLoop(node, config, store, previousResults, notifier, callbacks);
     case 'close': {
       const output = await runClosePhase(config, store, previousResults);
       if (output.nextPhase === 'abort') {
@@ -413,6 +328,101 @@ async function dispatchNode(
 
     default:
       throw new Error(`Unknown phase: ${node.phase}`);
+  }
+}
+
+async function runApproveLoop(
+  node: DagNode,
+  config: PipelineConfig,
+  store: TaskStore,
+  previousResults: Map<AgentName, AgentResult>,
+  notifier: ReturnType<typeof createNotifier>,
+  callbacks: PipelineCallbacks,
+): Promise<AgentResult> {
+  if (!config.approve || config.mode === 'unattended') {
+    callbacks.setApprovalDecision('skipped');
+    return {
+      status: 'completed',
+      summary: 'Approval skipped',
+      artifacts: {
+        commit: null,
+        filesChanged: [],
+        testsPassed: null,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      error: null,
+    };
+  }
+
+  const maxCycles = config.maxRevisionCycles ?? 2;
+  const approveStart = Date.now();
+  let usedCycles = 0;
+
+  for (;;) {
+    const approveOutput = await runApprovePhase(config, store, previousResults, notifier);
+
+    if (approveOutput.nextPhase === 'abort') {
+      callbacks.setApprovalDecision('rejected');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      callbacks.setOutcome('failed');
+      return approveOutput.result;
+    }
+
+    if (approveOutput.nextPhase === 'close' || approveOutput.nextPhase === 'approve') {
+      callbacks.setApprovalDecision('approved');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      return approveOutput.result;
+    }
+
+    if (usedCycles >= maxCycles) {
+      notifier.send(`Revision budget exhausted (${maxCycles} cycles used). Proceeding to close.`);
+      callbacks.setApprovalDecision('approved');
+      callbacks.setApprovalTimeMs(Date.now() - approveStart);
+      return approveOutput.result;
+    }
+
+    callbacks.incrementHumanRevisionCycles();
+    usedCycles++;
+
+    if (approveOutput.nextPhase === 'implement') {
+      notifier.send(`Human requested changes: ${approveOutput.revision?.summary ?? 'no details'}`);
+      await dispatchNode(
+        { ...node, phase: 'implement', agent: 'implementer', id: `implement_${usedCycles}` },
+        config,
+        store,
+        previousResults,
+        notifier,
+        approveOutput.revision,
+        callbacks,
+      );
+    } else {
+      notifier.send('Manual edit complete — re-verifying.');
+    }
+
+    if (callbacks.hasVerify || approveOutput.nextPhase === 'verify') {
+      await dispatchNode(
+        { ...node, phase: 'verify', agent: 'verifier', id: `verify_${usedCycles}` },
+        config,
+        store,
+        previousResults,
+        notifier,
+        undefined,
+        callbacks,
+      );
+    }
+
+    await dispatchNode(
+      { ...node, phase: 'review', agent: 'reviewer', id: `review_${usedCycles}` },
+      config,
+      store,
+      previousResults,
+      notifier,
+      undefined,
+      callbacks,
+    );
   }
 }
 
