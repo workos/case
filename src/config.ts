@@ -24,7 +24,7 @@ export async function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
     if (await file.exists()) {
       if (i > 0) {
         process.stderr.write(
-          `case: deprecation — projects.json read from legacy path ${path}; move it to ${candidates[0]} (or run 'case init --migrate-from <repo>').\n`,
+          `case: deprecation — projects.json read from legacy path ${path}; move it to ${candidates[0]} (or run 'ca init --migrate-from <repo>').\n`,
         );
       }
       const raw = await file.text();
@@ -32,7 +32,7 @@ export async function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
     }
   }
   throw new Error(
-    `projects.json not found. Looked in:\n  ${candidates.join('\n  ')}\nRun 'case init' or set --projects.`,
+    `projects.json not found. Looked in:\n  ${candidates.join('\n  ')}\nRun 'ca init' or set --projects.`,
   );
 }
 
@@ -41,7 +41,7 @@ function projectsManifestCandidates(caseRoot: string): string[] {
   const list: string[] = [];
   try {
     // Only add the XDG data dir candidate when the user has explicitly opted
-    // into Phase 3 by running `case init` (which creates config.json).
+    // into Phase 3 by running `ca init` (which creates config.json).
     // Without this guard, every invocation falls back to the legacy in-repo
     // path and prints a spurious deprecation warning.
     if (configExists()) {
