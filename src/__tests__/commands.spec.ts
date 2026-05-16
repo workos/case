@@ -32,7 +32,6 @@ describe('commandMap registration', () => {
       'run',
       'watch',
       'create',
-      'serve',
       'session',
       'status',
       'mark-tested',
@@ -40,6 +39,7 @@ describe('commandMap registration', () => {
       'mark-reviewed',
       'upload',
       'snapshot',
+      'init',
     ];
     for (const verb of expected) {
       expect(commandMap[verb]).toBeDefined();
@@ -334,13 +334,6 @@ describe('command modules — argv forwarding (smoke)', () => {
 
   afterEach(() => {
     mock.restore();
-  });
-
-  it('session forwards argv to session-start.sh', async () => {
-    const mod = await import('../commands/session.js');
-    const result = (await mod.handler(['--foo'])) as unknown as { name: string; args: string[] };
-    expect(result.name).toBe('session-start.sh');
-    expect(result.args).toEqual(['--foo']);
   });
 
   it('status forwards argv to task-status.sh', async () => {

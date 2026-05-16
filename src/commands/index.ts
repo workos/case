@@ -13,7 +13,6 @@
 import * as run from './run.js';
 import * as watch from './watch.js';
 import * as create from './create.js';
-import * as serve from './serve.js';
 import * as session from './session.js';
 import * as status from './status.js';
 import * as markTested from './mark-tested.js';
@@ -32,7 +31,6 @@ export const commandMap: Record<string, Command> = {
   run: { handler: run.handler, description: run.description },
   watch: { handler: watch.handler, description: watch.description },
   create: { handler: create.handler, description: create.description },
-  serve: { handler: serve.handler, description: serve.description },
   session: { handler: session.handler, description: session.description },
   status: { handler: status.handler, description: status.description },
   'mark-tested': { handler: markTested.handler, description: markTested.description },

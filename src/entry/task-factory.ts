@@ -110,7 +110,7 @@ function buildTaskMarkdown(request: TaskCreateRequest, taskJson: TaskJson, issue
     `# ${request.title}`,
     '',
     `**Repo:** ${request.repo}`,
-    `**Trigger:** ${request.trigger.type}${request.trigger.type === 'webhook' ? ` (${request.trigger.event})` : ''}`,
+    `**Trigger:** ${request.trigger.type}`,
     `**Created:** ${taskJson.created}`,
     !!request.issue && `**Issue:** ${request.issue}`,
     !!taskJson.branch && `**Branch:** ${taskJson.branch}`,

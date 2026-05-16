@@ -22,8 +22,7 @@
     "lint:paths": "bash scripts/lint-paths.sh",
     "lint:ast:all": "bun run lint:ast && bun run lint:ast:self && bun run lint:paths",
     "build:binary": "bash scripts/build-binary.sh",
-    "start": "bun src/index.ts",
-    "serve": "bun src/index.ts serve"
+    "start": "bun src/index.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.63.2",
