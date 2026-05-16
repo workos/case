@@ -12,11 +12,12 @@ export interface ExecuteGraphContext {
   config: PipelineConfig;
   notifier: Notifier;
   dispatchPhase: (node: DagNode, revision?: RevisionRequest) => Promise<AgentResult>;
+  initialRevisionRequests?: Map<number, RevisionRequest[]>;
 }
 
 export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
   const { graph, appender } = ctx;
-  const revisionRequests = new Map<number, RevisionRequest[]>();
+  const revisionRequests = new Map<number, RevisionRequest[]>(ctx.initialRevisionRequests ?? []);
 
   while (true) {
     const readyNodes = findReadyNodes(graph);
@@ -199,37 +200,55 @@ async function handleEvaluatorPairCompletion(
   const { graph, appender } = ctx;
 
   for (const [, node] of graph.nodes) {
-    if (node.phase !== 'review' || node.state !== 'completed') continue;
+    if (node.phase !== 'verify' && node.phase !== 'review') continue;
+    if (node.state !== 'completed') continue;
 
     const cycle = node.cycle;
-    if (revisionRequests.has(cycle)) continue; // Already handled
+    if (revisionRequests.has(cycle)) continue;
 
     const verifyNode = graph.nodes.get(nodeId('verify', cycle));
     const reviewNode = graph.nodes.get(nodeId('review', cycle));
 
-    // For profiles without verify, only review matters
-    if (verifyNode && verifyNode.state !== 'completed') continue;
-    if (!reviewNode || reviewNode.state !== 'completed') continue;
-
-    // Collect revision requests from this cycle's evaluators
+    // Collect revision requests from completed evaluators
     const requests: RevisionRequest[] = [];
     for (const evalNode of [verifyNode, reviewNode].filter(Boolean) as DagNode[]) {
+      if (evalNode.state !== 'completed') continue;
       const revision = extractRevisionFromResult(evalNode, cycle);
       if (revision) requests.push(revision);
     }
 
+    // If verify found issues, act immediately (don't wait for review)
+    if (requests.length === 0) {
+      // Both must be complete for "no revision" conclusion
+      if (verifyNode && verifyNode.state !== 'completed') continue;
+      if (reviewNode && reviewNode.state !== 'completed') continue;
+    }
+
     if (requests.length > 0) {
-      revisionRequests.set(cycle, requests);
-      const merged = mergeRevisionRequests(requests);
-      await appender.append({
-        event: 'revision_requested',
-        source: merged.source,
-        cycle: cycle + 1,
-        failedCategories: merged.failedCategories,
-      });
-      ctx.notifier.send(`Revision cycle ${cycle + 1}: evaluators found fixable issues, re-implementing`);
+      const nextImplNode = graph.nodes.get(nodeId('implement', cycle + 1));
+      if (!nextImplNode) {
+        revisionRequests.set(cycle, []);
+        const sources = [...new Set(requests.map((r) => r.source))].join(', ');
+        await appender.append({
+          event: 'revision_budget_exhausted',
+          cycles: cycle + 1,
+        });
+        ctx.notifier.send(
+          `Revision budget exhausted after cycle ${cycle}. ${sources} found issues but no revision cycles remain. Proceeding with warnings.`,
+        );
+      } else {
+        revisionRequests.set(cycle, requests);
+        const merged = mergeRevisionRequests(requests);
+        const sources = [...new Set(requests.map((r) => r.source))].join(', ');
+        await appender.append({
+          event: 'revision_requested',
+          source: merged.source,
+          cycle: cycle + 1,
+          failedCategories: merged.failedCategories,
+        });
+        ctx.notifier.send(`Revision cycle ${cycle + 1}: ${sources} found fixable issues, re-implementing`);
+      }
     } else {
-      // No revision — mark future revision nodes as skippable
       revisionRequests.set(cycle, []);
     }
   }

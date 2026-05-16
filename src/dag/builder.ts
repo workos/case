@@ -49,10 +49,19 @@ export function buildGraph(
       cycle,
       state: 'pending',
     });
-    edges.push({
-      from: implId,
-      to: reviewId,
-    });
+
+    if (hasVerify) {
+      edges.push({
+        from: nodeId('verify', cycle),
+        to: reviewId,
+        predicate: verifyPassedPredicate(cycle),
+      });
+    } else {
+      edges.push({
+        from: implId,
+        to: reviewId,
+      });
+    }
 
     // Wire revision edges: evaluators at cycle N → implement at cycle N+1
     if (cycle < maxRevisionCycles) {
@@ -137,6 +146,18 @@ export function nodeId(phase: string, cycle: number): NodeId {
   return `${phase}_${cycle}`;
 }
 
+function verifyPassedPredicate(cycle: number) {
+  return (graph: PipelineGraph): boolean => {
+    const verifyNode = graph.nodes.get(nodeId('verify', cycle));
+    if (!verifyNode || verifyNode.state !== 'completed') return false;
+    if (hasRevisionResult(verifyNode)) {
+      const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
+      return !nextImpl;
+    }
+    return true;
+  };
+}
+
 function noRevisionPredicate(cycle: number, hasVerify: boolean) {
   return (graph: PipelineGraph): boolean => {
     const reviewNode = graph.nodes.get(nodeId('review', cycle));
@@ -147,11 +168,16 @@ function noRevisionPredicate(cycle: number, hasVerify: boolean) {
       if (!verifyNode || verifyNode.state !== 'completed') return false;
     }
 
-    // Check that no revision was requested at this cycle
-    // A revision is indicated by implement_{cycle+1} being in 'ready' or 'running' state
-    const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
-    if (nextImpl && (nextImpl.state === 'ready' || nextImpl.state === 'running' || nextImpl.state === 'completed')) {
-      return false;
+    // Check that no evaluator at this cycle has a failed rubric
+    const evaluators = hasVerify
+      ? [graph.nodes.get(nodeId('verify', cycle))!, graph.nodes.get(nodeId('review', cycle))!]
+      : [graph.nodes.get(nodeId('review', cycle))!];
+
+    if (evaluators.some((node) => hasRevisionResult(node))) {
+      // A revision was requested — don't proceed to close/approve
+      const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
+      if (nextImpl) return false;
+      // No next implement means budget exhausted — allow proceeding
     }
 
     return true;
@@ -160,21 +186,15 @@ function noRevisionPredicate(cycle: number, hasVerify: boolean) {
 
 function revisionRequestedPredicate(cycle: number, hasVerify: boolean) {
   return (graph: PipelineGraph): boolean => {
-    // Both evaluators must be complete before we can decide on revision
-    const reviewNode = graph.nodes.get(nodeId('review', cycle));
-    if (!reviewNode || reviewNode.state !== 'completed') return false;
-
     if (hasVerify) {
       const verifyNode = graph.nodes.get(nodeId('verify', cycle));
       if (!verifyNode || verifyNode.state !== 'completed') return false;
+      if (hasRevisionResult(verifyNode)) return true;
     }
 
-    // At least one evaluator must have a revision request (result with findings or failed rubric)
-    const evaluators = hasVerify
-      ? [graph.nodes.get(nodeId('verify', cycle))!, graph.nodes.get(nodeId('review', cycle))!]
-      : [graph.nodes.get(nodeId('review', cycle))!];
-
-    return evaluators.some((node) => hasRevisionResult(node));
+    const reviewNode = graph.nodes.get(nodeId('review', cycle));
+    if (!reviewNode || reviewNode.state !== 'completed') return false;
+    return hasRevisionResult(reviewNode);
   };
 }
 
