@@ -21,3 +21,6 @@ docs/ideation/
 # Build artifacts
 node_modules/
 dist/
+
+# bun artifacts
+*.bun-build
