@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
-import { mockSpawnAgent, mockRunScript } from './mocks.js';
+import { mockSpawnAgent, mockRunScript, mockGatherSessionContext, mockAnalyzeFailure } from './mocks.js';
 import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -86,11 +86,22 @@ describe('runImplementPhase', () => {
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
     mockRunScript.mockReset();
+    mockGatherSessionContext.mockReset();
+    mockAnalyzeFailure.mockReset();
 
     await setupTempFiles();
 
-    // Default: runScript returns empty JSON (for session-start.sh, git log)
     mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockGatherSessionContext.mockResolvedValue({});
+    mockAnalyzeFailure.mockResolvedValue({
+      failureClass: 'unknown',
+      failedAgent: 'implementer',
+      errorSummary: 'error',
+      filesInvolved: [],
+      whatWasTried: [],
+      suggestedFocus: 'try again',
+      retryViable: true,
+    });
   });
 
   afterAll(async () => {
@@ -114,23 +125,15 @@ describe('runImplementPhase', () => {
       .mockResolvedValueOnce({ raw: '', result: failedResult, durationMs: 1000 })
       .mockResolvedValueOnce({ raw: '', result: completedResult, durationMs: 1000 });
 
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log
-      .mockResolvedValueOnce({
-        // analyze-failure
-        stdout: JSON.stringify({
-          failureClass: 'test-failure',
-          failedAgent: 'implementer',
-          errorSummary: 'Tests failed',
-          filesInvolved: ['src/x.ts'],
-          whatWasTried: ['first approach'],
-          suggestedFocus: 'Check test expectations',
-          retryViable: true,
-        }),
-        stderr: '',
-        exitCode: 0,
-      });
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'test-failure',
+      failedAgent: 'implementer',
+      errorSummary: 'Tests failed',
+      filesInvolved: ['src/x.ts'],
+      whatWasTried: ['first approach'],
+      suggestedFocus: 'Check test expectations',
+      retryViable: true,
+    });
 
     const store = makeMockStore();
     const results = new Map<AgentName, AgentResult>();
@@ -146,22 +149,15 @@ describe('runImplementPhase', () => {
   it('failure with retryViable=false -> abort', async () => {
     mockSpawnAgent.mockResolvedValue({ raw: '', result: failedResult, durationMs: 1000 });
 
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          failureClass: 'unknown',
-          failedAgent: 'implementer',
-          errorSummary: 'Too many attempts',
-          filesInvolved: [],
-          whatWasTried: ['a', 'b', 'c'],
-          suggestedFocus: 'Surface to human',
-          retryViable: false,
-        }),
-        stderr: '',
-        exitCode: 0,
-      });
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'unknown',
+      failedAgent: 'implementer',
+      errorSummary: 'Too many attempts',
+      filesInvolved: [],
+      whatWasTried: ['a', 'b', 'c'],
+      suggestedFocus: 'Surface to human',
+      retryViable: false,
+    });
 
     const store = makeMockStore();
     const results = new Map<AgentName, AgentResult>();
@@ -176,22 +172,15 @@ describe('runImplementPhase', () => {
       .mockResolvedValueOnce({ raw: '', result: failedResult, durationMs: 1000 })
       .mockResolvedValueOnce({ raw: '', result: failedResult, durationMs: 1000 });
 
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          failureClass: 'test-failure',
-          failedAgent: 'implementer',
-          errorSummary: 'Tests failed',
-          filesInvolved: [],
-          whatWasTried: [],
-          suggestedFocus: 'Try different approach',
-          retryViable: true,
-        }),
-        stderr: '',
-        exitCode: 0,
-      });
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'test-failure',
+      failedAgent: 'implementer',
+      errorSummary: 'Tests failed',
+      filesInvolved: [],
+      whatWasTried: [],
+      suggestedFocus: 'Try different approach',
+      retryViable: true,
+    });
 
     const store = makeMockStore();
     const results = new Map<AgentName, AgentResult>();

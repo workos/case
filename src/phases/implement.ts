@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import type {
   AgentName,
   AgentResult,
@@ -11,7 +10,7 @@ import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
-import { runScript } from '../util/run-script.js';
+import { analyzeFailure } from '../commands/analyze-failure.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -75,24 +74,11 @@ async function attemptRetry(
   originalResult: AgentResult,
   originalPrompt: string,
 ): Promise<PhaseOutput | null> {
-  const analyzeScript = resolve(config.packageRoot, 'scripts/analyze-failure.sh');
-  const analysisRun = await runScript('bash', [
-    analyzeScript,
-    config.taskJsonPath,
-    'implementer',
-    originalResult.error ?? 'unknown error',
-  ]);
-
-  if (analysisRun.exitCode !== 0) {
-    log.error('failure analysis failed', { stderr: analysisRun.stderr });
-    return null;
-  }
-
   let analysis: FailureAnalysis;
   try {
-    analysis = JSON.parse(analysisRun.stdout) as FailureAnalysis;
-  } catch {
-    log.error('failure analysis output not valid JSON');
+    analysis = await analyzeFailure(config.taskJsonPath, 'implementer', originalResult.error ?? 'unknown error');
+  } catch (err: unknown) {
+    log.error('failure analysis failed', { error: (err as Error).message });
     return null;
   }
 

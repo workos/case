@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { rm, writeFile, chmod } from 'node:fs/promises';
 import { commandMap, dispatch, suggest, printHelp } from '../commands/index.js';
 import { spawnScript } from '../commands/spawn.js';
@@ -317,56 +317,28 @@ describe('upload handler — preflight checks', () => {
   });
 });
 
-describe('command modules — argv forwarding (smoke)', () => {
-  // These confirm that each thin wrapper resolves to spawnScript with the
-  // expected script name. We mock spawn.ts via Bun's `mock.module` so we
-  // don't actually spawn child processes during unit tests.
-
-  beforeEach(() => {
-    mock.module('../commands/spawn.js', () => ({
-      spawnScript: (name: string, args: string[]) => {
-        // Round-trip the call signature as the resolved value so the
-        // calling test can introspect it.
-        return Promise.resolve({ name, args } as unknown as number);
-      },
-    }));
-  });
-
-  afterEach(() => {
-    mock.restore();
-  });
-
-  it('status forwards argv to task-status.sh', async () => {
+describe('command modules — native TypeScript (smoke)', () => {
+  it('status rejects missing args', async () => {
     const mod = await import('../commands/status.js');
-    const result = (await mod.handler(['get'])) as unknown as { name: string; args: string[] };
-    expect(result.name).toBe('task-status.sh');
-    expect(result.args).toEqual(['get']);
+    const code = await mod.handler([]);
+    expect(code).toBe(1);
   });
 
-  it('mark-manual-tested forwards argv to mark-manual-tested.sh', async () => {
-    const mod = await import('../commands/mark-manual-tested.js');
-    const result = (await mod.handler(['--repo', '/x'])) as unknown as {
-      name: string;
-      args: string[];
-    };
-    expect(result.name).toBe('mark-manual-tested.sh');
-    expect(result.args).toEqual(['--repo', '/x']);
+  it('status rejects missing task file', async () => {
+    const mod = await import('../commands/status.js');
+    const code = await mod.handler(['/nonexistent.task.json', 'status']);
+    expect(code).toBe(1);
   });
 
-  it('mark-reviewed forwards argv to mark-reviewed.sh', async () => {
+  it('mark-reviewed rejects critical > 0', async () => {
     const mod = await import('../commands/mark-reviewed.js');
-    const result = (await mod.handler(['--repo', '/x'])) as unknown as {
-      name: string;
-      args: string[];
-    };
-    expect(result.name).toBe('mark-reviewed.sh');
-    expect(result.args).toEqual(['--repo', '/x']);
+    const code = await mod.handler(['--critical', '2']);
+    expect(code).toBe(1);
   });
 
-  it('snapshot forwards argv to snapshot-agent.sh', async () => {
+  it('snapshot rejects missing agent name', async () => {
     const mod = await import('../commands/snapshot.js');
-    const result = (await mod.handler([])) as unknown as { name: string; args: string[] };
-    expect(result.name).toBe('snapshot-agent.sh');
-    expect(result.args).toEqual([]);
+    const code = await mod.handler([]);
+    expect(code).toBe(1);
   });
 });

@@ -5,6 +5,8 @@ import {
   mockWriteRunMetrics,
   mockGetCurrentPromptVersions,
   mockFindPriorRunId,
+  mockGatherSessionContext,
+  mockAnalyzeFailure,
 } from './mocks.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
@@ -171,6 +173,18 @@ describe('runPipeline', () => {
     mockStoreSetField.mockResolvedValue(undefined);
     mockStoreSetPendingRevision.mockResolvedValue(undefined);
     mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockGatherSessionContext.mockReset();
+    mockGatherSessionContext.mockResolvedValue({});
+    mockAnalyzeFailure.mockReset();
+    mockAnalyzeFailure.mockResolvedValue({
+      failureClass: 'unknown',
+      failedAgent: 'implementer',
+      errorSummary: 'error',
+      filesInvolved: [],
+      whatWasTried: [],
+      suggestedFocus: 'try again',
+      retryViable: true,
+    });
     mockWriteRunMetrics.mockResolvedValue(undefined);
     mockGetCurrentPromptVersions.mockResolvedValue({});
     mockFindPriorRunId.mockResolvedValue(null);
@@ -206,24 +220,15 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // retry also fails
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
-    // analyze-failure.sh says not retryable
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log
-      .mockResolvedValueOnce({
-        // analyze-failure
-        stdout: JSON.stringify({
-          failureClass: 'unknown',
-          retryViable: false,
-          errorSummary: 'bad',
-          filesInvolved: [],
-          whatWasTried: [],
-          suggestedFocus: 'stop',
-        }),
-        stderr: '',
-        exitCode: 0,
-      })
-      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 }); // any remaining
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'unknown',
+      retryViable: false,
+      failedAgent: 'implementer',
+      errorSummary: 'bad',
+      filesInvolved: [],
+      whatWasTried: [],
+      suggestedFocus: 'stop',
+    });
 
     mockNotifierAskUser.mockResolvedValue('Abort');
 
@@ -237,22 +242,15 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
 
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          failureClass: 'unknown',
-          retryViable: false,
-          errorSummary: 'bad',
-          filesInvolved: [],
-          whatWasTried: [],
-          suggestedFocus: 'stop',
-        }),
-        stderr: '',
-        exitCode: 0,
-      })
-      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'unknown',
+      retryViable: false,
+      failedAgent: 'implementer',
+      errorSummary: 'bad',
+      filesInvolved: [],
+      whatWasTried: [],
+      suggestedFocus: 'stop',
+    });
 
     // Unattended notifier auto-selects last option ("Abort")
     mockNotifierAskUser.mockResolvedValue('Abort');
@@ -466,30 +464,15 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
-    // runScript calls: prefetchRepoContext (2 calls per phase) + analyze-failure
-    // Order: impl(2), verify(2), revision-impl(2), analyze-failure(1), remaining
-    mockRunScript
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (initial impl)
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (initial impl)
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (verifier)
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (verifier)
-      .mockResolvedValueOnce({ stdout: '{}', stderr: '', exitCode: 0 }) // session-start (revision impl)
-      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 }) // git log (revision impl)
-      .mockResolvedValueOnce({
-        // analyze-failure (revision implementer failed)
-        stdout: JSON.stringify({
-          failureClass: 'test-failure',
-          failedAgent: 'implementer',
-          errorSummary: 'Tests failed during revision',
-          filesInvolved: [],
-          whatWasTried: ['revision approach'],
-          suggestedFocus: 'Fix the test',
-          retryViable: true,
-        }),
-        stderr: '',
-        exitCode: 0,
-      })
-      .mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 }); // remaining runScript calls
+    mockAnalyzeFailure.mockResolvedValueOnce({
+      failureClass: 'test-failure',
+      failedAgent: 'implementer',
+      errorSummary: 'Tests failed during revision',
+      filesInvolved: [],
+      whatWasTried: ['revision approach'],
+      suggestedFocus: 'Fix the test',
+      retryViable: true,
+    });
 
     await runPipeline(makeConfig());
 
