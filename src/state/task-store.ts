@@ -73,7 +73,7 @@ export class TaskStore {
       const n = Number(value);
       if (Number.isInteger(n) && String(n) === value) coerced = n;
     }
-    (task as Record<string, unknown>)[field] = coerced;
+    (task as unknown as Record<string, unknown>)[field] = coerced;
     this.writeSync(task);
   }
 

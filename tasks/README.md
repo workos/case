@@ -56,23 +56,23 @@ The JSON file stores structured metadata that agents and scripts update programm
 
 Fields: `id`, `status`, `created`, `repo`, `issue`, `issueType`, `branch`, `profile`, `agents`, `tested`, `manualTested`, `prUrl`, `prNumber`, `contractPath`.
 
-Profile values: `tiny` (skip verify — docs, config, typos), `standard` (all phases — default), `complex` (all phases, done contract required).
+Profile values: `tiny` (skip verify — docs, config, typos) and `standard` (all phases — default).
 
-Issue types: `github`, `linear`, `freeform`, `ideation`. Ideation tasks include `contractPath` pointing to the ideation contract.md.
+Issue types: `github`, `linear`, `freeform`.
 
-Read/write via: `case status <file> <field> [value]`
+Read/write via: `ca status <file> <field> [value]`
 
-**Evidence flags** (`tested`, `manualTested`) can only be set by marker scripts (`case mark-tested`, `case mark-manual-tested`) — not by agents directly.
+**Evidence flags** (`tested`, `manualTested`) can only be set by marker commands (`ca mark-tested`, `ca mark-manual-tested`) — not by agents directly.
 
 ### Evidence Markers
 
 Evidence markers live under `.case/<task-slug>/` in the target repo. The `.case/active` file contains the task slug. Add `.case/` to `.gitignore` (bootstrap does this automatically).
 
-| Marker                            | Created by                      | Purpose                                          |
-| --------------------------------- | ------------------------------- | ------------------------------------------------ |
-| `.case/<task-slug>/tested`        | `scripts/mark-tested.sh`        | Proves automated tests ran (hash of test output) |
-| `.case/<task-slug>/manual-tested` | `scripts/mark-manual-tested.sh` | Proves manual/browser testing was performed      |
-| `.case/<task-slug>/reviewed`      | `scripts/mark-reviewed.sh`      | Proves code review passed (critical: 0)          |
+| Marker                            | Created by              | Purpose                                          |
+| --------------------------------- | ----------------------- | ------------------------------------------------ |
+| `.case/<task-slug>/tested`        | `ca mark-tested`        | Proves automated tests ran (hash of test output) |
+| `.case/<task-slug>/manual-tested` | `ca mark-manual-tested` | Proves manual/browser testing was performed      |
+| `.case/<task-slug>/reviewed`      | `ca mark-reviewed`      | Proves code review passed (critical: 0)          |
 
 #### `tested` structured format
 
@@ -96,19 +96,20 @@ Plain-text fallback uses grep heuristics for pass/fail indicators only.
 ## Status Lifecycle
 
 ```
-active → implementing → verifying → reviewing → closing → pr-opened → merged
+active → implementing → verifying/reviewing/evaluating → closing → pr-opened → merged
 
 Recovery transitions:
   implementing → active       (restart after failure)
   verifying    → implementing (fix-and-retry)
   reviewing    → verifying    (critical findings, re-verify after fix)
+  evaluating   → implementing (evaluator requested revision)
   closing      → verifying    (hook failure, re-verify)
   pr-opened    → pr-opened    (idempotent, hook re-fire)
 ```
 
 Pipeline agents: implementer → verifier → reviewer → closer → (retrospective)
 
-Transitions are enforced by `task-status.sh`. Invalid transitions are rejected with an error.
+Transitions are enforced by the TypeScript task store and `ca status`. Invalid transitions are rejected with an error.
 
 ## Progress Log
 

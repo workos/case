@@ -47,7 +47,7 @@ export type PipelineEvent =
     })
   | (EventMeta & {
       event: 'revision_requested';
-      source: 'verifier' | 'reviewer' | 'human';
+      source: 'verifier' | 'reviewer';
       cycle: number;
       failedCategories: RubricCategory[];
     })

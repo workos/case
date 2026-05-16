@@ -4,6 +4,7 @@ Principles that guide how case is built and used. These come from experience, fr
 
 ## Core
 
+- **Case exists to make agent-authored WorkOS OSS PRs reliable, reviewable, and self-improving.** If a feature does not improve that loop, it does not belong in the core.
 - **Humans steer. Agents execute.** Engineers define goals and acceptance criteria. Agents implement.
 - **Never write code directly.** All code changes flow through agents. Engineers only improve the harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.

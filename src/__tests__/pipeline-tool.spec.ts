@@ -50,7 +50,6 @@ describe('createPipelineTool', () => {
       taskJsonPath: '/tasks/test.task.json',
       mode: 'attended',
       dryRun: false,
-      approve: false,
     });
   });
 
@@ -67,7 +66,6 @@ describe('createPipelineTool', () => {
       taskJsonPath: '/tasks/test.task.json',
       mode: 'unattended',
       dryRun: true,
-      approve: false,
     });
   });
 

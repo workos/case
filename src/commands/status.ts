@@ -6,9 +6,9 @@ export const description = 'Read or update the current task status';
 const TRANSITIONS: Record<string, TaskStatus[]> = {
   active: ['implementing'],
   implementing: ['verifying', 'active'],
-  verifying: ['reviewing', 'closing', 'implementing'],
-  reviewing: ['closing', 'approving', 'verifying'],
-  approving: ['closing', 'implementing', 'verifying'],
+  verifying: ['reviewing', 'evaluating', 'closing', 'implementing'],
+  reviewing: ['evaluating', 'closing', 'verifying'],
+  evaluating: ['closing', 'implementing', 'verifying', 'reviewing'],
   closing: ['pr-opened', 'verifying'],
   'pr-opened': ['pr-opened', 'merged'],
   merged: [],

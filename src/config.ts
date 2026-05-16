@@ -72,7 +72,6 @@ export async function buildPipelineConfig(opts: {
   taskJsonPath: string;
   mode?: PipelineMode;
   dryRun?: boolean;
-  approve?: boolean;
 }): Promise<PipelineConfig> {
   const taskJsonPath = resolve(opts.taskJsonPath);
   const raw = await Bun.file(taskJsonPath).text();
@@ -107,6 +106,5 @@ export async function buildPipelineConfig(opts: {
     dataDir,
     maxRetries: 1,
     dryRun: opts.dryRun ?? false,
-    approve: opts.approve ?? false,
   };
 }

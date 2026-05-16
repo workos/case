@@ -11,8 +11,8 @@
     },
     "status": {
       "type": "string",
-      "enum": ["active", "implementing", "verifying", "reviewing", "closing", "pr-opened", "merged"],
-      "description": "Current lifecycle status. Transitions enforced by task-status.sh, not this schema."
+      "enum": ["active", "implementing", "verifying", "reviewing", "evaluating", "closing", "pr-opened", "merged"],
+      "description": "Current lifecycle status. Transitions are enforced by the task store and ca status, not this schema."
     },
     "created": {
       "type": "string",
@@ -29,13 +29,13 @@
     },
     "issueType": {
       "type": "string",
-      "enum": ["github", "linear", "freeform", "ideation"],
+      "enum": ["github", "linear", "freeform"],
       "description": "How the task was created"
     },
     "contractPath": {
       "type": ["string", "null"],
       "default": null,
-      "description": "Path to ideation contract.md (only for issueType: ideation)"
+      "description": "Optional path to external planning context"
     },
     "branch": {
       "type": "string",
@@ -49,9 +49,9 @@
     },
     "profile": {
       "type": "string",
-      "enum": ["tiny", "standard", "complex"],
+      "enum": ["tiny", "standard"],
       "default": "standard",
-      "description": "Pipeline profile — determines which phases run. tiny = skip verify (docs/config), standard = all phases (default), complex = all phases with done contract required."
+      "description": "Pipeline profile — determines which phases run. tiny = skip verify (docs/config), standard = all phases (default)."
     },
     "agents": {
       "type": "object",

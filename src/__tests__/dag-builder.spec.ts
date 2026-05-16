@@ -97,24 +97,6 @@ describe('buildGraph', () => {
     });
   });
 
-  describe('with approve option', () => {
-    const graph = buildGraph('standard', 1, { approve: true });
-
-    test('has approve node', () => {
-      expect(graph.nodes.has('approve')).toBe(true);
-    });
-
-    test('evaluators have edges to approve (not directly to close)', () => {
-      const toApprove = graph.edges.filter((e) => e.to === 'approve');
-      expect(toApprove.length).toBeGreaterThan(0);
-    });
-
-    test('approve has edge to close', () => {
-      const approveToClose = graph.edges.find((e) => e.from === 'approve' && e.to === 'close');
-      expect(approveToClose).toBeDefined();
-    });
-  });
-
   describe('zero revision cycles', () => {
     const graph = buildGraph('standard', 0);
 

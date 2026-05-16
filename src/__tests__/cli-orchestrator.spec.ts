@@ -260,35 +260,4 @@ describe('runCliOrchestrator — re-entry', () => {
     expect(writes.some((w) => w.includes('https://github.com/workos/cli/pull/42'))).toBe(true);
     expect(mockRunPipeline).not.toHaveBeenCalled();
   });
-
-  it('exits early for ideation tasks', async () => {
-    const task = makeTaskJson({ issueType: 'ideation' });
-
-    mockFindTaskByMarker.mockResolvedValue({
-      taskJson: task,
-      taskJsonPath: join(tempDir, 'tasks/active/cli-abc-fix-test.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
-      entryPhase: 'implement',
-    });
-
-    const writes: string[] = [];
-    const origWrite = process.stdout.write;
-    process.stdout.write = ((chunk: string) => {
-      writes.push(chunk);
-      return true;
-    }) as typeof process.stdout.write;
-
-    await runCliOrchestrator({
-      argument: undefined,
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
-
-    process.stdout.write = origWrite;
-
-    expect(writes.some((w) => w.includes('ideation task'))).toBe(true);
-    expect(writes.some((w) => w.includes('/case:from-ideation'))).toBe(true);
-    expect(mockRunPipeline).not.toHaveBeenCalled();
-  });
 });

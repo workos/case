@@ -13,6 +13,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 ## Philosophy
 
+- **Case exists to make agent-authored WorkOS OSS PRs reliable, reviewable, and self-improving.** Keep the core loop small unless reliability requires more.
 - **Humans steer, agents execute.** Engineers define goals and acceptance criteria. Agents implement.
 - **Never write code directly.** All code changes in target repos flow through agents. Engineers only improve this harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.

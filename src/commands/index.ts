@@ -80,6 +80,12 @@ export async function dispatch(argv: string[]): Promise<number> {
 export function printHelp(): void {
   const lines: string[] = [];
   lines.push('Usage: ca <command> [options]');
+  lines.push('       ca [issue]');
+  lines.push('       ca --agent [issue]');
+  lines.push('');
+  lines.push('Core:');
+  lines.push('  ca 1234           Create or resume a pipeline run from a GitHub issue');
+  lines.push('  ca --agent 1234   Start an interactive steering session before running');
   lines.push('');
   lines.push('Commands:');
 

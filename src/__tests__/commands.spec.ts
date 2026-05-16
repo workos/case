@@ -27,7 +27,7 @@ function captureStream(stream: NodeJS.WriteStream): { lines: string[]; restore: 
 }
 
 describe('commandMap registration', () => {
-  it('registers all 11 expected verbs', () => {
+  it('registers all expected verbs', () => {
     const expected = [
       'run',
       'watch',
@@ -40,7 +40,9 @@ describe('commandMap registration', () => {
       'upload',
       'snapshot',
       'init',
+      'analyze-failure',
     ];
+    expect(Object.keys(commandMap).sort()).toEqual([...expected].sort());
     for (const verb of expected) {
       expect(commandMap[verb]).toBeDefined();
       expect(typeof commandMap[verb]!.handler).toBe('function');

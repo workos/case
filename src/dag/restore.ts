@@ -6,7 +6,7 @@ export function restoreGraphState(graph: PipelineGraph, state: PipelineState): v
     // Phase keys in PipelineState use the same format as graph node IDs: "phase_cycle"
     const node = graph.nodes.get(key);
     if (!node) {
-      // Try terminal nodes (close, retrospective, approve) that don't have cycle suffixes
+      // Try terminal nodes (close, retrospective) that don't have cycle suffixes.
       const terminalNode = graph.nodes.get(phaseState.phase);
       if (terminalNode) {
         applyPhaseState(terminalNode, phaseState);

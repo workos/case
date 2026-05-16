@@ -34,7 +34,6 @@ export async function handler(argv: string[]): Promise<number> {
       agent: { type: 'boolean' },
       model: { type: 'string' },
       'dry-run': { type: 'boolean' },
-      approve: { type: 'boolean' },
       fresh: { type: 'boolean' },
     },
     allowPositionals: true,
@@ -55,7 +54,6 @@ export async function handler(argv: string[]): Promise<number> {
         caseRoot,
         argument: argument || undefined,
         mode: 'attended',
-        approve: values.approve as boolean | undefined,
       });
       return 0;
     } catch (err) {
@@ -91,7 +89,6 @@ export async function handler(argv: string[]): Promise<number> {
       mode: mode ?? 'attended',
       dryRun: (values['dry-run'] as boolean) ?? false,
       fresh: (values.fresh as boolean) ?? false,
-      approve: (values.approve as boolean) ?? false,
       caseRoot,
     });
     return 0;
@@ -121,7 +118,6 @@ async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
       taskJsonPath: taskPath,
       mode,
       dryRun: values['dry-run'] as boolean | undefined,
-      approve: values.approve as boolean | undefined,
     });
 
     await runPipeline(config);

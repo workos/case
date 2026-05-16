@@ -5,7 +5,6 @@ export type TaskStatus =
   | 'verifying'
   | 'reviewing'
   | 'evaluating'
-  | 'approving'
   | 'closing'
   | 'pr-opened'
   | 'merged';
@@ -24,7 +23,7 @@ export interface TaskJson {
   created: string;
   repo: string;
   issue?: string;
-  issueType?: 'github' | 'linear' | 'freeform' | 'ideation';
+  issueType?: 'github' | 'linear' | 'freeform';
   contractPath?: string | null;
   branch?: string;
   mode?: PipelineMode;
@@ -112,27 +111,18 @@ export const REVIEWER_SOFT_CATEGORIES = ['test-sufficiency', 'pattern-fit'] as c
 
 export type PipelineMode = 'attended' | 'unattended';
 
-export type PipelineProfile = 'tiny' | 'standard' | 'complex';
+export type PipelineProfile = 'tiny' | 'standard';
 
 /** Which phases run for each profile. Order matters — pipeline executes in this order. */
 export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   tiny: ['implement', 'review', 'close', 'retrospective'],
   standard: ['implement', 'verify', 'review', 'close', 'retrospective'],
-  complex: ['implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
-export type PipelinePhase =
-  | 'implement'
-  | 'verify'
-  | 'review'
-  | 'approve'
-  | 'close'
-  | 'retrospective'
-  | 'complete'
-  | 'abort';
+export type PipelinePhase = 'implement' | 'verify' | 'review' | 'close' | 'retrospective' | 'complete' | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
-export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'approve', 'close', 'retrospective'];
+export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
 
 export interface PipelineConfig {
   mode: PipelineMode;
@@ -146,8 +136,6 @@ export interface PipelineConfig {
   dataDir: string;
   maxRetries: number;
   dryRun: boolean;
-  /** Enable human approval gate between review and close */
-  approve?: boolean;
   /** Max evaluator→implementer revision cycles (default: 2) */
   maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
@@ -180,55 +168,10 @@ export interface FailureAnalysis {
   retryViable: boolean;
 }
 
-/** Evidence payload assembled for the approval gate web UI */
-export interface ApprovalEvidence {
-  task: {
-    id: string;
-    title: string;
-    repo: string;
-    branch: string;
-    issue?: string;
-  };
-  diff: {
-    summary: { additions: number; deletions: number; filesChanged: number };
-    files: Array<{
-      path: string;
-      additions: number;
-      deletions: number;
-      status: 'added' | 'modified' | 'deleted' | 'renamed';
-      hunks: Array<{ header: string; lines: string[] }>;
-    }>;
-  };
-  tests: {
-    passed: boolean | null;
-    summary: string | null;
-  };
-  verifier: {
-    ran: boolean;
-    rubric: RubricCategory[] | null;
-    summary: string | null;
-  };
-  reviewer: {
-    ran: boolean;
-    rubric: RubricCategory[] | null;
-    findings: ReviewFindings | null;
-    summary: string | null;
-  };
-  screenshots: string[];
-  commit: string | null;
-}
-
-/** Decision returned by the approval gate web UI */
-export interface ApprovalDecision {
-  decision: 'approve' | 'revise' | 'reject';
-  feedback?: string;
-  manualEdit?: boolean;
-}
-
 /** Structured revision request from evaluator (verifier/reviewer) when fixable issues are found */
 export interface RevisionRequest {
   /** Which evaluator triggered the revision */
-  source: 'verifier' | 'reviewer' | 'human';
+  source: 'verifier' | 'reviewer';
   /** Which rubric categories failed */
   failedCategories: RubricCategory[];
   /** Human-readable summary of what needs fixing */
@@ -280,30 +223,6 @@ export interface SpawnAgentResult {
   durationMs: number;
 }
 
-// --- From-Ideation ---
-
-export interface FromIdeationOptions {
-  ideationFolder: string;
-  caseRoot: string;
-  repoName: string;
-  repoPath: string;
-  /** Specific phase to execute (default: all) */
-  phase?: number;
-  /** Enable human approval gate between review and close */
-  approve?: boolean;
-  /** Called with progress updates during execution */
-  onProgress?: (message: string) => void;
-}
-
-export interface PhaseResult {
-  phase: number;
-  specFile: string;
-  status: 'completed' | 'failed' | 'skipped';
-  commit: string | null;
-  summary: string;
-  error: string | null;
-}
-
 // --- Standalone CLI ---
 
 /** Normalized issue context from GitHub, Linear, or freeform text. */
@@ -347,15 +266,6 @@ export interface RunMetrics {
   /** Number of times a human overrode an evaluator decision (attended mode) */
   humanOverrides: number;
 
-  /** Approval gate decision (null if gate not reached) */
-  approvalDecision: 'approved' | 'revised' | 'rejected' | 'skipped' | null;
-
-  /** Time spent in the approval gate (ms), null if gate not reached */
-  approvalTimeMs: number | null;
-
-  /** Revision cycles triggered by human feedback (subset of revisionCycles) */
-  humanRevisionCycles: number;
-
   /** Evaluator effectiveness signals */
   evaluatorEffectiveness: EvaluatorEffectiveness;
 }
@@ -382,7 +292,7 @@ export interface TaskCreateRequest {
   repo: string;
   title: string;
   description: string;
-  issueType?: 'github' | 'linear' | 'freeform' | 'ideation';
+  issueType?: 'github' | 'linear' | 'freeform';
   issue?: string;
   mode?: PipelineMode;
   profile?: PipelineProfile;
