@@ -288,6 +288,7 @@ describe('runPipeline', () => {
   });
 
   it('metrics are written at the end', async () => {
+    const config = makeConfig({ repoPath: join(tempCaseRoot, 'target-repo') });
     mockSpawnAgent
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
@@ -295,8 +296,9 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
 
-    await runPipeline(makeConfig());
+    await runPipeline(config);
 
+    expect(mockFindPriorRunId).toHaveBeenCalledWith(config.repoPath, mockTask.id);
     expect(mockWriteRunMetrics).toHaveBeenCalledTimes(1);
   });
 

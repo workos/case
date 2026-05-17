@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 import { parseJsonLines } from '../util/parse-jsonl.js';
-import { resolveAgentVersionsDir, resolveRepoRunLog, resolveRunLogPath } from '../paths.js';
+import { resolveAgentVersionsDir, resolveRepoRunLog, resolveRunLogPath, tryResolvePackageRoot } from '../paths.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -19,9 +19,9 @@ interface RunLogEntry {
  * Resolve a state file by trying the preferred path first and falling back to a
  * legacy path if only the legacy exists.
  */
-async function resolveReadPath(dataDirPath: string, legacy: string): Promise<string | null> {
+async function resolveReadPath(dataDirPath: string, legacy: string | null): Promise<string | null> {
   if (await Bun.file(dataDirPath).exists()) return dataDirPath;
-  if (await Bun.file(legacy).exists()) return legacy;
+  if (legacy && (await Bun.file(legacy).exists())) return legacy;
   return null;
 }
 
@@ -61,12 +61,13 @@ export async function findPriorRunId(repoPath: string, taskId: string): Promise<
   } catch {
     configRunLog = null;
   }
-  const legacy = resolve(repoPath, 'docs/run-log.jsonl');
+  const legacyPackageRoot = tryResolvePackageRoot();
+  const legacy = legacyPackageRoot ? resolve(legacyPackageRoot, 'docs/run-log.jsonl') : null;
   const path = (await Bun.file(repoLocal).exists())
     ? repoLocal
     : configRunLog
       ? await resolveReadPath(configRunLog, legacy)
-      : (await Bun.file(legacy).exists())
+      : legacy && (await Bun.file(legacy).exists())
         ? legacy
         : null;
   if (!path) return null;
