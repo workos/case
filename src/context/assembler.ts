@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
-import { resolveScript } from '../paths.js';
 
 /**
  * Read an agent .md prompt template and build a role-specific prompt.
@@ -39,16 +38,13 @@ export async function assemblePrompt(
 }
 
 /**
- * Replace `{{packageRoot}}`, `{{dataDir}}`, and `{{scriptPath:NAME}}` tokens in agent prompts.
+ * Replace `{{packageRoot}}` and `{{dataDir}}` tokens in agent prompts.
  *
  * Unknown `{{...}}` tokens pass through unchanged — only whitelisted variable names
  * are substituted, so prompt content that happens to contain double braces is preserved.
  */
 function substitutePathVars(content: string, config: PipelineConfig): string {
-  return content
-    .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
-    .replace(/\{\{dataDir\}\}/g, config.dataDir)
-    .replace(/\{\{scriptPath:([\w.-]+)\}\}/g, (_, name) => resolveScript(name));
+  return content.replace(/\{\{packageRoot\}\}/g, config.packageRoot).replace(/\{\{dataDir\}\}/g, config.dataDir);
 }
 
 const INJECT_MARKER = /<!--\s*inject:\s*(\S+)\s*-->/g;
@@ -86,18 +82,6 @@ function inlineDocs(template: string, packageRoot: string): string {
 }
 
 function buildRevisionContext(revision: RevisionRequest): string {
-  if (revision.source === 'human') {
-    const lines = [
-      `## Human Feedback (Approval Gate) — cycle ${revision.cycle}`,
-      '',
-      revision.summary,
-      '',
-      'Address the feedback above. Make targeted changes only.',
-      '',
-    ];
-    return lines.join('\n');
-  }
-
   const lines = [
     `## REVISION CONTEXT — ${revision.source} found fixable issues (cycle ${revision.cycle})`,
     '',

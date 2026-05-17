@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { resolvePackageRoot, resolveDataDir, resolveAgent, resolveScript, resolveDoc, resolveTask } from '../paths.js';
+import { dirname, join, resolve } from 'node:path';
+import { resolvePackageRoot, resolveDataDir, resolveAgent, resolveDoc, resolveTask } from '../paths.js';
 
 describe('resolvePackageRoot', () => {
   it('returns the case repo root when invoked from src/paths.ts', () => {
@@ -11,6 +12,19 @@ describe('resolvePackageRoot', () => {
     expect(root.length).toBeGreaterThan(0);
     // The src directory lives directly under the package root.
     expect(root).not.toBe('/');
+  });
+
+  it('honors CASE_PACKAGE_ROOT when it points at a case package', async () => {
+    const originalEnv = { ...process.env };
+    const tmp = await mkdtemp(join(tmpdir(), 'case-package-root-'));
+    try {
+      await writeFile(join(tmp, 'package.json'), JSON.stringify({ name: 'case' }));
+      process.env.CASE_PACKAGE_ROOT = tmp;
+      expect(resolvePackageRoot()).toBe(tmp);
+    } finally {
+      process.env = { ...originalEnv };
+      await rm(tmp, { recursive: true, force: true });
+    }
   });
 });
 
@@ -81,8 +95,6 @@ describe('resolvePackageRoot — walk-up failure', () => {
     // its own coverage in the happy-path test above.
     expect(() => {
       // Recreate the same logic manually as a guard against regression.
-      const { existsSync, readFileSync } = require('node:fs');
-      const { dirname, resolve } = require('node:path');
       let current = tmp;
       while (true) {
         const manifestPath = resolve(current, 'package.json');
@@ -104,11 +116,6 @@ describe('path helpers', () => {
   it('resolveAgent returns packageRoot/agents/<role>.md', () => {
     const path = resolveAgent('implementer');
     expect(path).toBe(resolve(resolvePackageRoot(), 'agents', 'implementer.md'));
-  });
-
-  it('resolveScript returns packageRoot/scripts/<name>', () => {
-    const path = resolveScript('check.sh');
-    expect(path).toBe(resolve(resolvePackageRoot(), 'scripts', 'check.sh'));
   });
 
   it('resolveDoc returns packageRoot/docs/<relativePath>', () => {

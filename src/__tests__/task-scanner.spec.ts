@@ -188,18 +188,6 @@ describe('task-scanner', () => {
       expect(caseDirExists).toBe(false);
     });
 
-    it('returns ideation task entry phase as implement', async () => {
-      const task = makeTaskJson({ issueType: 'ideation' });
-      await writeTask('cli-abc-fix-test', task);
-      await Bun.write(join(repoDir, '.case', 'active'), 'cli-abc-fix-test\n');
-
-      const result = await findTaskByMarker(tempDir, repoDir);
-
-      // Scanner returns the match; the orchestrator decides what to do with ideation tasks
-      expect(result).not.toBeNull();
-      expect(result!.taskJson.issueType).toBe('ideation');
-    });
-
     it('returns correct entry phase for verifying task', async () => {
       const task = makeTaskJson({
         status: 'verifying',

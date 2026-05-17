@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { rm, writeFile, chmod } from 'node:fs/promises';
 import { commandMap, dispatch, suggest, printHelp } from '../commands/index.js';
-import { spawnScript } from '../commands/spawn.js';
 
 /**
  * Capture process.stdout / process.stderr writes.
@@ -27,7 +25,7 @@ function captureStream(stream: NodeJS.WriteStream): { lines: string[]; restore: 
 }
 
 describe('commandMap registration', () => {
-  it('registers all 11 expected verbs', () => {
+  it('registers all expected verbs', () => {
     const expected = [
       'run',
       'watch',
@@ -40,7 +38,11 @@ describe('commandMap registration', () => {
       'upload',
       'snapshot',
       'init',
+      'analyze-failure',
+      'bootstrap',
+      'check',
     ];
+    expect(Object.keys(commandMap).sort()).toEqual([...expected].sort());
     for (const verb of expected) {
       expect(commandMap[verb]).toBeDefined();
       expect(typeof commandMap[verb]!.handler).toBe('function');
@@ -204,52 +206,6 @@ describe('printHelp', () => {
     expect(text).toContain('mark-tested');
     expect(text).toContain('SHA-256');
     expect(text).toContain('Snapshot current agent prompt versions');
-  });
-});
-
-describe('spawnScript', () => {
-  it('runs a real packaged script and returns its exit code', async () => {
-    // session-start.sh is shipped under scripts/ and defaults its repo path
-    // to ".", which exists when bun test runs from the case repo. The exit
-    // code may be 0 or non-zero depending on local git state — we only
-    // assert that the spawn round-trip produced a numeric result.
-    const code = await spawnScript('session-start.sh', []);
-    expect(typeof code).toBe('number');
-  });
-
-  it('throws Error with full path when script is missing', async () => {
-    let threw = false;
-    let message = '';
-    try {
-      await spawnScript('nonexistent-script-xyz.sh', []);
-    } catch (err) {
-      threw = true;
-      message = (err as Error).message;
-    }
-    expect(threw).toBe(true);
-    expect(message).toContain('Script not found');
-    expect(message).toContain('nonexistent-script-xyz.sh');
-  });
-
-  it('auto-chmods a non-executable script and retries', async () => {
-    // Drop a script into the real scripts/ directory under a guaranteed
-    // unique name, strip the exec bit, and verify spawnScript fixes it.
-    const fs = await import('node:fs/promises');
-    const path = await import('node:path');
-    const { resolvePackageRoot } = await import('../paths.js');
-    const root = resolvePackageRoot();
-    const scriptPath = path.resolve(root, 'scripts', '__test-autochmod.sh');
-    await writeFile(scriptPath, '#!/usr/bin/env bash\nexit 0\n');
-    await chmod(scriptPath, 0o644);
-    try {
-      const code = await spawnScript('__test-autochmod.sh', []);
-      expect(code).toBe(0);
-      // Verify the bit was set.
-      const stats = await fs.stat(scriptPath);
-      expect(stats.mode & 0o111).not.toBe(0);
-    } finally {
-      await rm(scriptPath, { force: true });
-    }
   });
 });
 

@@ -19,10 +19,8 @@ export const description = 'Run the agent pipeline (default)';
  * slice via `parseArgs` so the router stays verb-agnostic.
  */
 export async function handler(argv: string[]): Promise<number> {
-  // Per-verb help flag — defer to the router's help output.
   if (argv.includes('--help') || argv.includes('-h')) {
-    const { printHelp } = await import('./index.js');
-    printHelp();
+    printRunHelp();
     return 0;
   }
 
@@ -34,7 +32,6 @@ export async function handler(argv: string[]): Promise<number> {
       agent: { type: 'boolean' },
       model: { type: 'string' },
       'dry-run': { type: 'boolean' },
-      approve: { type: 'boolean' },
       fresh: { type: 'boolean' },
     },
     allowPositionals: true,
@@ -55,7 +52,6 @@ export async function handler(argv: string[]): Promise<number> {
         caseRoot,
         argument: argument || undefined,
         mode: 'attended',
-        approve: values.approve as boolean | undefined,
       });
       return 0;
     } catch (err) {
@@ -91,7 +87,6 @@ export async function handler(argv: string[]): Promise<number> {
       mode: mode ?? 'attended',
       dryRun: (values['dry-run'] as boolean) ?? false,
       fresh: (values.fresh as boolean) ?? false,
-      approve: (values.approve as boolean) ?? false,
       caseRoot,
     });
     return 0;
@@ -101,6 +96,25 @@ export async function handler(argv: string[]): Promise<number> {
     process.stderr.write(`Fatal: ${msg}\n`);
     return 1;
   }
+}
+
+function printRunHelp(): void {
+  const text = `Usage: ca run [options] [issue]
+       ca [issue]
+       ca --agent [issue]
+
+Run the agent pipeline for a GitHub or Linear issue.
+
+Options:
+  --task, -t <file>       Run an existing task JSON file directly
+  --agent                 Start an interactive steering session
+  --model <model>         Override model for all agents in this run
+  --mode, -m <mode>       "attended" (default) or "unattended"
+  --dry-run               Validate without spawning agents
+  --fresh                 Ignore existing task state and start clean
+  --help, -h              Show this help
+`;
+  process.stdout.write(text);
 }
 
 async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
@@ -121,7 +135,6 @@ async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
       taskJsonPath: taskPath,
       mode,
       dryRun: values['dry-run'] as boolean | undefined,
-      approve: values.approve as boolean | undefined,
     });
 
     await runPipeline(config);

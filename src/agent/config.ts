@@ -1,8 +1,5 @@
-import { resolve } from 'node:path';
-import { homedir } from 'node:os';
 import type { AgentModelConfig } from '../types.js';
-
-const CONFIG_PATH = resolve(homedir(), '.config/case/config.json');
+import { resolveConfigPath } from '../paths.js';
 
 interface CaseConfig {
   models?: {
@@ -23,7 +20,7 @@ const DEFAULT_MODEL: AgentModelConfig = {
 
 export async function loadConfig(): Promise<CaseConfig> {
   try {
-    const raw = await Bun.file(CONFIG_PATH).text();
+    const raw = await Bun.file(resolveConfigPath()).text();
     return JSON.parse(raw) as CaseConfig;
   } catch {
     return {};

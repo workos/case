@@ -88,7 +88,7 @@ Before opening a PR, the reviewer agent checks the diff against golden principle
 
 Critical findings block PR creation. Warnings and info are posted as PR comments.
 
-Evidence: `.case/<task-slug>/reviewed` marker (created by `scripts/mark-reviewed.sh` only if critical: 0).
+Evidence: `.case/<task-slug>/reviewed` marker (created by `ca mark-reviewed` only if critical: 0).
 
 ## Step 9: Open PR
 

@@ -13,6 +13,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 ## Philosophy
 
+- **Case exists to make agent-authored WorkOS OSS PRs reliable, reviewable, and self-improving.** Keep the core loop small unless reliability requires more.
 - **Humans steer, agents execute.** Engineers define goals and acceptance criteria. Agents implement.
 - **Never write code directly.** All code changes in target repos flow through agents. Engineers only improve this harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.
@@ -26,7 +27,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 - Architecture patterns that span multiple repos
 - Playbooks for recurring operations
 - Task files and templates
-- Enforcement scripts (check.sh, bootstrap.sh)
+- TypeScript CLI guardrails (`ca check`, `ca bootstrap`, evidence marker commands)
 - Pipeline orchestrator (TypeScript)
 
 **In individual repos:**
@@ -58,9 +59,9 @@ tasks/
   active/                 # Current task files for agent execution
   done/                   # Completed tasks (moved after PR merge)
   templates/              # Reusable task templates
-scripts/
-  check.sh               # Cross-repo convention enforcement
-  bootstrap.sh            # Per-repo readiness verification
+src/commands/
+  check.ts                # Cross-repo convention enforcement
+  bootstrap.ts            # Per-repo readiness verification
 ```
 
 ## Commands
@@ -70,11 +71,11 @@ scripts/
 node -e "JSON.parse(require('fs').readFileSync('projects.json','utf8'))"
 
 # Check conventions across repos
-bash scripts/check.sh
+ca check
 
 # Check a single repo
-bash scripts/check.sh --repo cli
+ca check --repo cli
 
 # Bootstrap a repo for agent work
-bash scripts/bootstrap.sh cli
+ca bootstrap cli
 ```

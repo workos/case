@@ -2,15 +2,7 @@ import type { PipelineProfile } from '../types.js';
 import { PROFILE_PHASES } from '../types.js';
 import type { DagEdge, DagNode, NodeId, PipelineGraph } from './types.js';
 
-export interface BuildGraphOptions {
-  approve?: boolean;
-}
-
-export function buildGraph(
-  profile: PipelineProfile,
-  maxRevisionCycles: number,
-  options?: BuildGraphOptions,
-): PipelineGraph {
+export function buildGraph(profile: PipelineProfile, maxRevisionCycles: number): PipelineGraph {
   const nodes = new Map<NodeId, DagNode>();
   const edges: DagEdge[] = [];
   const phases = PROFILE_PHASES[profile];
@@ -81,40 +73,15 @@ export function buildGraph(
     }
   }
 
-  // Approve node (optional, between evaluators and close)
-  if (options?.approve) {
-    const approveId = 'approve';
-    nodes.set(approveId, {
-      id: approveId,
-      phase: 'approve',
-      agent: 'reviewer', // approve uses human, but agent field needs a value
-      cycle: 0,
-      state: 'pending',
-    });
-
-    // All evaluator completion edges point to approve instead of close
-    for (let cycle = 0; cycle <= maxRevisionCycles; cycle++) {
-      const evaluatorIds = hasVerify ? [nodeId('verify', cycle), nodeId('review', cycle)] : [nodeId('review', cycle)];
-      for (const evalId of evaluatorIds) {
-        edges.push({
-          from: evalId,
-          to: approveId,
-          predicate: noRevisionPredicate(cycle, hasVerify),
-        });
-      }
-    }
-    edges.push({ from: approveId, to: 'close' });
-  } else {
-    // Evaluator completion edges → close directly
-    for (let cycle = 0; cycle <= maxRevisionCycles; cycle++) {
-      const evaluatorIds = hasVerify ? [nodeId('verify', cycle), nodeId('review', cycle)] : [nodeId('review', cycle)];
-      for (const evalId of evaluatorIds) {
-        edges.push({
-          from: evalId,
-          to: 'close',
-          predicate: noRevisionPredicate(cycle, hasVerify),
-        });
-      }
+  // Evaluator completion edges → close directly.
+  for (let cycle = 0; cycle <= maxRevisionCycles; cycle++) {
+    const evaluatorIds = hasVerify ? [nodeId('verify', cycle), nodeId('review', cycle)] : [nodeId('review', cycle)];
+    for (const evalId of evaluatorIds) {
+      edges.push({
+        from: evalId,
+        to: 'close',
+        predicate: noRevisionPredicate(cycle, hasVerify),
+      });
     }
   }
 
@@ -174,7 +141,7 @@ function noRevisionPredicate(cycle: number, hasVerify: boolean) {
       : [graph.nodes.get(nodeId('review', cycle))!];
 
     if (evaluators.some((node) => hasRevisionResult(node))) {
-      // A revision was requested — don't proceed to close/approve
+      // A revision was requested — don't proceed to close.
       const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
       if (nextImpl) return false;
       // No next implement means budget exhausted — allow proceeding

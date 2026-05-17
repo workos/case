@@ -10,8 +10,8 @@ const taskParams = Type.Object({
   issue: Type.Optional(Type.String({ description: 'Issue identifier' })),
   issueType: Type.Optional(Type.Union([Type.Literal('github'), Type.Literal('linear'), Type.Literal('freeform')])),
   profile: Type.Optional(
-    Type.Union([Type.Literal('tiny'), Type.Literal('standard'), Type.Literal('complex')], {
-      description: 'Pipeline profile — tiny (docs/config), standard (bug fixes), complex (multi-file features)',
+    Type.Union([Type.Literal('tiny'), Type.Literal('standard')], {
+      description: 'Pipeline profile — tiny (docs/config), standard (default full pipeline)',
     }),
   ),
   verificationScenarios: Type.Optional(

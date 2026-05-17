@@ -5,10 +5,10 @@ Humans steer. Agents execute. When agents struggle, fix the harness.
 
 ## First Step
 
-Run the session-start script to gather context before doing anything else:
+Run the session command to gather context before doing anything else:
 
 ```bash
-SESSION=$(case session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <task.json>)
 echo "$SESSION"
 ```
 
@@ -21,7 +21,7 @@ echo "$SESSION"
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management                | TS/pnpm |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK                           | TS/pnpm |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                                  | TS/pnpm |
-| workos-node            | `../workos-node`            | WorkOS Node.js SDK                                   | TS/pnpm |
+| workos-node            | `../workos-node/main`       | WorkOS Node.js SDK                                   | TS/pnpm |
 
 Full metadata (commands, remotes, language): `projects.json`
 
@@ -48,22 +48,17 @@ Pipeline: implementer → verifier → reviewer → closer → (retrospective)
 
 Lifecycle: `tasks/active/` → `tasks/done/` (moved after PR merge)
 
-### From Ideation
-
-Use `ca --from-ideation <folder>` to execute an ideation contract. Reads `contract.md` + spec files from the folder, creates a task, runs each phase's implementer sequentially, then verifier → reviewer → closer for one PR. See `src/agent/from-ideation.ts`.
-
 ## Working in a Target Repo
 
-0. Run `scripts/session-start.sh {repo-path}` to gather context
+0. Run `ca session {repo-path} --task {task-json}` to gather context
 1. Read the repo's `CLAUDE.md` (or `CLAUDE.local.md`) for project-specific instructions
-2. Run `scripts/bootstrap.sh {repo-name}` to verify readiness
+2. Run `ca bootstrap {repo-name}` to verify readiness
 3. Follow the repo's PR checklist before opening a PR
-4. Run `scripts/check.sh --repo {repo-name}` to verify conventions
+4. Run `ca check --repo {repo-name}` to verify conventions
 
 ## Maintenance
 
-- **Entropy scanning**: `scripts/entropy-scan.sh` — detect convention drift across repos
-- **Convention checks**: `scripts/check.sh` — enforce shared rules
+- **Convention checks**: `ca check` — enforce shared rules
 
 ## Improving This Harness
 

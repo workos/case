@@ -90,15 +90,6 @@ describe('projectStatusFromGraph', () => {
     expect(projectStatusFromGraph(graph)).toBe('merged');
   });
 
-  test('returns approving when approve node is running', () => {
-    const graph = buildGraph('standard', 1, { approve: true });
-    setNodeState(graph, 'implement_0', 'completed');
-    setNodeState(graph, 'verify_0', 'completed');
-    setNodeState(graph, 'review_0', 'completed');
-    setNodeState(graph, 'approve', 'running');
-    expect(projectStatusFromGraph(graph)).toBe('approving');
-  });
-
   test('tiny profile: review_0 completed marks evaluating (no verify)', () => {
     const graph = buildGraph('tiny', 2);
     setNodeState(graph, 'implement_0', 'completed');

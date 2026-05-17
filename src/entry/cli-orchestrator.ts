@@ -5,7 +5,8 @@ import { findTaskByIssue, findTaskByMarker } from './task-scanner.js';
 import { createTask } from './task-factory.js';
 import { buildPipelineConfig } from '../config.js';
 import { runPipeline } from '../pipeline.js';
-import { runScript } from '../util/run-script.js';
+import { runBootstrap } from '../commands/bootstrap.js';
+import { runCommand } from '../util/run-command.js';
 import type { IssueContext, PipelineMode, TaskCreateRequest } from '../types.js';
 import type { TaskMatch } from './task-scanner.js';
 
@@ -14,8 +15,6 @@ export interface CliOrchestratorOptions {
   argument?: string;
   mode: PipelineMode;
   dryRun: boolean;
-  /** Enable human approval gate between review and close. */
-  approve?: boolean;
   /** Skip re-entry detection and create a fresh task. */
   fresh?: boolean;
   caseRoot: string;
@@ -29,11 +28,11 @@ export interface CliOrchestratorOptions {
  *   0b. Check for existing task (re-entry)
  *   1. Fetch issue context
  *   2. Derive branch, create task files
- *   3. Run baseline (bootstrap.sh)
+ *   3. Run baseline
  *   4. Dispatch to runPipeline()
  */
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
-  const { argument, mode, dryRun, approve, fresh, caseRoot } = options;
+  const { argument, mode, dryRun, fresh, caseRoot } = options;
 
   // --- Step 0: Detect repo ---
   process.stdout.write('Detecting repo...\n');
@@ -53,7 +52,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   }
 
   if (match) {
-    return resumeTask(match, detected.path, mode, dryRun, approve);
+    return resumeTask(match, detected.path, mode, dryRun);
   }
 
   // No existing task found — create new or exit
@@ -99,15 +98,12 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   await Bun.write(resolve(caseDirPath, 'active'), `${taskResult.taskId}\n`);
 
   // --- Step 3: Run baseline ---
-  process.stdout.write('Running baseline (bootstrap.sh)...\n');
-  const bootstrapScript = resolve(caseRoot, 'scripts/bootstrap.sh');
-  const baseline = await runScript('bash', [bootstrapScript, detected.name], {
-    cwd: caseRoot,
-    timeout: 120_000,
-  });
+  process.stdout.write('Running baseline...\n');
+  const baseline = await runBootstrap(detected.name, caseRoot);
 
-  if (baseline.exitCode !== 0) {
-    process.stderr.write(`Baseline failed:\n${baseline.stdout}${baseline.stderr}\n`);
+  if (!baseline.ok) {
+    const failed = baseline.steps.find((step) => step.exitCode !== 0);
+    process.stderr.write(`Baseline failed:\n${failed?.output ?? ''}\n`);
     process.stderr.write('Fix the issues above before retrying.\n');
     process.exit(1);
   }
@@ -119,7 +115,6 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
     taskJsonPath: taskResult.taskJsonPath,
     mode,
     dryRun,
-    approve,
   });
 
   await runPipeline(config);
@@ -127,27 +122,15 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
 
 /**
  * Resume an existing task from the correct pipeline phase.
- * Handles terminal states (pr-opened, ideation) and branch recovery.
+ * Handles terminal states (pr-opened) and branch recovery.
  */
-async function resumeTask(
-  match: TaskMatch,
-  repoPath: string,
-  mode: PipelineMode,
-  dryRun: boolean,
-  approve?: boolean,
-): Promise<void> {
+async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode, dryRun: boolean): Promise<void> {
   const { taskJson, taskJsonPath, entryPhase } = match;
 
   // Guard: task already has a PR open
   if (taskJson.status === 'pr-opened' || taskJson.status === 'merged') {
     const prInfo = taskJson.prUrl ? `: ${taskJson.prUrl}` : '';
     process.stdout.write(`PR already exists${prInfo}. Nothing to do.\n`);
-    return;
-  }
-
-  // Guard: ideation tasks need a different workflow
-  if (taskJson.issueType === 'ideation') {
-    process.stdout.write(`This is an ideation task. Resume with: /case:from-ideation ${taskJsonPath}\n`);
     return;
   }
 
@@ -163,7 +146,6 @@ async function resumeTask(
     taskJsonPath,
     mode,
     dryRun,
-    approve,
   });
 
   process.stdout.write('Dispatching to pipeline...\n');
@@ -203,10 +185,10 @@ function deriveBranchPrefix(labels: string[]): string {
  * When `warnOnCreate` is true (resume flow), warns that the branch was recreated.
  */
 async function ensureBranch(branchName: string, repoPath: string, warnOnCreate = false): Promise<void> {
-  const check = await runScript('git', ['rev-parse', '--verify', branchName], { cwd: repoPath });
+  const check = await runCommand('git', ['rev-parse', '--verify', branchName], { cwd: repoPath });
 
   if (check.exitCode === 0) {
-    const co = await runScript('git', ['checkout', branchName], { cwd: repoPath });
+    const co = await runCommand('git', ['checkout', branchName], { cwd: repoPath });
     if (co.exitCode !== 0) {
       throw new Error(`Failed to checkout branch ${branchName}: ${co.stderr.trim()}`);
     }
@@ -214,7 +196,7 @@ async function ensureBranch(branchName: string, repoPath: string, warnOnCreate =
     if (warnOnCreate) {
       process.stdout.write(`  Warning: branch ${branchName} not found, recreating from HEAD\n`);
     }
-    const create = await runScript('git', ['checkout', '-b', branchName], { cwd: repoPath });
+    const create = await runCommand('git', ['checkout', '-b', branchName], { cwd: repoPath });
     if (create.exitCode !== 0) {
       throw new Error(`Failed to create branch ${branchName}: ${create.stderr.trim()}`);
     }

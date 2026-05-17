@@ -146,7 +146,7 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
   }
 }
 
-const TERMINAL_PHASES = new Set(['close', 'retrospective', 'approve']);
+const TERMINAL_PHASES = new Set(['close', 'retrospective']);
 
 function isTerminalPhase(phase: string): boolean {
   return TERMINAL_PHASES.has(phase);

@@ -15,19 +15,21 @@
     "lint": "oxlint",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "bun test ./src/__tests__/ && bun test --cwd test/standalone",
-    "test:ast": "bash tests/ast-rules/run-tests.sh",
-    "lint:ast": "bash -c 'fail=0; for f in ast-rules/target/*.yml; do ast-grep scan --rule \"$f\" . || fail=1; done; exit $fail'",
-    "lint:ast:self": "bash -c 'fail=0; for f in ast-rules/self/*.yml; do ast-grep scan --rule \"$f\" src/ || fail=1; done; exit $fail'",
-    "lint:paths": "bash scripts/lint-paths.sh",
-    "lint:ast:all": "bun run lint:ast && bun run lint:ast:self && bun run lint:paths",
-    "build:binary": "bash scripts/build-binary.sh",
+    "test": "bun src/dev/run-tests.ts",
+    "test:ast": "bun src/dev/test-ast-rules.ts",
+    "lint:ast": "bun src/dev/lint-ast.ts target src/",
+    "lint:ast:self": "bun src/dev/lint-ast.ts self src/",
+    "lint:paths": "bun src/dev/lint-paths.ts",
+    "lint:ast:all": "bun src/dev/lint-ast-all.ts",
+    "build:binary": "bun src/dev/build-binary.ts",
     "start": "bun src/index.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.63.2",
     "@mariozechner/pi-ai": "^0.63.2",
-    "@mariozechner/pi-coding-agent": "^0.63.2"
+    "@mariozechner/pi-coding-agent": "^0.63.2",
+    "@mariozechner/pi-tui": "^0.63.2",
+    "@sinclair/typebox": "^0.34.48"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.42.2",

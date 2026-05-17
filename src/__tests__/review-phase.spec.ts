@@ -1,5 +1,5 @@
 import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
-import { mockSpawnAgent, mockRunScript } from './mocks.js';
+import { mockSpawnAgent, mockRunCommand } from './mocks.js';
 import type { AgentResult, PipelineConfig } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -69,8 +69,8 @@ const completedResult: AgentResult = {
 describe('runReviewPhase', () => {
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
-    mockRunScript.mockReset();
-    mockRunScript.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
+    mockRunCommand.mockReset();
+    mockRunCommand.mockResolvedValue({ stdout: '{}', stderr: '', exitCode: 0 });
     await setupTempFiles();
   });
 

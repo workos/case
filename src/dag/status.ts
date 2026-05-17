@@ -25,8 +25,6 @@ export function projectStatusFromGraph(graph: PipelineGraph): TaskStatus {
         return 'verifying';
       case 'review':
         return 'reviewing';
-      case 'approve':
-        return 'approving';
       case 'close':
         return 'closing';
     }

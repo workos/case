@@ -24,6 +24,11 @@ async function runOk(cmd: string[], cwd?: string): Promise<boolean> {
 }
 
 export async function handler(argv: string[]): Promise<number> {
+  if (argv[0] === '--help' || argv[0] === '-h') {
+    process.stderr.write('Usage: ca session <repo-path> [--task <task.json>]\n');
+    return 0;
+  }
+
   let repoPath = argv[0] || '.';
   let taskJsonPath = '';
   for (let i = 1; i < argv.length; i++) {

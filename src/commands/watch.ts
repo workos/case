@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { resolvePackageRoot } from '../paths.js';
 
-export const description = 'Watch for task changes and re-run';
+export const description = 'Live-tail a task event log';
 
 export async function handler(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({

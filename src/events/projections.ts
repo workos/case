@@ -125,9 +125,6 @@ export function projectMetrics(state: PipelineState): RunMetrics {
     revisionCycles: state.revisionCycles,
     profile: state.profile,
     humanOverrides: 0,
-    approvalDecision: null,
-    approvalTimeMs: null,
-    humanRevisionCycles: 0,
     evaluatorEffectiveness: {
       verifierRubric,
       reviewerRubric,

@@ -40,7 +40,7 @@ export async function fetchIssue(
 /**
  * Fetch a GitHub issue via `gh issue view`.
  */
-export async function fetchGitHubIssue(repoRemote: string, issueNumber: string): Promise<IssueContext> {
+async function fetchGitHubIssue(repoRemote: string, issueNumber: string): Promise<IssueContext> {
   const ownerRepo = extractOwnerRepo(repoRemote);
 
   const proc = Bun.spawn(['gh', 'issue', 'view', issueNumber, '--repo', ownerRepo, '--json', 'title,body,labels'], {
@@ -75,7 +75,7 @@ export async function fetchGitHubIssue(repoRemote: string, issueNumber: string):
  * Fetch a Linear issue via GraphQL API.
  * Requires LINEAR_API_KEY in ~/.config/case/credentials.
  */
-export async function fetchLinearIssue(issueId: string): Promise<IssueContext> {
+async function fetchLinearIssue(issueId: string): Promise<IssueContext> {
   const apiKey = await readLinearApiKey();
 
   if (!apiKey) {
@@ -143,7 +143,7 @@ export async function fetchLinearIssue(issueId: string): Promise<IssueContext> {
 /**
  * Construct an IssueContext from freeform text.
  */
-export function freeformIssue(text: string): IssueContext {
+function freeformIssue(text: string): IssueContext {
   return {
     title: text,
     body: text,

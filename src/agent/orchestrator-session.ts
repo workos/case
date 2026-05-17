@@ -18,14 +18,11 @@ import { createPipelineTool } from './tools/pipeline-tool.js';
 import { createIssueTool } from './tools/issue-tool.js';
 import { createTaskTool } from './tools/task-tool.js';
 import { createBaselineTool } from './tools/baseline-tool.js';
-import { createFromIdeationTool } from './tools/from-ideation-tool.js';
 
 export interface OrchestratorSessionOptions {
   caseRoot: string;
   argument?: string;
   mode: 'attended';
-  /** Enable human approval gate between review and close. */
-  approve?: boolean;
 }
 
 export async function startOrchestratorSession(options: OrchestratorSessionOptions): Promise<void> {
@@ -72,8 +69,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     model: model ?? undefined,
     resourceLoader,
     customTools: [
-      createPipelineTool(options.caseRoot, { approve: options.approve }),
-      createFromIdeationTool(options.caseRoot, { approve: options.approve }),
+      createPipelineTool(options.caseRoot),
       createIssueTool(options.caseRoot),
       createTaskTool(options.caseRoot),
       createBaselineTool(options.caseRoot),
@@ -243,7 +239,7 @@ function buildOrchestratorSystemPrompt(caseRoot: string): string {
 
 **You are a planner and dispatcher, not an implementer.** You must NEVER directly modify files in the target repo — no editing code, no running \`pnpm add\`, no \`rm\`, no \`git commit\`. Your job is to:
 1. Understand what the user wants (explore, read, ask questions)
-2. Write ideation artifacts (contract.md, spec files) that describe the work
+2. Create or refine a case task with clear acceptance criteria
 3. Dispatch to the pipeline tools which spawn dedicated agents to do the work
 
 If you catch yourself about to edit a source file or run a command that changes repo state — stop. That work belongs to the implementer agent, not you.
@@ -252,8 +248,7 @@ If you catch yourself about to edit a source file or run a command that changes 
 
 ## Tools
 
-- \`run_pipeline\` — Run the agent pipeline (implement → verify → review → [approve] → close) for a task file.
-- \`run_from_ideation\` — Execute an ideation contract through the pipeline. All phases on one branch, one PR. Inherits \`--approve\` from CLI flags.
+- \`run_pipeline\` — Run the agent pipeline (implement → verify → review → close) for a task file.
 - \`fetch_issue\` — Get context from GitHub or Linear.
 - \`create_task\` — Set up task files for pipeline execution.
 - \`run_baseline\` — Verify a repo meets conventions.
@@ -276,34 +271,26 @@ Explore the codebase to understand the current state. Read relevant files, check
 - You have enough context to write a good spec
 
 ### 2. Plan
-Write ideation artifacts to \`docs/ideation/{slug}/\` in the target repo:
-- **contract.md** — Problem, goals, success criteria, scope
-- **spec.md** (or **spec-phase-N.md**) — Implementation details, file changes, validation commands
-
-For simple tasks (1-3 files, mechanical changes): a spec.md alone is sufficient.
-For complex tasks: write a full contract + specs.
+Translate the request into a task: title, description, target repo, acceptance criteria, verification scenarios, non-goals, edge cases, and evidence expectations. The task should be small enough for one PR.
 
 ### 3. Confirm
 Present a brief summary of what will be built and ask the user to confirm before executing. Keep it to 3-5 bullet points.
 
 ### 4. Execute
-Call \`run_from_ideation\` with the ideation folder path. The pipeline handles implementation, verification, review, and PR creation.
+Call \`create_task\`, then \`run_pipeline\` with the created task JSON path. The pipeline handles implementation, verification, review, PR creation, and retrospective learning.
 
 ## Flows
 
 ### Freeform request ("convert to oxfmt", "add dark mode", "fix the login bug")
 1. **Understand**: Read the relevant code and configs. Ask clarifying questions only if needed.
-2. **Plan**: Write ideation artifacts describing the change.
+2. **Plan**: Draft the task fields and evidence expectations.
 3. **Confirm**: "Here's the plan: ... Ready to execute?"
-4. **Execute**: Call \`run_from_ideation\`.
+4. **Execute**: Call \`create_task\`, then \`run_pipeline\`.
 
 ### Issue reference ("#42", "DX-1234")
 1. Fetch the issue with \`fetch_issue\`.
 2. Create a task with \`create_task\`.
 3. Run with \`run_pipeline\`.
-
-### Pre-existing artifacts ("execute docs/ideation/foo/")
-Call \`run_from_ideation\` directly.
 
 ## Key context
 

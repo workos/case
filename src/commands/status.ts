@@ -6,9 +6,9 @@ export const description = 'Read or update the current task status';
 const TRANSITIONS: Record<string, TaskStatus[]> = {
   active: ['implementing'],
   implementing: ['verifying', 'active'],
-  verifying: ['reviewing', 'closing', 'implementing'],
-  reviewing: ['closing', 'approving', 'verifying'],
-  approving: ['closing', 'implementing', 'verifying'],
+  verifying: ['reviewing', 'evaluating', 'closing', 'implementing'],
+  reviewing: ['evaluating', 'closing', 'verifying'],
+  evaluating: ['closing', 'implementing', 'verifying', 'reviewing'],
   closing: ['pr-opened', 'verifying'],
   'pr-opened': ['pr-opened', 'merged'],
   merged: [],
@@ -121,7 +121,7 @@ export async function handler(argv: string[]): Promise<number> {
   // Evidence flag guard
   if ((field === 'tested' || field === 'manualTested') && extra !== '--from-marker') {
     process.stderr.write(
-      `Error: ${field} can only be set by marker scripts (pass --from-marker)\nUse ca mark-tested or ca mark-manual-tested instead.\n`,
+      `Error: ${field} can only be set by marker commands (pass --from-marker)\nUse ca mark-tested or ca mark-manual-tested instead.\n`,
     );
     return 1;
   }

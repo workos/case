@@ -20,7 +20,7 @@ You receive from the orchestrator:
 
 ### 0. Session Context
 
-Run the session-start script to orient yourself:
+Run the session command to orient yourself:
 
 ```bash
 SESSION=$(ca session <target-repo-path> --task <task.json>)
@@ -180,7 +180,7 @@ If critical findings exist, set `"status":"blocked"` and list the critical findi
 - **Never run tests.** Read the structured test output from `.case/<task-slug>/tested` instead.
 - **Always read golden principles fresh.** They may have been updated by a retrospective.
 - **Always include file and line references** for critical and warning findings.
-- **Always create the evidence marker via `mark-reviewed.sh`** — never `touch` the marker file directly.
+- **Always create the evidence marker via `ca mark-reviewed`** — never `touch` the marker file directly.
 - **Critical findings include the specific principle violated.** Not just "principle 5" but "Principle 5: No secrets in source control — found `sk_live_` in `src/config.ts:42`".
 - **If critical findings exist, do NOT create the reviewed marker.** The marker script will refuse anyway, but don't even attempt it.
 - **Always end with `<<<AGENT_RESULT` / `AGENT_RESULT>>>`.** The orchestrator depends on this.

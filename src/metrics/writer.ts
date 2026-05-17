@@ -9,8 +9,6 @@ const log = createLogger();
 
 /**
  * Append RunMetrics to the run log as a single JSON line.
- * Replaces the Python-based log-run.sh for metrics written by the orchestrator.
- * log-run.sh still handles relational fields (priorRunId, parentTaskId).
  */
 export async function writeRunMetrics(
   caseRoot: string,
@@ -58,9 +56,6 @@ export async function writeRunMetrics(
       profile: metrics.profile,
       revisionCycles: metrics.revisionCycles,
       humanOverrides: metrics.humanOverrides,
-      approvalDecision: metrics.approvalDecision,
-      approvalTimeMs: metrics.approvalTimeMs,
-      humanRevisionCycles: metrics.humanRevisionCycles,
       evaluatorEffectiveness: metrics.evaluatorEffectiveness,
     },
   };

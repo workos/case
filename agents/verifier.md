@@ -20,7 +20,7 @@ You receive from the orchestrator:
 
 ### 0. Session Context
 
-Run the session-start script to orient yourself:
+Run the session command to orient yourself:
 
 ```bash
 SESSION=$(ca session <target-repo-path> --task <task.json>)
@@ -51,17 +51,20 @@ Read the output to understand: current branch, last commits, task status, which 
 First, check if this is a library repo (no web UI):
 
 ```bash
-python3 -c "
-import json, os, sys
-case_root = '{{packageRoot}}'
-projects = json.load(open(os.path.join(case_root, 'projects.json')))
-repo_root = os.path.realpath('$(git rev-parse --show-toplevel)')
-for repo in projects.get('repos', []):
-    abs_path = os.path.realpath(os.path.join(case_root, repo.get('path', '')))
-    if abs_path == repo_root:
-        print(repo.get('type', 'app'))
-        sys.exit(0)
-print('app')
+node -e "
+const fs = require('node:fs');
+const path = require('node:path');
+const caseRoot = '{{packageRoot}}';
+const projects = JSON.parse(fs.readFileSync(path.join(caseRoot, 'projects.json'), 'utf8'));
+const repoRoot = fs.realpathSync(process.cwd());
+for (const repo of projects.repos ?? []) {
+  const abs = fs.realpathSync(path.resolve(caseRoot, repo.path ?? ''));
+  if (abs === repoRoot) {
+    console.log(repo.type ?? 'app');
+    process.exit(0);
+  }
+}
+console.log('app');
 "
 ```
 
@@ -381,10 +384,10 @@ If verification failed (the fix doesn't work), set `"status":"failed"` and descr
 - **Never edit source code.** You verify, not implement.
 - **Never commit.** The implementer already committed.
 - **Never create PRs.** That's the closer's job.
-- **Never set `tested` or `manualTested` directly in task JSON.** Marker scripts handle this.
+- **Never set `tested` or `manualTested` directly in task JSON.** Marker commands handle this.
 - **Always test the specific fix scenario.** "It loads" is not verification. "The org switch works with a custom cookie name" is verification. Your before/after screenshots must show a visible difference.
 - **Always complete the login flow when testing authenticated features.** Use the credentials from `~/.config/case/credentials` and follow the AuthKit login procedure in step 3c. Never screenshot an unauthenticated landing page as "evidence" for an auth feature.
 - **Never record video of a page doing nothing.** If you use video, the recording must capture real interactions. If you're only loading a page and taking a screenshot, skip video entirely.
-- **Always create evidence markers via scripts** — never `touch` marker files directly.
+- **Always create evidence markers via marker commands** — never `touch` marker files directly.
 - **Always end with `<<<AGENT_RESULT` / `AGENT_RESULT>>>`.** The orchestrator depends on this.
 - **If src/ files didn't change, skip Playwright.** Just mark as verified and explain why manual testing was not needed.

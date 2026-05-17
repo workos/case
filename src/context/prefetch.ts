@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path';
 import type { AgentName, PipelineConfig } from '../types.js';
 import { resolveLearningsDir } from '../paths.js';
 import { gatherSessionContext } from '../commands/session.js';
-import { runScript } from '../util/run-script.js';
+import { runCommand } from '../util/run-command.js';
 
 export interface RepoContext {
   sessionJson: Record<string, unknown>;
@@ -30,7 +30,7 @@ export async function prefetchRepoContext(config: PipelineConfig, role: AgentNam
 
   const promises: Promise<unknown>[] = [
     gatherSessionContext(config.repoPath, config.taskJsonPath),
-    runScript('git', ['log', '--oneline', '-10'], { cwd: config.repoPath }),
+    runCommand('git', ['log', '--oneline', '-10'], { cwd: config.repoPath }),
   ];
 
   if (needsLearnings) promises.push(readLearnings(dataDirLearnings, legacyLearnings));
