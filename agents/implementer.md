@@ -12,11 +12,11 @@ Implement a fix or feature in the target repo. Write code, run automated tests, 
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
 - **Task JSON path** — the `.task.json` companion (same stem as the .md)
 - **Target repo path** — absolute path to the repo where you'll work
 - **Issue summary** — title, body, and key details from the GitHub/Linear issue
-- **Playbook path** — reference to the relevant playbook under the case install's `docs/playbooks/`
+- **Project commands** — setup/test/typecheck/lint/build commands from `projects.json`, when available
 - **Root cause analysis** (for bug fixes) — orchestrator's reproduction findings including affected files, root cause, and evidence
 
 ## Workflow
@@ -43,8 +43,8 @@ Read the output to understand: current branch, last commits, task status, which 
 2. Read the task file (`.md`) — understand the objective, acceptance criteria, and checklist
 3. Read the target repo's `CLAUDE.md` for project-specific instructions
 4. Read the playbook referenced in the task file
-5. Read the case install's `projects.json` to find the repo's available commands (test, typecheck, lint, build, format)
-6. Read the case install's `docs/learnings/{repo}.md` for tactical knowledge from previous tasks in this repo
+5. Use the Project Commands section in this prompt for available commands (test, typecheck, lint, build, format). If it is absent, inspect `package.json` and `CLAUDE.md`.
+6. Read the target repo's `.case/learnings.md` for tactical knowledge from previous tasks in this repo, if it exists
 7. Check for working memory — if `{task-stem}.working.md` exists alongside the task file, read it. This contains state from previous runs: what was tried, what failed, blockers, files changed so far. Use this to avoid repeating failed approaches.
 8. If the task JSON has a `checkCommand`, run it now and record the output as your baseline:
    ```bash
@@ -230,7 +230,7 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
 ### 4b. Update Working Memory
 
-**Always do this, even on failure.** Write (or update) `{task-stem}.working.md` alongside the task file in `tasks/active/`:
+**Always do this, even on failure.** Write (or update) `{task-stem}.working.md` alongside the task file in `.case/tasks/active/`:
 
 ```markdown
 # Working Memory — {task-id}

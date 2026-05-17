@@ -12,7 +12,7 @@ Create a pull request with a thorough description based on the task file, progre
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo
 - **Verifier AGENT_RESULT** — structured output from the verifier (screenshot URLs, evidence markers, pass/fail)

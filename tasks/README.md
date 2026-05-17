@@ -1,6 +1,6 @@
 # Task File Format
 
-Tasks are markdown files that define work for agents. Drop a file in `tasks/active/`, and an agent executes it.
+Tasks are markdown files that define work for agents. New runtime task files live in the target repo's ignored `.case/tasks/active/`.
 
 ## Naming Convention
 
@@ -33,7 +33,7 @@ Optional: `## Context` for background info, issue links, API specs, etc.
 
 ## Lifecycle
 
-1. Orchestrator creates task file (`.md` + `.task.json`) in `tasks/active/`
+1. Orchestrator creates task file (`.md` + `.task.json`) in the target repo's `.case/tasks/active/`
 2. Implementer writes the fix/feature, runs tests, commits
 3. Verifier tests the specific scenario with fresh context
 4. Reviewer checks the diff against golden principles and conventions
@@ -41,15 +41,15 @@ Optional: `## Context` for background info, issue links, API specs, etc.
 6. Post-PR hook updates `.task.json` status to `pr-opened`
 7. After PR merge, status updated to `merged` (manual or automation)
 
-Legacy tasks without a `.task.json` companion still use the old file-move behavior (`active/` → `done/`).
+Legacy in-repo harness tasks without a `.task.json` companion still use the old file-move behavior (`active/` → `done/`).
 
 ## JSON Companion File
 
 Every new task has a `.task.json` companion alongside the `.md` file. Same filename stem:
 
 ```
-tasks/active/authkit-nextjs-1-issue-53.md         # human-readable
-tasks/active/authkit-nextjs-1-issue-53.task.json   # machine-touched
+.case/tasks/active/authkit-nextjs-1-issue-53.md         # human-readable
+.case/tasks/active/authkit-nextjs-1-issue-53.task.json   # machine-touched
 ```
 
 The JSON file stores structured metadata that agents and CLI commands update programmatically. Schema: `tasks/task.schema.json`.

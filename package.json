@@ -21,6 +21,7 @@
     "lint:ast:self": "bun src/dev/lint-ast.ts self src/",
     "lint:paths": "bun src/dev/lint-paths.ts",
     "lint:ast:all": "bun src/dev/lint-ast-all.ts",
+    "generate:assets": "bun src/dev/generate-package-assets.ts",
     "build:binary": "bun src/dev/build-binary.ts",
     "start": "bun src/index.ts"
   },

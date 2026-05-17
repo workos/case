@@ -1,7 +1,8 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, basename } from 'node:path';
-import { resolvePackageRoot, resolveAgentVersionsDir } from '../paths.js';
+import { isEmbeddedPackageRoot, resolvePackageRoot, resolveAgentVersionsDir } from '../paths.js';
+import { readPackageAssetSync } from '../package-assets.js';
 
 export const description = 'Snapshot current agent prompt versions to agent-versions/';
 
@@ -20,15 +21,18 @@ export async function handler(argv: string[]): Promise<number> {
   }
 
   const packageRoot = resolvePackageRoot();
-  const agentFile = resolve(packageRoot, 'agents', `${agentName}.md`);
-  if (!existsSync(agentFile)) {
-    process.stderr.write(`Error: agent file not found: ${agentFile}\n`);
+  const agentAsset = `agents/${agentName}.md`;
+  let agentContent: string;
+  try {
+    agentContent = readPackageAssetSync(agentAsset, { packageRoot });
+  } catch {
+    process.stderr.write(`Error: agent file not found: ${agentAsset}\n`);
     return 1;
   }
 
   let versionsDir: string;
-  const legacyDir = resolve(packageRoot, 'docs', 'agent-versions');
-  versionsDir = existsSync(legacyDir) ? legacyDir : resolveAgentVersionsDir();
+  const legacyDir = isEmbeddedPackageRoot(packageRoot) ? null : resolve(packageRoot, 'docs', 'agent-versions');
+  versionsDir = legacyDir && existsSync(legacyDir) ? legacyDir : resolveAgentVersionsDir();
   mkdirSync(versionsDir, { recursive: true });
 
   const date = new Date().toISOString().slice(0, 10);
@@ -43,8 +47,8 @@ export async function handler(argv: string[]): Promise<number> {
     versionTag = `${snapBase}-${counter}`;
   }
 
-  copyFileSync(agentFile, snapFile);
-  const contentHash = createHash('sha256').update(readFileSync(agentFile, 'utf-8')).digest('hex').slice(0, 16);
+  writeFileSync(snapFile, agentContent);
+  const contentHash = createHash('sha256').update(agentContent).digest('hex').slice(0, 16);
 
   const entry = {
     version: versionTag,

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { loadProjects, resolveRepoPath } from '../config.js';
+import { loadProjectsManifest, resolveRepoPath } from '../config.js';
 import { runCommand } from '../util/run-command.js';
 import type { ProjectEntry } from '../types.js';
 
@@ -57,7 +57,8 @@ export async function detectRepo(caseRoot: string, cwd?: string): Promise<Detect
   const remoteUrl = await getGitRemoteUrl(workingDir);
 
   // Step 2: Load projects and match
-  const projects = await loadProjects(caseRoot);
+  const manifest = await loadProjectsManifest(caseRoot);
+  const projects = manifest.repos;
 
   // Try matching by remote URL
   if (remoteUrl) {
@@ -65,7 +66,7 @@ export async function detectRepo(caseRoot: string, cwd?: string): Promise<Detect
 
     for (const project of projects) {
       if (normalizeRemoteUrl(project.remote) === normalizedCwd) {
-        const repoPath = resolveRepoPath(caseRoot, project.path);
+        const repoPath = resolveRepoPath(manifest.repoBasePath, project.path);
         return { name: project.name, path: repoPath, project };
       }
     }
@@ -74,7 +75,7 @@ export async function detectRepo(caseRoot: string, cwd?: string): Promise<Detect
   // Fallback: try matching by resolved path
   const resolvedCwd = resolve(workingDir);
   for (const project of projects) {
-    const resolvedProjectPath = resolve(resolveRepoPath(caseRoot, project.path));
+    const resolvedProjectPath = resolve(resolveRepoPath(manifest.repoBasePath, project.path));
     if (resolvedCwd === resolvedProjectPath || resolvedCwd.startsWith(resolvedProjectPath + '/')) {
       return { name: project.name, path: resolvedProjectPath, project };
     }

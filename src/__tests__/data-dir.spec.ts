@@ -32,24 +32,22 @@ describe('ensureDataDir', () => {
   it('creates the full subtree on an empty dir', async () => {
     ensureDataDir();
     const entries = await readdir(tmp);
-    expect(entries.sort()).toEqual(['agent-versions', 'amendments', 'learnings', 'tasks']);
-    const tasksSub = await readdir(join(tmp, 'tasks'));
-    expect(tasksSub.sort()).toEqual(['active', 'done']);
+    expect(entries.sort()).toEqual(['agent-versions']);
   });
 
   it('is idempotent — second call does not throw and produces the same tree', async () => {
     ensureDataDir();
     ensureDataDir();
     const entries = await readdir(tmp);
-    expect(entries.sort()).toEqual(['agent-versions', 'amendments', 'learnings', 'tasks']);
+    expect(entries.sort()).toEqual(['agent-versions']);
   });
 
-  it('preserves files placed in subdirs across reruns', async () => {
+  it('preserves files placed in config/cache subdirs across reruns', async () => {
     ensureDataDir();
-    await writeFile(join(tmp, 'tasks/active/x.task.json'), '{}');
+    await writeFile(join(tmp, 'agent-versions/x.jsonl'), '{}');
     ensureDataDir();
-    const after = await readdir(join(tmp, 'tasks/active'));
-    expect(after).toEqual(['x.task.json']);
+    const after = await readdir(join(tmp, 'agent-versions'));
+    expect(after).toEqual(['x.jsonl']);
   });
 });
 
@@ -150,17 +148,7 @@ describe('migrateFromRepo', () => {
 
   beforeEach(async () => {
     repoRoot = await mkdtemp(join(tmpdir(), 'case-fake-repo-'));
-    await mkdir(join(repoRoot, 'tasks/active'), { recursive: true });
-    await mkdir(join(repoRoot, 'tasks/done'), { recursive: true });
-    await mkdir(join(repoRoot, 'docs/learnings'), { recursive: true });
-    await mkdir(join(repoRoot, 'docs/proposed-amendments'), { recursive: true });
     await mkdir(join(repoRoot, 'docs/agent-versions'), { recursive: true });
-    await writeFile(join(repoRoot, 'tasks/active/t1.task.json'), '{"id":"t1"}');
-    await writeFile(join(repoRoot, 'tasks/active/t1.md'), '# t1');
-    await writeFile(join(repoRoot, 'tasks/done/t0.task.json'), '{"id":"t0"}');
-    await writeFile(join(repoRoot, 'docs/learnings/cli.md'), '# cli learnings');
-    await writeFile(join(repoRoot, 'docs/proposed-amendments/2026-05-01.md'), '# amendment');
-    await writeFile(join(repoRoot, 'docs/run-log.jsonl'), '{"runId":"x"}\n');
     await writeFile(join(repoRoot, 'docs/agent-versions/implementer-2026-05-01.md'), '# snap');
     await writeFile(join(repoRoot, 'projects.json'), '{"repos":[]}');
   });
@@ -169,23 +157,41 @@ describe('migrateFromRepo', () => {
     await rm(repoRoot, { recursive: true, force: true });
   });
 
-  it('copies state from a fake repo into the data dir', async () => {
+  it('copies config/cache state from a fake repo into the data dir', async () => {
     const stats = await migrateFromRepo(repoRoot);
-    expect(stats.tasks).toBe(3); // 2 active + 1 done (only files counted)
-    expect(stats.learnings).toBe(1);
-    expect(stats.amendments).toBe(1);
-    expect(stats.runLog).toBe(true);
+    expect(stats.tasks).toBe(0);
+    expect(stats.learnings).toBe(0);
+    expect(stats.amendments).toBe(0);
+    expect(stats.runLog).toBe(false);
     expect(stats.agentVersions).toBe(1);
     expect(stats.projectsJson).toBe(true);
 
     // Check files actually exist in dataDir
-    await stat(join(tmp, 'tasks/active/t1.task.json'));
-    await stat(join(tmp, 'tasks/done/t0.task.json'));
-    await stat(join(tmp, 'learnings/cli.md'));
-    await stat(join(tmp, 'amendments/2026-05-01.md'));
-    await stat(join(tmp, 'run-log.jsonl'));
     await stat(join(tmp, 'agent-versions/implementer-2026-05-01.md'));
     await stat(join(tmp, 'projects.json'));
+  });
+
+  it('rewrites migrated relative repo paths to absolute paths for portable binaries', async () => {
+    await writeFile(
+      join(repoRoot, 'projects.json'),
+      JSON.stringify({
+        repos: [
+          {
+            name: 'cli',
+            path: '../cli/main',
+            remote: 'git@github.com:workos/workos-cli.git',
+            language: 'typescript',
+            packageManager: 'pnpm',
+            commands: {},
+          },
+        ],
+      }),
+    );
+
+    await migrateFromRepo(repoRoot);
+
+    const migrated = JSON.parse(await readFile(join(tmp, 'projects.json'), 'utf-8'));
+    expect(migrated.repos[0].path).toBe(join(repoRoot, '../cli/main'));
   });
 
   it('writes a .migrated marker on success', async () => {
@@ -197,22 +203,22 @@ describe('migrateFromRepo', () => {
   it('is a no-op on the second call (marker short-circuits)', async () => {
     await migrateFromRepo(repoRoot);
     // Mutate the dataDir to detect any unexpected copy
-    await writeFile(join(tmp, 'tasks/active/sentinel.task.json'), '{"id":"s"}');
+    await writeFile(join(tmp, 'agent-versions/sentinel.md'), '# s');
     const stats = await migrateFromRepo(repoRoot);
     expect(stats.tasks).toBe(0);
     expect(stats.learnings).toBe(0);
-    const after = await readdir(join(tmp, 'tasks/active'));
-    expect(after.sort()).toEqual(['sentinel.task.json', 't1.md', 't1.task.json']);
+    const after = await readdir(join(tmp, 'agent-versions'));
+    expect(after.sort()).toEqual(['implementer-2026-05-01.md', 'sentinel.md']);
   });
 
   it('never overwrites existing files', async () => {
     // Pre-populate the dataDir with a conflicting file
     ensureDataDir();
-    await writeFile(join(tmp, 'tasks/active/t1.task.json'), '{"id":"already-here"}');
+    await writeFile(join(tmp, 'agent-versions/implementer-2026-05-01.md'), '# already-here');
     const stats = await migrateFromRepo(repoRoot);
     expect(stats.conflicts).toBeGreaterThan(0);
-    const kept = await readFile(join(tmp, 'tasks/active/t1.task.json'), 'utf-8');
-    expect(kept).toBe('{"id":"already-here"}');
+    const kept = await readFile(join(tmp, 'agent-versions/implementer-2026-05-01.md'), 'utf-8');
+    expect(kept).toBe('# already-here');
   });
 
   it('does nothing when the source repo has no state dirs', async () => {

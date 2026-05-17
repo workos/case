@@ -1,13 +1,12 @@
 /**
- * `ca init` — scaffold the data directory and write a default `config.json`.
+ * `ca init` — scaffold the user config directory and write a default `config.json`.
  *
  * Idempotent and non-destructive: re-running prints the current path and exits 0.
  * Pass `--force` to rewrite `config.json` (state directories are never deleted).
  *
  * Migration: when invoked from a case repo root, or with `--migrate-from <path>`,
- * copies tasks/, docs/learnings/, docs/proposed-amendments/, docs/run-log.jsonl,
- * docs/agent-versions/, and projects.json into the data dir. A `.migrated` marker
- * is written on success so re-runs are no-ops.
+ * copies docs/agent-versions/ and projects.json into the config dir. Per-repo
+ * runtime state lives under each target repo's `.case/`.
  */
 
 import { parseArgs } from 'node:util';
@@ -22,7 +21,7 @@ import {
   type CaseConfig,
 } from '../data-dir.js';
 
-export const description = 'Scaffold the case data directory at ~/.config/case/';
+export const description = 'Scaffold the case config directory at ~/.config/case/';
 
 export interface InitOptions {
   projects?: string;
@@ -53,14 +52,14 @@ export async function init(opts: InitOptions = {}): Promise<number> {
   if (migrateSource) {
     try {
       const stats = await migrateFromRepo(migrateSource);
-      const total = stats.tasks + stats.learnings + stats.amendments + stats.agentVersions;
+      const total = stats.agentVersions;
       if (total > 0 || stats.runLog || stats.projectsJson) {
         process.stdout.write(
-          `Migrated from ${migrateSource}: ${stats.tasks} task files, ${stats.learnings} learnings, ${stats.amendments} amendments, ${stats.agentVersions} agent-versions, run-log=${stats.runLog}, projects.json=${stats.projectsJson}.\n`,
+          `Migrated from ${migrateSource}: ${stats.agentVersions} agent-versions, projects.json=${stats.projectsJson}.\n`,
         );
       }
       if (stats.conflicts > 0) {
-        process.stdout.write(`Skipped ${stats.conflicts} existing file(s) — data dir was not empty.\n`);
+        process.stdout.write(`Skipped ${stats.conflicts} existing file(s) — config dir was not empty.\n`);
       }
     } catch (err) {
       process.stderr.write(`case: migration from ${migrateSource} failed — ${(err as Error).message}\n`);
@@ -120,19 +119,22 @@ function printHelp(): void {
     [
       'Usage: ca init [options]',
       '',
-      'Scaffold the case data directory (default: ~/.config/case/) and write config.json.',
-      'Idempotent and non-destructive: re-running prints the current path and exits 0.',
+      'Scaffold the case config directory (default: ~/.config/case/) and write config.json.',
+      'Per-repo task runtime state is stored under each target repo .case/ directory.',
       '',
       'Options:',
-      '  --projects <path>       Path to projects.json (absolute or relative to data dir)',
+      '  --projects <path>       Path to projects.json (absolute or relative to config dir)',
       '  --assets-repo <owner/repo>  Override the screenshot upload target',
       '  --migrate-from <path>   Migrate state from an existing case repo',
       '  --force                 Rewrite config.json (state directories are never deleted)',
       '  --help, -h              Show this help',
       '',
+      'Portable binaries read package docs/prompts from the executable. Keep repo paths',
+      'in projects.json absolute or relative to the projects.json file.',
+      '',
       'Environment:',
-      '  CASE_DATA_DIR           Override the data directory location',
-      '  XDG_CONFIG_HOME         Standard XDG override (data dir = $XDG_CONFIG_HOME/case)',
+      '  CASE_DATA_DIR           Override the config/cache directory location',
+      '  XDG_CONFIG_HOME         Standard XDG override (config dir = $XDG_CONFIG_HOME/case)',
       '',
     ].join('\n'),
   );

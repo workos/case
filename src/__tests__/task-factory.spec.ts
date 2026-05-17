@@ -10,13 +10,12 @@ describe('createTask', () => {
 
   beforeEach(async () => {
     tempDir = join(process.env.TMPDIR ?? '/tmp', `case-test-${Date.now()}`);
-    await mkdir(join(tempDir, 'tasks/active'), { recursive: true });
-    // Phase 3: createTask writes into dataDir; route it to tempDir to keep tests hermetic.
-    process.env.CASE_DATA_DIR = tempDir;
+    await mkdir(tempDir, { recursive: true });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     process.env = { ...originalEnv };
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   it('creates task.json and task.md files', async () => {
@@ -27,11 +26,12 @@ describe('createTask', () => {
       trigger: { type: 'manual', description: 'Created manually' },
     };
 
-    const result = await createTask(tempDir, request);
+    const result = await createTask(tempDir, request, { repoPath: tempDir });
 
     expect(result.taskId).toContain('cli-');
     expect(result.taskJsonPath).toContain('.task.json');
     expect(result.taskMdPath).toContain('.md');
+    expect(result.taskJsonPath).toContain(join('.case', 'tasks', 'active'));
 
     const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
     expect(taskJson.id).toBe(result.taskId);
@@ -43,8 +43,7 @@ describe('createTask', () => {
     expect(taskMd).toContain('Fix broken test');
     expect(taskMd).toContain('The login test');
     expect(taskMd).toContain('Repo:** cli');
-
-    await rm(tempDir, { recursive: true, force: true });
+    expect((await Bun.file(join(tempDir, '.case', 'active')).text()).trim()).toBe(result.taskId);
   });
 
   it('includes issue and trigger info', async () => {
@@ -58,7 +57,7 @@ describe('createTask', () => {
       trigger: { type: 'webhook', event: 'workflow_run', deliveryId: 'abc-123' },
     };
 
-    const result = await createTask(tempDir, request);
+    const result = await createTask(tempDir, request, { repoPath: tempDir });
     const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
 
     expect(taskJson.issueType).toBe('github');
@@ -67,8 +66,6 @@ describe('createTask', () => {
 
     const taskMd = await Bun.file(result.taskMdPath).text();
     expect(taskMd).toContain('webhook');
-
-    await rm(tempDir, { recursive: true, force: true });
   });
 
   it('includes check fields when provided', async () => {
@@ -82,13 +79,11 @@ describe('createTask', () => {
       checkTarget: 12,
     };
 
-    const result = await createTask(tempDir, request);
+    const result = await createTask(tempDir, request, { repoPath: tempDir });
     const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
 
     expect(taskJson.checkCommand).toBe('vitest run --reporter=json');
     expect(taskJson.checkBaseline).toBe(10);
     expect(taskJson.checkTarget).toBe(12);
-
-    await rm(tempDir, { recursive: true, force: true });
   });
 });

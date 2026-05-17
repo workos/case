@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { resolveDataDir, resolvePackageRoot } from '../paths.js';
+import { resolveDataDir, resolvePackageRoot, resolveRepoTaskJson } from '../paths.js';
 
 export const description = 'Mark a repo as reviewed (writes .case/<slug>/reviewed)';
 
@@ -45,7 +45,8 @@ export async function handler(argv: string[]): Promise<number> {
   } catch {
     dataRoot = resolvePackageRoot();
   }
-  let taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
+  let taskJson = resolveRepoTaskJson(process.cwd(), slug);
+  if (!existsSync(taskJson)) taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
   if (!existsSync(taskJson)) taskJson = resolve(resolvePackageRoot(), 'tasks', 'active', `${slug}.task.json`);
   if (existsSync(taskJson)) {
     try {

@@ -1,15 +1,14 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
 import type { RepoContext } from './prefetch.js';
+import { readPackageAssetSync } from '../package-assets.js';
 
 /**
  * Read an agent .md prompt template and build a role-specific prompt.
  *
  * Each role gets ONLY what it needs:
  * - Implementer: task paths + repo + issue + playbook + working memory + learnings + check fields
- * - Verifier: task paths + repo (deliberately minimal — fresh-context testing)
- * - Reviewer: task paths + repo (reviewer reads golden principles itself)
+ * - Verifier: task paths + repo + project commands (fresh-context testing)
+ * - Reviewer: task paths + repo + golden principles
  * - Closer: task paths + repo + verifier AGENT_RESULT + reviewer AGENT_RESULT
  */
 export async function assemblePrompt(
@@ -20,8 +19,7 @@ export async function assemblePrompt(
   previousResults: Map<AgentName, AgentResult>,
   revision?: RevisionRequest,
 ): Promise<string> {
-  const templatePath = resolve(config.packageRoot, `agents/${role}.md`);
-  const rawTemplate = await Bun.file(templatePath).text();
+  const rawTemplate = readPackageAssetSync(`agents/${role}.md`, { packageRoot: config.packageRoot });
   const substituted = substitutePathVars(rawTemplate, config);
   const template = inlineDocs(substituted, config.packageRoot);
 
@@ -38,20 +36,23 @@ export async function assemblePrompt(
 }
 
 /**
- * Replace `{{packageRoot}}` and `{{dataDir}}` tokens in agent prompts.
+ * Replace `{{packageRoot}}`, `{{dataDir}}`, and selected project metadata tokens in agent prompts.
  *
  * Unknown `{{...}}` tokens pass through unchanged — only whitelisted variable names
  * are substituted, so prompt content that happens to contain double braces is preserved.
  */
 function substitutePathVars(content: string, config: PipelineConfig): string {
-  return content.replace(/\{\{packageRoot\}\}/g, config.packageRoot).replace(/\{\{dataDir\}\}/g, config.dataDir);
+  return content
+    .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
+    .replace(/\{\{dataDir\}\}/g, config.dataDir)
+    .replace(/\{\{repoType\}\}/g, config.project?.type ?? 'app');
 }
 
 const INJECT_MARKER = /<!--\s*inject:\s*(\S+)\s*-->/g;
 
 /**
  * Resolve `<!-- inject: docs/path.md -->` markers by inlining the referenced
- * file's content (relative to `packageRoot`). Single-pass — inlined content is
+ * package asset's content. Single-pass — inlined content is
  * NOT re-scanned for nested markers, preventing recursive loops.
  *
  * Size limit (default 8KB, tunable via `CASE_INLINE_MAX_BYTES`): oversized files
@@ -65,9 +66,8 @@ function inlineDocs(template: string, packageRoot: string): string {
   return template.replace(INJECT_MARKER, (marker, relPath: string) => {
     if (!relPath) return marker;
 
-    const full = resolve(packageRoot, relPath);
     try {
-      let content = readFileSync(full, 'utf8');
+      let content = readPackageAssetSync(relPath, { packageRoot });
       if (content.length > maxBytes) {
         content = content.slice(0, maxBytes) + '\n\n[truncated]';
         process.stderr.write(`[assembler] inlined doc truncated: ${relPath}\n`);
@@ -115,6 +115,10 @@ function buildContextBlock(
   lines.push(`- **Task JSON**: \`${config.taskJsonPath}\``);
   lines.push(`- **Target repo**: \`${config.repoPath}\``);
   lines.push(`- **Repo name**: ${config.repoName}`);
+  if (config.project) {
+    lines.push(`- **Repo type**: ${config.project.type ?? 'app'}`);
+    lines.push(`- **Package manager**: ${config.project.packageManager}`);
+  }
   lines.push('');
 
   switch (role) {
@@ -124,10 +128,11 @@ function buildContextBlock(
 
     case 'verifier':
       // Deliberately minimal — fresh-context testing
+      appendProjectCommands(lines, config);
       break;
 
     case 'reviewer':
-      // Reviewer reads golden principles itself — minimal context
+      appendReviewerContext(lines, repoContext);
       break;
 
     case 'closer':
@@ -142,12 +147,24 @@ function buildContextBlock(
   return lines.join('\n');
 }
 
+function appendProjectCommands(lines: string[], config: PipelineConfig): void {
+  if (!config.project?.commands || Object.keys(config.project.commands).length === 0) return;
+  lines.push('### Project Commands');
+  lines.push('');
+  for (const [name, command] of Object.entries(config.project.commands)) {
+    lines.push(`- **${name}**: \`${command}\``);
+  }
+  lines.push('');
+}
+
 function appendImplementerContext(
   lines: string[],
   config: PipelineConfig,
   task: TaskJson,
   repoContext: RepoContext,
 ): void {
+  appendProjectCommands(lines, config);
+
   if (task.issue) {
     lines.push(`- **Issue**: ${task.issueType ?? 'unknown'} ${task.issue}`);
   }
@@ -183,6 +200,14 @@ function appendImplementerContext(
   if (task.fastTestCommand) {
     lines.push(`- **Fast test command**: \`${task.fastTestCommand}\``);
   }
+}
+
+function appendReviewerContext(lines: string[], repoContext: RepoContext): void {
+  if (!repoContext.goldenPrinciples) return;
+  lines.push('### Golden Principles');
+  lines.push('');
+  lines.push(repoContext.goldenPrinciples);
+  lines.push('');
 }
 
 function appendCloserContext(lines: string[], previousResults: Map<AgentName, AgentResult>): void {

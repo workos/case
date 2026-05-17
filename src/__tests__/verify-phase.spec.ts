@@ -10,16 +10,16 @@ const tempCaseRoot = join(process.env.TMPDIR ?? '/tmp', `case-verify-test-${Date
 
 async function setupTempFiles() {
   await mkdir(join(tempCaseRoot, 'agents'), { recursive: true });
-  await mkdir(join(tempCaseRoot, 'docs/learnings'), { recursive: true });
+  await mkdir(join(tempCaseRoot, '.case'), { recursive: true });
   await Bun.write(join(tempCaseRoot, 'agents/verifier.md'), '# Verifier');
 }
 
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(tempCaseRoot, 'tasks/active/cli-1.task.json'),
-    taskMdPath: join(tempCaseRoot, 'tasks/active/cli-1.md'),
-    repoPath: '/repos/cli',
+    taskJsonPath: join(tempCaseRoot, '.case/tasks/active/cli-1.task.json'),
+    taskMdPath: join(tempCaseRoot, '.case/tasks/active/cli-1.md'),
+    repoPath: tempCaseRoot,
     repoName: 'cli',
     packageRoot: tempCaseRoot,
     dataDir: tempCaseRoot,

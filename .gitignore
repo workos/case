@@ -4,9 +4,11 @@
 .case-manual-tested
 .case-reviewed
 
-# Phase 3: state moved to ~/.config/case/. These rules cover both the legacy
-# in-repo paths (during the transition window) and any state accidentally written
-# under the repo root.
+# Repo-local Case runtime state. Target repos should ignore this directory too;
+# `ca bootstrap` adds the rule automatically.
+.case/
+
+# Legacy in-repo runtime state retained only as a read fallback during migration.
 tasks/active/
 tasks/done/
 docs/learnings/

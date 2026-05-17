@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 import { parseJsonLines } from '../util/parse-jsonl.js';
-import { resolveAgentVersionsDir, resolveRunLogPath } from '../paths.js';
+import { resolveAgentVersionsDir, resolveRepoRunLog, resolveRunLogPath } from '../paths.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -16,9 +16,8 @@ interface RunLogEntry {
 }
 
 /**
- * Resolve a state file by trying the dataDir path first and falling back to a
- * legacy in-repo path if only the legacy exists. Lets the codebase keep working
- * during the transition from in-repo state to `~/.config/case/`.
+ * Resolve a state file by trying the preferred path first and falling back to a
+ * legacy path if only the legacy exists.
  */
 async function resolveReadPath(dataDirPath: string, legacy: string): Promise<string | null> {
   if (await Bun.file(dataDirPath).exists()) return dataDirPath;
@@ -54,10 +53,22 @@ function parseChangelog(text: string): Record<string, string> {
 /**
  * Find the most recent runId for a given task in the run log.
  */
-export async function findPriorRunId(caseRoot: string, taskId: string): Promise<string | null> {
-  const dataDirPath = resolveRunLogPath();
-  const legacy = resolve(caseRoot, 'docs/run-log.jsonl');
-  const path = await resolveReadPath(dataDirPath, legacy);
+export async function findPriorRunId(repoPath: string, taskId: string): Promise<string | null> {
+  const repoLocal = resolveRepoRunLog(repoPath);
+  let configRunLog: string | null = null;
+  try {
+    configRunLog = resolveRunLogPath();
+  } catch {
+    configRunLog = null;
+  }
+  const legacy = resolve(repoPath, 'docs/run-log.jsonl');
+  const path = (await Bun.file(repoLocal).exists())
+    ? repoLocal
+    : configRunLog
+      ? await resolveReadPath(configRunLog, legacy)
+      : (await Bun.file(legacy).exists())
+        ? legacy
+        : null;
   if (!path) return null;
 
   const entries = parseJsonLines<RunLogEntry>(await Bun.file(path).text());

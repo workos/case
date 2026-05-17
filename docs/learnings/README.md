@@ -1,13 +1,15 @@
 # Repo Learnings
 
-Tactical knowledge accumulated by the retrospective agent across pipeline runs. Each file corresponds to a repo in `projects.json`.
+Current tactical repo learnings live in each target repo's ignored `.case/learnings.md`.
+
+The markdown files in this directory are legacy seeded learnings. They are versioned with Case and embedded into the portable binary as read-only fallback context when a target repo does not yet have `.case/learnings.md` and the user config directory does not have a legacy `learnings/<repo>.md` file.
 
 ## How it works
 
 1. After every `/case` pipeline run, the retrospective agent analyzes what happened
-2. If it discovers tactical knowledge specific to a repo, it appends to that repo's learnings file
-3. The implementer agent reads the relevant learnings file during setup, before writing code
-4. If the same issue appears 3+ times in a learnings file, the retrospective escalates it to a convention or golden principle
+2. If it discovers tactical knowledge specific to a repo, it appends to `<target-repo>/.case/learnings.md`
+3. The implementer agent reads `.case/learnings.md` during setup, before writing code
+4. If the same issue appears 3+ times in learnings, the retrospective escalates it to a convention or golden principle
 
 ## Format
 

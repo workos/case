@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { loadProjects, resolveRepoPath } from '../config.js';
+import { loadProjects, loadProjectsManifest, resolveRepoPath } from '../config.js';
 import { resolvePackageRoot } from '../paths.js';
 import { runCommandLine } from '../util/run-command.js';
 import type { ProjectEntry } from '../types.js';
@@ -23,7 +23,8 @@ export interface BootstrapResult {
 }
 
 export async function runBootstrap(repoName: string, caseRoot = resolvePackageRoot()): Promise<BootstrapResult> {
-  const projects = await loadProjects(caseRoot);
+  const manifest = await loadProjectsManifest(caseRoot);
+  const projects = manifest.repos;
   const repo = projects.find((p) => p.name === repoName);
   if (!repo) {
     throw new Error(
@@ -31,9 +32,9 @@ export async function runBootstrap(repoName: string, caseRoot = resolvePackageRo
     );
   }
 
-  const repoPath = resolveRepoPath(caseRoot, repo.path);
+  const repoPath = resolveRepoPath(manifest.repoBasePath, repo.path);
   if (!existsSync(repoPath)) {
-    throw new Error(`repo directory not found at ${repo.path} (resolved from ${caseRoot})`);
+    throw new Error(`repo directory not found at ${repo.path} (resolved from ${manifest.repoBasePath})`);
   }
 
   ensureCaseIgnored(repoPath);

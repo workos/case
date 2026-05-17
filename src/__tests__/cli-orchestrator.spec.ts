@@ -44,6 +44,10 @@ const { runCliOrchestrator } = await import('../entry/cli-orchestrator.js');
 
 let tempDir: string;
 
+function taskPath(stem: string, ext: 'task.json' | 'md'): string {
+  return join(tempDir, 'repo', '.case', 'tasks', 'active', `${stem}.${ext}`);
+}
+
 function makeTaskJson(overrides: Partial<TaskJson> = {}): TaskJson {
   return {
     id: 'cli-abc-fix-test',
@@ -74,7 +78,7 @@ const defaultProject = {
 describe('runCliOrchestrator — re-entry', () => {
   beforeEach(async () => {
     tempDir = join(process.env.TMPDIR ?? '/tmp', `case-orch-test-${Date.now()}`);
-    await mkdir(join(tempDir, 'tasks/active'), { recursive: true });
+    await mkdir(join(tempDir, 'repo', '.case/tasks/active'), { recursive: true });
 
     // Reset all mocks
     mockDetectRepo.mockReset();
@@ -99,12 +103,12 @@ describe('runCliOrchestrator — re-entry', () => {
     // Default: pipeline config build succeeds
     mockBuildPipelineConfig.mockResolvedValue({
       mode: 'attended',
-      taskJsonPath: join(tempDir, 'tasks/active/cli-abc-fix-test.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
+      taskJsonPath: taskPath('cli-abc-fix-test', 'task.json'),
+      taskMdPath: taskPath('cli-abc-fix-test', 'md'),
       repoPath: join(tempDir, 'repo'),
       repoName: 'cli',
       packageRoot: tempDir,
-      dataDir: tempDir,
+      dataDir: join(tempDir, 'repo'),
       maxRetries: 1,
       dryRun: false,
     });
@@ -126,8 +130,8 @@ describe('runCliOrchestrator — re-entry', () => {
     mockDetectArgumentType.mockReturnValue('github');
     mockFindTaskByIssue.mockResolvedValue({
       taskJson: task,
-      taskJsonPath: join(tempDir, 'tasks/active/cli-abc-fix-test.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
+      taskJsonPath: taskPath('cli-abc-fix-test', 'task.json'),
+      taskMdPath: taskPath('cli-abc-fix-test', 'md'),
       entryPhase: 'verify',
     });
 
@@ -139,7 +143,7 @@ describe('runCliOrchestrator — re-entry', () => {
     });
 
     // Should have called findTaskByIssue
-    expect(mockFindTaskByIssue).toHaveBeenCalledWith(tempDir, 'cli', 'github', '1523');
+    expect(mockFindTaskByIssue).toHaveBeenCalledWith(tempDir, 'cli', 'github', '1523', expect.stringContaining('repo'));
     // Should NOT have called fetchIssue or createTask (no new task creation)
     expect(mockFetchIssue).not.toHaveBeenCalled();
     expect(mockCreateTask).not.toHaveBeenCalled();
@@ -159,8 +163,8 @@ describe('runCliOrchestrator — re-entry', () => {
     });
     mockCreateTask.mockResolvedValue({
       taskId: 'cli-new-task',
-      taskJsonPath: join(tempDir, 'tasks/active/cli-new-task.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-new-task.md'),
+      taskJsonPath: taskPath('cli-new-task', 'task.json'),
+      taskMdPath: taskPath('cli-new-task', 'md'),
     });
     mockRunCommand.mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
 
@@ -191,8 +195,8 @@ describe('runCliOrchestrator — re-entry', () => {
     const task = makeTaskJson({ branch: undefined });
     mockFindTaskByMarker.mockResolvedValue({
       taskJson: task,
-      taskJsonPath: join(tempDir, 'tasks/active/cli-abc-fix-test.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
+      taskJsonPath: taskPath('cli-abc-fix-test', 'task.json'),
+      taskMdPath: taskPath('cli-abc-fix-test', 'md'),
       entryPhase: 'implement',
     });
 
@@ -240,8 +244,8 @@ describe('runCliOrchestrator — re-entry', () => {
     mockDetectArgumentType.mockReturnValue('github');
     mockFindTaskByIssue.mockResolvedValue({
       taskJson: task,
-      taskJsonPath: join(tempDir, 'tasks/active/cli-abc-fix-test.task.json'),
-      taskMdPath: join(tempDir, 'tasks/active/cli-abc-fix-test.md'),
+      taskJsonPath: taskPath('cli-abc-fix-test', 'task.json'),
+      taskMdPath: taskPath('cli-abc-fix-test', 'md'),
       entryPhase: 'complete',
     });
 

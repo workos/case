@@ -35,18 +35,18 @@ Full metadata (commands, remotes, language): `projects.json`
 | Playbooks             | `docs/playbooks/`                        |
 | Agent roles           | `agents/`                                |
 | Entropy management    | `docs/conventions/entropy-management.md` |
-| Repo learnings        | `docs/learnings/`                        |
+| Repo learnings        | Target repo `.case/learnings.md`         |
 
 ## Task Dispatch
 
-Tasks are markdown files that agents execute. Drop a file in `tasks/active/`, an agent picks it up.
+Tasks are markdown files that agents execute. Runtime task files live in the target repo's ignored `.case/tasks/active/`.
 
 - **Format spec**: `tasks/README.md`
 - **Templates**: `tasks/templates/`
 
 Pipeline: implementer → verifier → reviewer → closer → (retrospective)
 
-Lifecycle: `tasks/active/` → `tasks/done/` (moved after PR merge)
+Lifecycle: `.case/tasks/active/` → PR opened/merged status in the task JSON
 
 ## Working in a Target Repo
 

@@ -3,7 +3,18 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { resolvePackageRoot, resolveDataDir, resolveAgent, resolveDoc, resolveTask } from '../paths.js';
+import {
+  resolvePackageRoot,
+  resolveDataDir,
+  resolveAgent,
+  resolveDoc,
+  resolveTask,
+  resolveRepoActiveMarker,
+  resolveRepoActiveTaskDir,
+  resolveRepoLearnings,
+  resolveRepoRunLog,
+  resolveRepoTaskJson,
+} from '../paths.js';
 
 describe('resolvePackageRoot', () => {
   it('returns the case repo root when invoked from src/paths.ts', () => {
@@ -75,7 +86,7 @@ describe('resolveDataDir', () => {
   });
 });
 
-describe('resolvePackageRoot — walk-up failure', () => {
+describe('package root walk-up guard', () => {
   let tmp: string;
 
   beforeEach(async () => {
@@ -86,13 +97,11 @@ describe('resolvePackageRoot — walk-up failure', () => {
     await rm(tmp, { recursive: true, force: true });
   });
 
-  it('throws when no case package.json exists in ancestor chain', async () => {
+  it('rejects ancestors without a case package.json', async () => {
     // Place a foreign package.json in the chain to confirm name verification works.
     await writeFile(join(tmp, 'package.json'), JSON.stringify({ name: 'not-case' }));
-    // We can't easily invoke resolvePackageRoot with a custom start dir without changing the
-    // function signature, so we exercise the error path by simulating a manual walk.
-    // This indirectly confirms the behavior — the actual walk in resolvePackageRoot has
-    // its own coverage in the happy-path test above.
+    // We can't easily invoke the private walk helper with a custom start dir without changing
+    // the public API, so this guards the same package.json name check in a manual walk.
     expect(() => {
       // Recreate the same logic manually as a guard against regression.
       let current = tmp;
@@ -123,7 +132,7 @@ describe('path helpers', () => {
     expect(path).toBe(resolve(resolvePackageRoot(), 'docs', 'conventions', 'commits.md'));
   });
 
-  it('resolveTask returns dataDir/tasks/active/<slug>.task.json', () => {
+  it('resolveTask returns legacy dataDir/tasks/active/<slug>.task.json', () => {
     const originalEnv = { ...process.env };
     process.env.CASE_DATA_DIR = '/tmp/case-data-test';
     try {
@@ -132,6 +141,15 @@ describe('path helpers', () => {
     } finally {
       process.env = { ...originalEnv };
     }
+  });
+
+  it('resolves repo-local .case paths', () => {
+    const repo = '/tmp/repo';
+    expect(resolveRepoActiveMarker(repo)).toBe('/tmp/repo/.case/active');
+    expect(resolveRepoActiveTaskDir(repo)).toBe('/tmp/repo/.case/tasks/active');
+    expect(resolveRepoTaskJson(repo, 'foo-1')).toBe('/tmp/repo/.case/tasks/active/foo-1.task.json');
+    expect(resolveRepoLearnings(repo)).toBe('/tmp/repo/.case/learnings.md');
+    expect(resolveRepoRunLog(repo)).toBe('/tmp/repo/.case/run-log.jsonl');
   });
 });
 

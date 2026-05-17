@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import { detectRepo } from './repo-detector.js';
 import { detectArgumentType, fetchIssue } from './issue-fetcher.js';
 import { findTaskByIssue, findTaskByMarker } from './task-scanner.js';
@@ -45,7 +44,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   if (!fresh) {
     if (argument) {
       const argType = detectArgumentType(argument);
-      match = await findTaskByIssue(caseRoot, detected.name, argType, argument);
+      match = await findTaskByIssue(caseRoot, detected.name, argType, argument, detected.path);
     } else {
       match = await findTaskByMarker(caseRoot, detected.path);
     }
@@ -86,16 +85,10 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
     trigger: { type: 'cli', user: 'local' },
   };
 
-  const taskResult = await createTask(caseRoot, request, { issueContext, branch: branchName });
+  const taskResult = await createTask(caseRoot, request, { issueContext, branch: branchName, repoPath: detected.path });
   process.stdout.write(`  Task: ${taskResult.taskId}\n`);
   process.stdout.write(`    JSON: ${taskResult.taskJsonPath}\n`);
   process.stdout.write(`    Spec: ${taskResult.taskMdPath}\n`);
-
-  // Write .case/active marker (mkdir -p equivalent)
-  const caseDirPath = resolve(detected.path, '.case');
-  const { mkdir } = await import('node:fs/promises');
-  await mkdir(caseDirPath, { recursive: true });
-  await Bun.write(resolve(caseDirPath, 'active'), `${taskResult.taskId}\n`);
 
   // --- Step 3: Run baseline ---
   process.stdout.write('Running baseline...\n');
