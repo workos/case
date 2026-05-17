@@ -3,13 +3,13 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * Pi-runner integration tests.
+ * Pi-runner component tests.
  *
  * The preloaded mocks (mocks.ts) replace `spawnAgent` at the module level,
  * so we can't import the real pi-runner.ts directly. Instead, we test the
  * component functions that pi-runner composes:
  *
- * 1. getToolsForAgent (tool-sets.ts) — tool scoping per agent role
+ * 1. PiRuntimeAdapter.createTools — tool scoping per agent role
  * 2. loadSystemPrompt (prompt-loader.ts) — frontmatter stripping
  *
  * The spawnAgent integration (Agent creation → event subscription → AGENT_RESULT parsing)
@@ -17,16 +17,15 @@ import { join } from 'node:path';
  * which exercise the full pipeline with mockSpawnAgent.
  */
 
-// These modules are NOT mocked by the preload — we can test them directly
-const { getToolsForAgent } = await import('../agent/tool-sets.js');
+const { PiRuntimeAdapter } = await import('../agent/adapters/pi-adapter.js');
 const { loadSystemPrompt } = await import('../agent/prompt-loader.js');
 
-// --- tool-sets tests ---
+const adapter = new PiRuntimeAdapter();
 
-describe('getToolsForAgent', () => {
+describe('PiRuntimeAdapter.createTools', () => {
   it('implementer gets full write access (read, write, edit, bash)', () => {
-    const tools = getToolsForAgent('implementer', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('implementer', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('write');
     expect(names).toContain('edit');
@@ -35,32 +34,32 @@ describe('getToolsForAgent', () => {
   });
 
   it('reviewer gets read-only + bash', () => {
-    const tools = getToolsForAgent('reviewer', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('reviewer', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('bash');
     expect(names.length).toBe(2);
   });
 
   it('verifier gets read-only + bash', () => {
-    const tools = getToolsForAgent('verifier', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('verifier', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('bash');
     expect(names.length).toBe(2);
   });
 
   it('closer gets read-only + bash', () => {
-    const tools = getToolsForAgent('closer', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('closer', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('bash');
     expect(names.length).toBe(2);
   });
 
   it('retrospective gets full write access', () => {
-    const tools = getToolsForAgent('retrospective', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('retrospective', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('write');
     expect(names).toContain('edit');
@@ -69,8 +68,8 @@ describe('getToolsForAgent', () => {
   });
 
   it('unknown agent defaults to read-only + bash', () => {
-    const tools = getToolsForAgent('unknown-agent', '/repos/cli');
-    const names = tools.map((t) => t.name);
+    const tools = adapter.createTools('unknown-agent', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
     expect(names).toContain('read');
     expect(names).toContain('bash');
     expect(names.length).toBe(2);

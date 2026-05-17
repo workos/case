@@ -21,7 +21,7 @@ interface RepoCheckResult {
   checks: CheckResult[];
 }
 
-export async function runConventionChecks(
+async function runConventionChecks(
   opts: {
     caseRoot?: string;
     repoName?: string;

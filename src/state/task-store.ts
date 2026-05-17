@@ -1,7 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { AgentName, TaskJson, TaskStatus } from '../types.js';
-import { TRANSITIONS } from '../commands/status.js';
+import type { TaskJson } from '../types.js';
 
 export class TaskStateError extends Error {
   constructor(message: string) {
@@ -24,42 +23,6 @@ export class TaskStore {
   async read(): Promise<TaskJson> {
     const raw = await Bun.file(this.taskJsonPath).text();
     return JSON.parse(raw) as TaskJson;
-  }
-
-  async readStatus(): Promise<TaskStatus> {
-    return (await this.read()).status;
-  }
-
-  async setStatus(status: TaskStatus): Promise<void> {
-    const task = await this.read();
-    if (task.status === status) return;
-    const allowed = TRANSITIONS[task.status] ?? [];
-    if (!allowed.includes(status)) {
-      throw new TaskStateError(
-        `Invalid transition ${task.status} → ${status}. Allowed from ${task.status}: [${allowed.join(', ')}]`,
-      );
-    }
-    task.status = status;
-    this.writeSync(task);
-  }
-
-  async setAgentPhase(agent: AgentName, field: 'status' | 'started' | 'completed', value: string): Promise<void> {
-    const task = await this.read();
-    if (!task.agents) task.agents = {};
-    const phase = task.agents[agent] ?? { started: null, completed: null, status: 'pending' as const };
-    if (field === 'started' || field === 'completed') {
-      phase[field] = value === 'now' ? new Date().toISOString() : value;
-    } else if (field === 'status') {
-      const valid = ['pending', 'running', 'completed', 'failed'] as const;
-      if (!(valid as readonly string[]).includes(value)) {
-        throw new TaskStateError(`Invalid agent status "${value}". Must be one of: ${valid.join(', ')}`);
-      }
-      phase.status = value as (typeof valid)[number];
-    } else {
-      throw new TaskStateError(`Invalid agent field "${field}". Must be: started, completed, status`);
-    }
-    task.agents[agent] = phase;
-    this.writeSync(task);
   }
 
   async setField(field: string, value: string): Promise<void> {
