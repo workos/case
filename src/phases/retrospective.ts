@@ -2,6 +2,7 @@ import type { AgentName, AgentResult, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { createLogger } from '../util/logger.js';
+import { readPackageAsset } from '../package-assets.js';
 
 const log = createLogger();
 
@@ -51,8 +52,7 @@ export async function runRetrospectivePhase(
     .filter(Boolean)
     .join('\n');
 
-  const { resolve } = await import('node:path');
-  const template = await Bun.file(resolve(config.packageRoot, 'agents/retrospective.md')).text();
+  const template = await readPackageAsset('agents/retrospective.md', { packageRoot: config.packageRoot });
 
   const metricsContext = metricsSnapshot
     ? [

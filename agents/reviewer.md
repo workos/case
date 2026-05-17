@@ -12,7 +12,7 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
@@ -44,7 +44,7 @@ Read the output to understand: current branch, last commits, task status, which 
    git diff main --stat
    git diff main
    ```
-4. Read `docs/golden-principles.md` — all 17 invariants
+4. Read the Golden Principles section in this prompt — all invariants
 5. Read structured test output from `.case/<task-slug>/tested` (Phase 1 format with passed/failed/total/duration_ms/suites/files fields). Get the task slug from `.case/active`.
 6. Read the target repo's `CLAUDE.md` for repo-specific conventions
 
@@ -178,7 +178,7 @@ If critical findings exist, set `"status":"blocked"` and list the critical findi
 - **Never commit.** The implementer already committed.
 - **Never create PRs.** That's the closer's job.
 - **Never run tests.** Read the structured test output from `.case/<task-slug>/tested` instead.
-- **Always read golden principles fresh.** They may have been updated by a retrospective.
+- **Always use the Golden Principles supplied by the orchestrator.** They come from the current Case package assets.
 - **Always include file and line references** for critical and warning findings.
 - **Always create the evidence marker via `ca mark-reviewed`** — never `touch` the marker file directly.
 - **Critical findings include the specific principle violated.** Not just "principle 5" but "Principle 5: No secrets in source control — found `sk_live_` in `src/config.ts:42`".

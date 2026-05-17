@@ -24,7 +24,7 @@ import type { PipelineGraph } from './dag/types.js';
 const log = createLogger();
 
 export async function runPipeline(config: PipelineConfig): Promise<void> {
-  // Task JSON lives under dataDir; packageRoot is kept for legacy script compatibility.
+  // Task JSON lives in the target repo's ignored .case directory.
   const store = new TaskStore(config.taskJsonPath, config.packageRoot);
   const notifier = createNotifier(config.mode);
   const previousResults = new Map<AgentName, AgentResult>();
@@ -42,7 +42,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   const runId = crypto.randomUUID();
   config.runtime ??= new PiRuntimeAdapter();
 
-  // Event log is mutable runtime state — lives under dataDir/.case/<taskId>/events/.
+  // Event log is mutable runtime state — lives under <repo>/.case/<taskId>/events/.
   const appender = new EventAppender(config.dataDir, task.id, runId, store);
   config.eventAppender = appender;
 
@@ -50,7 +50,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
 
   const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
   const { resolve: resolvePlan } = await import('node:path');
-  // Plan + event log live under dataDir/.case/<taskId>/ — mutable runtime state.
+  // Plan + event log live under <repo>/.case/<taskId>/ — mutable runtime state.
   const planDir = resolvePlan(config.dataDir, '.case', task.id);
   await mkdirPlan(planDir, { recursive: true });
   await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
@@ -104,7 +104,7 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     }
   }
 
-  // Prompt versions are static package assets; run metrics are appended under the data dir.
+  // Prompt versions are static package assets; run metrics are appended under the repo .case dir.
   const promptVersions = await getCurrentPromptVersions(config.packageRoot);
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
@@ -151,8 +151,8 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
   const runMetrics = projectMetrics(appender.getState());
   runMetrics.promptVersions = promptVersions;
   runMetrics.humanOverrides = humanOverrides;
-  const priorRunId = await findPriorRunId(config.packageRoot, task.id);
-  await writeRunMetrics(config.packageRoot, task.id, config.repoName, runMetrics, {
+  const priorRunId = await findPriorRunId(config.repoPath, task.id);
+  await writeRunMetrics(config.dataDir, task.id, config.repoName, runMetrics, {
     priorRunId,
     parentTaskId: task.contractPath,
   });

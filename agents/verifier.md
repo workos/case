@@ -12,7 +12,7 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the case install's `tasks/active/`
+- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
 - **Task JSON path** — the `.task.json` companion
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
@@ -48,25 +48,7 @@ Read the output to understand: current branch, last commits, task status, which 
 
 ### 2. Determine Scope
 
-First, check if this is a library repo (no web UI):
-
-```bash
-node -e "
-const fs = require('node:fs');
-const path = require('node:path');
-const caseRoot = '{{packageRoot}}';
-const projects = JSON.parse(fs.readFileSync(path.join(caseRoot, 'projects.json'), 'utf8'));
-const repoRoot = fs.realpathSync(process.cwd());
-for (const repo of projects.repos ?? []) {
-  const abs = fs.realpathSync(path.resolve(caseRoot, repo.path ?? ''));
-  if (abs === repoRoot) {
-    console.log(repo.type ?? 'app');
-    process.exit(0);
-  }
-}
-console.log('app');
-"
-```
+First, check the `Repo type` field in the Task Context.
 
 - **If `library`**: This is a pure library with no web UI. Skip Playwright (step 3) and go to **step 2b (Library Verification)** instead.
 
@@ -201,7 +183,7 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 
 1. Read the issue description from the task file's `## Issue Reference` or `## Objective` section
 2. Identify the specific bug/feature scenario to reproduce
-3. Read the case install's `projects.json` to find if the target repo has an example app
+3. Use the Task Context and target repo structure to find an example app, if one exists
 
 **3a. Port hygiene — MANDATORY before starting any app:**
 

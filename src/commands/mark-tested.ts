@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { resolveDataDir, resolvePackageRoot } from '../paths.js';
+import { resolveDataDir, resolvePackageRoot, resolveRepoTaskJson } from '../paths.js';
 
 export const description = 'Mark a repo as auto-tested (writes .case/<slug>/tested with SHA-256 of test output)';
 
@@ -100,7 +100,8 @@ export function updateTaskJson(slug: string, field: 'tested' | 'manualTested'): 
     dataRoot = resolvePackageRoot();
   }
 
-  let taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
+  let taskJson = resolveRepoTaskJson(process.cwd(), slug);
+  if (!existsSync(taskJson)) taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
   if (!existsSync(taskJson)) taskJson = resolve(resolvePackageRoot(), 'tasks', 'active', `${slug}.task.json`);
   if (!existsSync(taskJson)) {
     process.stderr.write(`WARNING: task JSON not found for ${slug}\n`);

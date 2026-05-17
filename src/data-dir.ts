@@ -1,13 +1,13 @@
 /**
  * Data directory management.
  *
- * Phase 3: owns the on-disk layout under `resolveDataDir()` — `~/.config/case/` by default.
+ * Owns user-level config/cache state under `resolveDataDir()` — `~/.config/case/` by default.
  *
  * Responsibilities:
- *   - `ensureDataDir()` — idempotent mkdir of the full subtree.
+ *   - `ensureDataDir()` — idempotent mkdir of the config/cache subtree.
  *   - `readConfig()`  — merge defaults over the on-disk config; never throws on missing/corrupt files.
  *   - `writeConfig()` — atomic temp-file-then-rename write with shallow merge.
- *   - `migrateFromRepo()` — one-time, non-destructive copy of state from an existing case repo.
+ *   - `migrateFromRepo()` — one-time, non-destructive copy of user-level config/cache from an existing case repo.
  *
  * Pure module — no global state. Every function re-reads env via `resolveDataDir()` so tests
  * can swap the target dir per-test by setting `CASE_DATA_DIR`.
@@ -23,16 +23,8 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
-import {
-  resolveAgentVersionsDir,
-  resolveAmendmentsDir,
-  resolveConfigPath,
-  resolveDataDir,
-  resolveLearningsDir,
-  resolveRunLogPath,
-  resolveTaskDir,
-} from './paths.js';
+import { isAbsolute, join, resolve } from 'node:path';
+import { resolveAgentVersionsDir, resolveConfigPath, resolveDataDir } from './paths.js';
 
 export const CONFIG_VERSION = 1;
 
@@ -53,15 +45,14 @@ export const DEFAULT_CONFIG: CaseConfig = {
   defaultModel: 'claude-sonnet-4-6',
 };
 
-/** Subdirectories created under dataDir. Order matters only for ENOSPC priority. */
-const DATA_SUBDIRS = ['tasks/active', 'tasks/done', 'learnings', 'amendments', 'agent-versions'] as const;
+/** Subdirectories created under dataDir. Per-repo runtime state lives in target repo `.case/`. */
+const DATA_SUBDIRS = ['agent-versions'] as const;
 
 /**
  * Create the full data directory tree under `resolveDataDir()`.
  * Idempotent: safe to call on every CLI entry.
  *
- * Subdirs are created in priority order (tasks first) so a partial ENOSPC
- * leaves the most important state present.
+ * Subdirs are created in priority order so a partial ENOSPC leaves config usable.
  */
 export function ensureDataDir(): void {
   const root = resolveDataDir();
@@ -148,12 +139,8 @@ const MIGRATED_MARKER = '.migrated';
  * One-time, non-destructive migration of state from an existing case repo.
  *
  * Source layout (legacy):
- *   <repoRoot>/tasks/active/, tasks/done/
- *   <repoRoot>/docs/learnings/
- *   <repoRoot>/docs/proposed-amendments/
- *   <repoRoot>/docs/run-log.jsonl
  *   <repoRoot>/docs/agent-versions/
- *   <repoRoot>/projects.json
+ *   <repoRoot>/projects.json (relative repo paths are rewritten to absolute paths)
  *
  * Behavior:
  *   - Skips entirely if `<dataDir>/.migrated` exists.
@@ -177,30 +164,9 @@ export async function migrateFromRepo(repoRoot: string): Promise<MigrationStats>
 
   ensureDataDir();
 
-  // tasks/active and tasks/done
-  for (const sub of ['active', 'done']) {
-    const src = resolve(repoRoot, 'tasks', sub);
-    const dst = join(resolveTaskDir(), sub);
-    stats.tasks += copyDirShallow(src, dst, stats);
-  }
-
-  // learnings (repo path: docs/learnings)
-  stats.learnings += copyDirShallow(resolve(repoRoot, 'docs/learnings'), resolveLearningsDir(), stats);
-
-  // amendments (repo path: docs/proposed-amendments)
-  stats.amendments += copyDirShallow(resolve(repoRoot, 'docs/proposed-amendments'), resolveAmendmentsDir(), stats);
-
-  // run-log.jsonl
-  const runLogSrc = resolve(repoRoot, 'docs/run-log.jsonl');
-  const runLogDst = resolveRunLogPath();
-  if (existsSync(runLogSrc)) {
-    if (existsSync(runLogDst)) {
-      stats.conflicts += 1;
-    } else {
-      copyFileSync(runLogSrc, runLogDst);
-      stats.runLog = true;
-    }
-  }
+  // Per-repo runtime state (tasks, learnings, amendments, run logs) intentionally
+  // stays with each target repo under `.case/`; `ca init` only migrates user-level
+  // config/cache files.
 
   // agent-versions
   stats.agentVersions += copyDirShallow(resolve(repoRoot, 'docs/agent-versions'), resolveAgentVersionsDir(), stats);
@@ -212,7 +178,7 @@ export async function migrateFromRepo(repoRoot: string): Promise<MigrationStats>
     if (existsSync(projectsDst)) {
       stats.conflicts += 1;
     } else {
-      copyFileSync(projectsSrc, projectsDst);
+      copyProjectsManifest(projectsSrc, projectsDst, repoRoot);
       stats.projectsJson = true;
     }
   }
@@ -221,6 +187,25 @@ export async function migrateFromRepo(repoRoot: string): Promise<MigrationStats>
   writeFileSync(markerPath, new Date().toISOString() + '\n');
 
   return stats;
+}
+
+function copyProjectsManifest(src: string, dst: string, repoRoot: string): void {
+  const raw = readFileSync(src, 'utf-8');
+  try {
+    const manifest = JSON.parse(raw) as { repos?: Array<{ path?: string }> };
+    if (Array.isArray(manifest.repos)) {
+      for (const repo of manifest.repos) {
+        if (typeof repo.path === 'string' && repo.path && !isAbsolute(repo.path)) {
+          repo.path = resolve(repoRoot, repo.path);
+        }
+      }
+      writeFileSync(dst, JSON.stringify(manifest, null, 2) + '\n');
+      return;
+    }
+  } catch {
+    // Preserve unparseable manifests verbatim; loadProjects() will report the parse error later.
+  }
+  copyFileSync(src, dst);
 }
 
 /**
@@ -242,7 +227,7 @@ function copyDirShallow(src: string, dst: string, stats: MigrationStats): number
     } catch {
       continue;
     }
-    if (!info.isFile()) continue; // tasks/active/ has flat files; no nested dirs expected
+    if (!info.isFile()) continue;
     if (existsSync(to)) {
       stats.conflicts += 1;
       continue;

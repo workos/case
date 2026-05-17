@@ -27,10 +27,6 @@ describe('init (programmatic)', () => {
     expect(cfg.version).toBe(DEFAULT_CONFIG.version);
     expect(cfg.assetsRepo).toBe(DEFAULT_CONFIG.assetsRepo);
     expect(cfg.defaultModel).toBe(DEFAULT_CONFIG.defaultModel);
-    await stat(join(tmp, 'tasks/active'));
-    await stat(join(tmp, 'tasks/done'));
-    await stat(join(tmp, 'learnings'));
-    await stat(join(tmp, 'amendments'));
     await stat(join(tmp, 'agent-versions'));
   });
 
@@ -52,11 +48,11 @@ describe('init (programmatic)', () => {
     expect(cfg.assetsRepo).toBe('me/forked');
   });
 
-  it('--force preserves existing state directories', async () => {
+  it('--force preserves existing config/cache directories', async () => {
     await init({ cwd: '/no/such/repo' });
-    await writeFile(join(tmp, 'tasks/active/keep.task.json'), '{}');
+    await writeFile(join(tmp, 'agent-versions/keep.jsonl'), '{}');
     await init({ cwd: '/no/such/repo', force: true });
-    await stat(join(tmp, 'tasks/active/keep.task.json'));
+    await stat(join(tmp, 'agent-versions/keep.jsonl'));
   });
 
   it('flag overrides land in config.json', async () => {
@@ -69,16 +65,14 @@ describe('init (programmatic)', () => {
   it('--migrate-from triggers migrateFromRepo and reports stats', async () => {
     const repo = await mkdtemp(join(tmpdir(), 'case-repo-'));
     try {
-      await mkdir(join(repo, 'tasks/active'), { recursive: true });
-      await mkdir(join(repo, 'docs/learnings'), { recursive: true });
-      await writeFile(join(repo, 'tasks/active/foo.task.json'), '{"id":"foo"}');
-      await writeFile(join(repo, 'docs/learnings/cli.md'), '# cli');
+      await mkdir(join(repo, 'docs/agent-versions'), { recursive: true });
+      await writeFile(join(repo, 'docs/agent-versions/implementer.md'), '# snap');
       await writeFile(join(repo, 'projects.json'), '{"repos":[]}');
 
       const code = await init({ migrateFrom: repo, cwd: '/no/such/repo' });
       expect(code).toBe(0);
-      await stat(join(tmp, 'tasks/active/foo.task.json'));
-      await stat(join(tmp, 'learnings/cli.md'));
+      await stat(join(tmp, 'agent-versions/implementer.md'));
+      await stat(join(tmp, 'projects.json'));
       await stat(join(tmp, '.migrated'));
     } finally {
       await rm(repo, { recursive: true, force: true });
@@ -89,13 +83,13 @@ describe('init (programmatic)', () => {
     const repo = await mkdtemp(join(tmpdir(), 'case-repo-'));
     try {
       await mkdir(join(repo, 'agents'));
-      await mkdir(join(repo, 'tasks/active'), { recursive: true });
+      await mkdir(join(repo, 'docs/agent-versions'), { recursive: true });
       await writeFile(join(repo, 'projects.json'), '{"repos":[]}');
-      await writeFile(join(repo, 'tasks/active/auto.task.json'), '{"id":"auto"}');
+      await writeFile(join(repo, 'docs/agent-versions/auto.md'), '# auto');
 
       const code = await init({ cwd: repo });
       expect(code).toBe(0);
-      await stat(join(tmp, 'tasks/active/auto.task.json'));
+      await stat(join(tmp, 'agent-versions/auto.md'));
     } finally {
       await rm(repo, { recursive: true, force: true });
     }

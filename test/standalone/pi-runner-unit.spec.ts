@@ -174,12 +174,15 @@ describe('spawnAgent (direct unit tests)', () => {
   });
 
   it('calls agent.abort() when timeout expires', async () => {
-    // Simulate a prompt that hangs until aborted
+    // Simulate a prompt that hangs until aborted.
+    let resolvePrompt: (() => void) | null = null;
     mockPromptFn.mockImplementation(() => {
       return new Promise<void>((resolve) => {
-        // The abort should fire before this resolves
-        setTimeout(resolve, 5000);
+        resolvePrompt = resolve;
       });
+    });
+    mockAbortFn.mockImplementation(() => {
+      resolvePrompt?.();
     });
 
     // Use a very short timeout to trigger the abort path

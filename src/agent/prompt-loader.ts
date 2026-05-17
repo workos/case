@@ -1,8 +1,7 @@
-import { resolve } from 'node:path';
+import { readPackageAsset } from '../package-assets.js';
 
 export async function loadSystemPrompt(caseRoot: string, agentName: string): Promise<string> {
-  const mdPath = resolve(caseRoot, `agents/${agentName}.md`);
-  const raw = await Bun.file(mdPath).text();
+  const raw = await readPackageAsset(`agents/${agentName}.md`, { packageRoot: caseRoot });
 
   // Strip YAML frontmatter (between --- delimiters)
   const stripped = raw.replace(/^---[\s\S]*?---\n*/, '');

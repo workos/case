@@ -1,8 +1,8 @@
 import { mkdir } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import type { IssueContext, TaskCreateRequest, TaskJson } from '../types.js';
-import { ensureDataDir } from '../data-dir.js';
-import { resolveTaskDir } from '../paths.js';
+import { loadProjectsManifest, resolveRepoPath } from '../config.js';
+import { resolveRepoActiveMarker, resolveRepoActiveTaskDir } from '../paths.js';
 import { createLogger } from '../util/logger.js';
 import { slugify } from '../util/slugify.js';
 
@@ -25,10 +25,12 @@ export interface TaskCreateResult {
 export interface TaskEnrichment {
   issueContext?: IssueContext;
   branch?: string;
+  repoPath?: string;
 }
 
 /**
- * Create a task.json + task.md pair in tasks/active/ from a TaskCreateRequest.
+ * Create a task.json + task.md pair in the target repo's .case/tasks/active/
+ * from a TaskCreateRequest.
  * Returns paths to the created files for pipeline dispatch.
  *
  * When `enrichment` is provided (from CLI orchestrator), the task gets:
@@ -41,11 +43,8 @@ export async function createTask(
   enrichment?: TaskEnrichment,
 ): Promise<TaskCreateResult> {
   const taskId = generateTaskId(request.repo, request.title);
-  // Write new tasks into the dataDir. Lazy ensureDataDir() so missing dirs self-heal.
-  ensureDataDir();
-  const activeDir = join(resolveTaskDir(), 'active');
-  // caseRoot legacy intentionally not referenced here — we always create new tasks in dataDir.
-  void caseRoot;
+  const repoPath = enrichment?.repoPath ?? (await resolveTargetRepoPath(caseRoot, request.repo));
+  const activeDir = resolveRepoActiveTaskDir(repoPath);
   await mkdir(activeDir, { recursive: true });
 
   const taskJsonPath = resolve(activeDir, `${taskId}.task.json`);
@@ -75,16 +74,26 @@ export async function createTask(
 
   await Bun.write(taskJsonPath, JSON.stringify(taskJson, null, 2) + '\n');
   await Bun.write(taskMdPath, taskMd);
+  await mkdir(resolve(repoPath, '.case'), { recursive: true });
+  await Bun.write(resolveRepoActiveMarker(repoPath), `${taskId}\n`);
 
   log.info('task created', {
     taskId,
     repo: request.repo,
     trigger: request.trigger.type,
     branch: enrichment?.branch,
+    repoPath,
     file: basename(taskJsonPath),
   });
 
   return { taskId, taskJsonPath, taskMdPath };
+}
+
+async function resolveTargetRepoPath(caseRoot: string, repoName: string): Promise<string> {
+  const manifest = await loadProjectsManifest(caseRoot);
+  const project = manifest.repos.find((p) => p.name === repoName);
+  if (!project) throw new Error(`Repo "${repoName}" not found in projects.json`);
+  return resolveRepoPath(manifest.repoBasePath, project.path);
 }
 
 /** Build task markdown. Enriched with issue context when available. */

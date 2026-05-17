@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path';
 import { readdir, stat } from 'node:fs/promises';
 import { determineEntryPhase } from '../state/transitions.js';
-import { resolveTaskDir } from '../paths.js';
+import { resolveRepoActiveMarker, resolveRepoActiveTaskDir, resolveRepoTaskJson, resolveTaskDir } from '../paths.js';
 import type { TaskJson, PipelinePhase } from '../types.js';
 
 const STALE_MARKER_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -14,18 +14,19 @@ export interface TaskMatch {
 }
 
 /**
- * Scan `tasks/active/*.task.json` for a task matching the given issue.
+ * Scan active task JSON files for a task matching the given issue.
  * Returns the match with its resolved entry phase, or null if not found.
  *
- * Phase 3: scans the dataDir first, falls back to the legacy in-repo `<caseRoot>/tasks/active`.
+ * Scans repo-local `.case/tasks/active` first, then legacy global/in-repo locations.
  */
 export async function findTaskByIssue(
   caseRoot: string,
   repoName: string,
   issueType: 'github' | 'linear' | 'freeform',
   issueNumber: string,
+  repoPath?: string,
 ): Promise<TaskMatch | null> {
-  for (const activeDir of activeDirCandidates(caseRoot)) {
+  for (const activeDir of activeDirCandidates(caseRoot, repoPath)) {
     let entries: string[];
     try {
       entries = await readdir(activeDir);
@@ -55,8 +56,11 @@ export async function findTaskByIssue(
 }
 
 /** Candidate active-tasks dirs in resolution order. */
-function activeDirCandidates(caseRoot: string): string[] {
+function activeDirCandidates(caseRoot: string, repoPath?: string): string[] {
   const list: string[] = [];
+  if (repoPath) {
+    list.push(resolveRepoActiveTaskDir(repoPath));
+  }
   try {
     list.push(join(resolveTaskDir(), 'active'));
   } catch {
@@ -73,7 +77,7 @@ function activeDirCandidates(caseRoot: string): string[] {
  * Handles stale markers (>24h) and missing task files by cleaning up.
  */
 export async function findTaskByMarker(caseRoot: string, repoPath: string): Promise<TaskMatch | null> {
-  const markerPath = resolve(repoPath, '.case', 'active');
+  const markerPath = resolveRepoActiveMarker(repoPath);
 
   // Check marker exists and staleness in one stat call
   let markerStat;
@@ -85,7 +89,7 @@ export async function findTaskByMarker(caseRoot: string, repoPath: string): Prom
 
   const ageMs = Date.now() - markerStat.mtimeMs;
   if (ageMs > STALE_MARKER_MS) {
-    await cleanupCaseDir(resolve(repoPath, '.case'));
+    await cleanupActiveMarker(markerPath);
     process.stdout.write('Stale .case/active marker (>24h) cleaned up.\n');
     return null;
   }
@@ -93,14 +97,16 @@ export async function findTaskByMarker(caseRoot: string, repoPath: string): Prom
   // Read task ID from marker
   const taskId = (await Bun.file(markerPath).text()).trim();
   if (!taskId) {
-    await cleanupCaseDir(resolve(repoPath, '.case'));
+    await cleanupActiveMarker(markerPath);
     return null;
   }
 
-  // Load the task JSON — try dataDir first, then legacy in-repo path.
+  // Load the task JSON — try repo-local state first, then legacy dataDir/in-repo paths.
   let taskJsonPath: string | null = null;
-  for (const activeDir of activeDirCandidates(caseRoot)) {
-    const candidate = resolve(activeDir, `${taskId}.task.json`);
+  for (const candidate of [
+    resolveRepoTaskJson(repoPath, taskId),
+    ...activeDirCandidates(caseRoot).map((activeDir) => resolve(activeDir, `${taskId}.task.json`)),
+  ]) {
     if (await Bun.file(candidate).exists()) {
       taskJsonPath = candidate;
       break;
@@ -108,7 +114,7 @@ export async function findTaskByMarker(caseRoot: string, repoPath: string): Prom
   }
 
   if (!taskJsonPath) {
-    await cleanupCaseDir(resolve(repoPath, '.case'));
+    await cleanupActiveMarker(markerPath);
     process.stdout.write('Stale marker cleaned. No active task.\n');
     return null;
   }
@@ -121,16 +127,16 @@ export async function findTaskByMarker(caseRoot: string, repoPath: string): Prom
 
     return { taskJson: task, taskJsonPath, taskMdPath, entryPhase };
   } catch {
-    await cleanupCaseDir(resolve(repoPath, '.case'));
+    await cleanupActiveMarker(markerPath);
     return null;
   }
 }
 
-/** Remove the entire .case/ directory in a target repo. */
-async function cleanupCaseDir(caseDirPath: string): Promise<void> {
+/** Remove only the active marker; repo-local learnings and task history are kept. */
+async function cleanupActiveMarker(markerPath: string): Promise<void> {
   try {
     const { rm } = await import('node:fs/promises');
-    await rm(caseDirPath, { recursive: true, force: true });
+    await rm(markerPath, { force: true });
   } catch {
     // Already removed or inaccessible
   }

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { loadProjects, resolveRepoPath } from '../config.js';
+import { loadProjectsManifest, resolveRepoPath } from '../config.js';
 import { resolvePackageRoot } from '../paths.js';
 import { runCommand, runCommandLine } from '../util/run-command.js';
 import type { ProjectEntry } from '../types.js';
@@ -29,15 +29,15 @@ async function runConventionChecks(
   } = {},
 ): Promise<RepoCheckResult[]> {
   const caseRoot = opts.caseRoot ?? resolvePackageRoot();
-  const projects = await loadProjects(caseRoot);
-  const selected = opts.repoName ? projects.filter((repo) => repo.name === opts.repoName) : projects;
+  const manifest = await loadProjectsManifest(caseRoot);
+  const selected = opts.repoName ? manifest.repos.filter((repo) => repo.name === opts.repoName) : manifest.repos;
   if (opts.repoName && selected.length === 0) {
     throw new Error(`repo '${opts.repoName}' not found in projects.json`);
   }
 
   const results: RepoCheckResult[] = [];
   for (const repo of selected) {
-    const repoPath = resolveRepoPath(caseRoot, repo.path);
+    const repoPath = resolveRepoPath(manifest.repoBasePath, repo.path);
     if (!existsSync(repoPath)) {
       results.push({
         repo,

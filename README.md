@@ -46,7 +46,7 @@ ca --agent 1234
 For an existing task file:
 
 ```bash
-ca run --task ~/.config/case/tasks/active/cli-1-issue-53.task.json
+ca run --task .case/tasks/active/cli-1-issue-53.task.json
 ```
 
 To resume an interrupted issue run, re-run the same command:
@@ -95,7 +95,7 @@ bun run build:binary
 cp dist/ca /usr/local/bin/ca
 ```
 
-The binary is `ca` because `case` is a reserved word in bash and zsh.
+`build:binary` regenerates the embedded package asset manifest before compiling. The resulting `dist/ca` is portable: agent prompts, docs, playbooks, and AST rules are bundled into the executable. The binary is `ca` because `case` is a reserved word in bash and zsh.
 
 ## CLI
 
@@ -135,34 +135,39 @@ ca run --task <file> --dry-run
 ca run --fresh 1234
 ```
 
-## Data Directory
+## Storage Layout
 
-Mutable state lives under `~/.config/case/`:
+Package-level config lives under `~/.config/case/`. Per-repo runtime state lives under each target repo's ignored `.case/` directory:
 
 ```text
 ~/.config/case/
   config.json
   projects.json
+  agent-versions/
+
+<target-repo>/.case/
+  active
+  learnings.md
+  amendments/
+  run-log.jsonl
   tasks/
     active/
-    done/
-  learnings/
-  amendments/
-  agent-versions/
-  run-log.jsonl
-  .case/
-    <task-slug>/
-      events/
-      plan.json
+      <task-slug>.md
+      <task-slug>.task.json
+  <task-slug>/
+    events/
+    plan.json
 ```
 
-Override with:
+Override the config/cache directory with:
 
 ```bash
 CASE_DATA_DIR=/tmp/case-test ca init
 ```
 
-Static package assets stay in the repo or installed package: `agents/`, `docs/`, `ast-rules/`, and source files.
+Static package assets are versioned with Case and embedded into the standalone binary: `agents/`, markdown under `docs/`, and text rules under `ast-rules/`. When running from a checkout, disk files win so local prompt/doc edits are picked up immediately; set `CASE_PACKAGE_ROOT=/path/to/case` to force a specific checkout as the disk override.
+
+For portable binary installs, keep `projects.json` in `~/.config/case/` via `ca init --projects <path>` or `ca init --migrate-from <case-checkout>`. Repo paths in a portable `projects.json` should be absolute or relative to that `projects.json` file.
 
 ## Pipeline
 
@@ -175,7 +180,7 @@ Profiles:
 
 Revision loops are evaluator-driven. A verifier or reviewer rubric failure can send structured feedback back to the implementer. The default revision budget is two cycles.
 
-Every run writes an append-only event log under `~/.config/case/.case/<task-slug>/events/`. `ca watch <task-slug>` renders those events while a run is active.
+Every run writes an append-only event log under `<target-repo>/.case/<task-slug>/events/`. `ca watch <task-slug>` renders those events while a run is active.
 
 ## Agent Roles
 
@@ -206,8 +211,8 @@ The closer checks these markers before opening a PR. The point is not ceremony; 
 
 After a run, the retrospective agent should leave the harness smarter:
 
-- Append tactical repo learnings under `~/.config/case/learnings/`.
-- Propose broader harness changes under `~/.config/case/amendments/`.
+- Append tactical repo learnings under `<target-repo>/.case/learnings.md`.
+- Propose broader harness changes under `<target-repo>/.case/amendments/`.
 - Escalate repeated failures into docs, playbooks, conventions, or enforcement.
 
 Retrospective output is constrained. It should not expand the product surface by default. The fix for repeated agent failure is usually a clearer task, a better playbook, a sharper convention, or a mechanical guardrail.

@@ -130,9 +130,11 @@ export interface PipelineConfig {
   taskMdPath: string;
   repoPath: string;
   repoName: string;
-  /** Static assets shipped with the package — agents/, docs/. */
+  /** Project metadata from projects.json, when the config was built from the manifest. */
+  project?: ProjectEntry;
+  /** Disk checkout for package asset overrides, or embedded://case in portable binaries. */
   packageRoot: string;
-  /** Mutable runtime state — tasks/, .case/, learnings/. In Phase 1 equals packageRoot. */
+  /** Target repo root; mutable runtime state lives under `<dataDir>/.case/`. */
   dataDir: string;
   maxRetries: number;
   dryRun: boolean;
@@ -150,6 +152,7 @@ export interface PipelineConfig {
 
 export interface ProjectEntry {
   name: string;
+  type?: 'app' | 'library' | string;
   path: string;
   remote: string;
   description?: string;
@@ -198,9 +201,9 @@ export interface SpawnAgentOptions {
   prompt: string;
   cwd: string;
   agentName: AgentName | 'retrospective';
-  /** Static assets shipped with the package — agents/. */
+  /** Disk checkout for package asset overrides, or embedded://case in portable binaries. */
   packageRoot: string;
-  /** Mutable runtime state — tasks/, .case/, learnings/. */
+  /** Target repo root; mutable runtime state lives under `<dataDir>/.case/`. */
   dataDir: string;
   timeout?: number;
   /** Model provider (default: "anthropic") */

@@ -20,9 +20,9 @@ async function setupTemplates() {
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(tempCaseRoot, 'tasks/active/cli-1-issue-53.task.json'),
-    taskMdPath: join(tempCaseRoot, 'tasks/active/cli-1-issue-53.md'),
-    repoPath: '/repos/cli',
+    taskJsonPath: join(tempCaseRoot, '.case/tasks/active/cli-1-issue-53.task.json'),
+    taskMdPath: join(tempCaseRoot, '.case/tasks/active/cli-1-issue-53.md'),
+    repoPath: tempCaseRoot,
     repoName: 'cli',
     packageRoot: tempCaseRoot,
     dataDir: tempCaseRoot,
@@ -101,6 +101,31 @@ describe('assemblePrompt', () => {
     expect(prompt).toContain('Fast test command');
   });
 
+  it('implementer context includes project metadata and commands when available', async () => {
+    const prompt = await assemblePrompt(
+      'implementer',
+      makeConfig({
+        project: {
+          name: 'cli',
+          type: 'library',
+          path: '/repos/cli',
+          remote: 'git@github.com:workos/workos-cli.git',
+          language: 'typescript',
+          packageManager: 'pnpm',
+          commands: { test: 'pnpm test', typecheck: 'pnpm typecheck' },
+        },
+      }),
+      makeTask(),
+      emptyRepoContext,
+      new Map(),
+    );
+
+    expect(prompt).toContain('Repo type');
+    expect(prompt).toContain('library');
+    expect(prompt).toContain('Project Commands');
+    expect(prompt).toContain('pnpm typecheck');
+  });
+
   it('verifier context is minimal — no learnings or working memory', async () => {
     const repoContext = {
       ...emptyRepoContext,
@@ -127,6 +152,18 @@ describe('assemblePrompt', () => {
 
     expect(prompt).toContain('# Reviewer Template');
     expect(prompt).not.toContain('implementation detail');
+  });
+
+  it('reviewer context includes prefetched golden principles', async () => {
+    const repoContext = {
+      ...emptyRepoContext,
+      goldenPrinciples: '# Golden Principles\n\n1. Tests pass\n',
+    };
+
+    const prompt = await assemblePrompt('reviewer', makeConfig(), makeTask(), repoContext, new Map());
+
+    expect(prompt).toContain('### Golden Principles');
+    expect(prompt).toContain('1. Tests pass');
   });
 
   it('closer context includes verifier + reviewer AGENT_RESULT', async () => {

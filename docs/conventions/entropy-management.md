@@ -63,5 +63,5 @@ When drift is detected:
 
 1. Read the failures array in the JSON output
 2. Fix the lowest-effort issues first (commit format, missing fields)
-3. For structural issues (file sizes, missing tests), create a task in `tasks/active/`
+3. For structural issues (file sizes, missing tests), create a task in the target repo's `.case/tasks/active/`
 4. Run `ca check --repo {name}` to verify fixes

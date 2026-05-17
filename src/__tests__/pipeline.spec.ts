@@ -55,9 +55,8 @@ const tempCaseRoot = join(process.env.TMPDIR ?? '/tmp', `case-pipeline-test-${Da
 
 async function setupTempFiles() {
   const agentsDir = join(tempCaseRoot, 'agents');
-  const docsDir = join(tempCaseRoot, 'docs/learnings');
   await mkdir(agentsDir, { recursive: true });
-  await mkdir(docsDir, { recursive: true });
+  await mkdir(join(tempCaseRoot, '.case'), { recursive: true });
   for (const agent of ['implementer', 'verifier', 'reviewer', 'closer', 'retrospective']) {
     await Bun.write(join(agentsDir, `${agent}.md`), `# ${agent}`);
   }
@@ -72,9 +71,9 @@ const mockRuntime = {
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(tempCaseRoot, 'tasks/active/cli-1.task.json'),
-    taskMdPath: join(tempCaseRoot, 'tasks/active/cli-1.md'),
-    repoPath: '/repos/cli',
+    taskJsonPath: join(tempCaseRoot, '.case/tasks/active/cli-1.task.json'),
+    taskMdPath: join(tempCaseRoot, '.case/tasks/active/cli-1.md'),
+    repoPath: tempCaseRoot,
     repoName: 'cli',
     packageRoot: tempCaseRoot,
     dataDir: tempCaseRoot,
@@ -289,6 +288,7 @@ describe('runPipeline', () => {
   });
 
   it('metrics are written at the end', async () => {
+    const config = makeConfig({ repoPath: join(tempCaseRoot, 'target-repo') });
     mockSpawnAgent
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
@@ -296,8 +296,9 @@ describe('runPipeline', () => {
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
 
-    await runPipeline(makeConfig());
+    await runPipeline(config);
 
+    expect(mockFindPriorRunId).toHaveBeenCalledWith(config.repoPath, mockTask.id);
     expect(mockWriteRunMetrics).toHaveBeenCalledTimes(1);
   });
 

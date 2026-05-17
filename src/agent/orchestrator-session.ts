@@ -18,6 +18,7 @@ import { createPipelineTool } from './tools/pipeline-tool.js';
 import { createIssueTool } from './tools/issue-tool.js';
 import { createTaskTool } from './tools/task-tool.js';
 import { createBaselineTool } from './tools/baseline-tool.js';
+import { isEmbeddedPackageRoot } from '../paths.js';
 
 export interface OrchestratorSessionOptions {
   caseRoot: string;
@@ -99,7 +100,7 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
     if (options.argument) {
       // User provided an issue — check for existing task, then fetch issue
       const argType = detectArgumentType(options.argument);
-      const match = await findTaskByIssue(options.caseRoot, detected.name, argType, options.argument);
+      const match = await findTaskByIssue(options.caseRoot, detected.name, argType, options.argument, detected.path);
 
       if (match) {
         lines.push(`\nExisting task found: ${match.taskJson.id} (status: ${match.taskJson.status})`);
@@ -231,6 +232,19 @@ function minimalStatusline(cwd: string) {
 }
 
 function buildOrchestratorSystemPrompt(caseRoot: string): string {
+  const packageAssetLines = isEmbeddedPackageRoot(caseRoot)
+    ? [
+        '- Package assets: embedded in the current `ca` binary',
+        '- Projects manifest: read from the configured user config path',
+        '- Golden principles and agent prompts: injected by the pipeline when needed',
+      ]
+    : [
+        `- Case root: ${caseRoot}`,
+        `- Projects manifest: ${caseRoot}/projects.json`,
+        `- Golden principles: ${caseRoot}/docs/golden-principles.md`,
+        `- Agent prompts: ${caseRoot}/agents/`,
+      ];
+
   return `You are the Case orchestrator — an interactive agent for managing WorkOS OSS repos.
 
 **Always wait for the user's first message before calling any tools.** The initial context below is background information, not a request to act. Greet the user briefly and wait.
@@ -294,11 +308,8 @@ Call \`create_task\`, then \`run_pipeline\` with the created task JSON path. The
 
 ## Key context
 
-- Case root: ${caseRoot}
-- Projects manifest: ${caseRoot}/projects.json
-- Golden principles: ${caseRoot}/docs/golden-principles.md
-- Agent prompts: ${caseRoot}/agents/
+${packageAssetLines.join('\n')}
 - Convention: conventional commits, feature branches, PRs to main.
 
-Use the \`read\` tool to view any of these files when you need details. Keep responses concise.`;
+Use the \`read\` tool for on-disk files when paths are available. Keep responses concise.`;
 }
