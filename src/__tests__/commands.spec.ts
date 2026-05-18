@@ -29,7 +29,9 @@ describe('commandMap registration', () => {
     const expected = [
       'run',
       'watch',
-      'create',
+      'init',
+      'check',
+      'bootstrap',
       'session',
       'status',
       'mark-tested',
@@ -37,10 +39,8 @@ describe('commandMap registration', () => {
       'mark-reviewed',
       'upload',
       'snapshot',
-      'init',
+      'create',
       'analyze-failure',
-      'bootstrap',
-      'check',
     ];
     expect(Object.keys(commandMap).sort()).toEqual([...expected].sort());
     for (const verb of expected) {
@@ -206,6 +206,19 @@ describe('printHelp', () => {
     expect(text).toContain('mark-tested');
     expect(text).toContain('SHA-256');
     expect(text).toContain('Snapshot current agent prompt versions');
+  });
+
+  it('groups commands by audience', () => {
+    const out = captureStream(process.stdout);
+    try {
+      printHelp();
+    } finally {
+      out.restore();
+    }
+    const text = out.lines.join('');
+    expect(text).toContain('Commands:');
+    expect(text).toContain('Agent commands:');
+    expect(text).toContain('Internal:');
   });
 });
 
