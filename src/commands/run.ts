@@ -89,6 +89,7 @@ export async function handler(argv: string[]): Promise<number> {
       dryRun: (values['dry-run'] as boolean) ?? false,
       fresh: (values.fresh as boolean) ?? false,
       caseRoot,
+      renderer: values.tui ? 'tui' : undefined,
     });
     return 0;
   } catch (err) {
@@ -113,7 +114,7 @@ Options:
   --mode, -m <mode>       "attended" (default) or "unattended"
   --dry-run               Validate without spawning agents
   --fresh                 Ignore existing task state and start clean
-  --tui                   Launch full-screen TUI mode (requires --task)
+  --tui                   Launch full-screen TUI mode
   --help, -h              Show this help
 `;
   process.stdout.write(text);

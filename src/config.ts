@@ -32,13 +32,16 @@ export async function loadProjects(caseRoot: string): Promise<ProjectEntry[]> {
   return (await loadProjectsManifest(caseRoot)).repos;
 }
 
+let deprecationWarned = false;
+
 export async function loadProjectsManifest(caseRoot: string): Promise<LoadedProjectsManifest> {
   const candidates = projectsManifestCandidates(caseRoot);
   for (let i = 0; i < candidates.length; i++) {
     const candidate = candidates[i]!;
     const file = Bun.file(candidate.path);
     if (await file.exists()) {
-      if (i > 0) {
+      if (i > 0 && !deprecationWarned) {
+        deprecationWarned = true;
         process.stderr.write(
           `case: deprecation — projects.json read from legacy path ${candidate.path}; move it to ${candidates[0]?.path} (or run 'ca init --migrate-from <repo>').\n`,
         );

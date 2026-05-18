@@ -20,6 +20,8 @@ export interface CliOrchestratorOptions {
   /** Skip re-entry detection and create a fresh task. */
   fresh?: boolean;
   caseRoot: string;
+  /** Renderer override: 'tui' for full-screen TUI mode. */
+  renderer?: 'structured' | 'tui';
 }
 
 const SETUP_PHASE: PipelinePhase = 'setup';
@@ -45,7 +47,7 @@ function setupStep(notifier: Notifier, label: string, detail?: string): void {
  *   4. Dispatch to runPipeline()
  */
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
-  const { argument, mode, dryRun, fresh, caseRoot } = options;
+  const { argument, mode, dryRun, fresh, caseRoot, renderer } = options;
 
   const notifier = createStructuredLogRenderer({ mode });
   const setupStartedAt = Date.now();
@@ -68,7 +70,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   }
 
   if (match) {
-    return resumeTask(match, detected.path, mode, dryRun, notifier, setupStartedAt);
+    return resumeTask(match, detected.path, mode, dryRun, notifier, setupStartedAt, renderer);
   }
 
   // No existing task found — create new or exit
@@ -128,7 +130,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
     dryRun,
   });
 
-  await runPipeline({ ...config, notifier });
+  await runPipeline({ ...config, notifier, renderer });
 }
 
 /**
@@ -142,6 +144,7 @@ async function resumeTask(
   dryRun: boolean,
   notifier: Notifier,
   setupStartedAt: number,
+  renderer?: 'structured' | 'tui',
 ): Promise<void> {
   const { taskJson, taskJsonPath, entryPhase } = match;
 
@@ -171,7 +174,7 @@ async function resumeTask(
 
   notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'completed');
 
-  await runPipeline({ ...config, notifier });
+  await runPipeline({ ...config, notifier, renderer });
 }
 
 /**
