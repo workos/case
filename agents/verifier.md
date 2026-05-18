@@ -38,13 +38,14 @@ Read the output to understand: current branch, last commits, task status, which 
    ca status <task.json> agent verifier started now
    ```
 2. Read the task file — understand the issue, objective, and acceptance criteria
-3. Read the git diff to understand what the implementer changed:
+3. **Read the `## Evidence Expectations` section.** This is the contract from the orchestrator — it specifies exactly what evidence you must produce. Your verification plan must satisfy every expectation listed. If the section is missing or vague, treat it as a defect and report it rather than guessing.
+4. Read the git diff to understand what the implementer changed:
    ```bash
    git log --oneline -5
    git diff HEAD~1 --stat
    git diff HEAD~1
    ```
-4. Read the issue reference from the task file to understand what to test specifically
+5. Read the issue reference from the task file to understand what to test specifically
 
 ### 2. Determine Scope
 
@@ -332,7 +333,9 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 ### 5b. Score Rubric
 
-After testing, score each category honestly. `fail` means the evidence doesn't support this claim. `na` means the category genuinely doesn't apply (justify why in detail).
+After testing, re-read the `## Evidence Expectations` section from the task file. For each expectation listed, confirm your evidence satisfies it. If any expectation is unmet, your rubric verdict for `evidence-proves-change` must be `fail` — even if the generic rubric questions would pass.
+
+Score each category honestly. `fail` means the evidence doesn't support this claim. `na` means the category genuinely doesn't apply (justify why in detail).
 
 | Category                 | Question                                                        | When to mark NA                                          |
 | ------------------------ | --------------------------------------------------------------- | -------------------------------------------------------- |

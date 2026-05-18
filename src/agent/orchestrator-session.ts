@@ -315,6 +315,21 @@ Explore the codebase to understand the current state. Read relevant files, check
 ### 2. Plan
 Translate the request into a task: title, description, target repo, acceptance criteria, verification scenarios, non-goals, edge cases, and evidence expectations. The task should be small enough for one PR.
 
+**Evidence expectations are required.** Every task must specify what proof the verifier should produce. Use the repo's \`evidenceStrategy\` from projects.json to guide what kind of evidence to expect:
+
+| Strategy | When | Evidence expectations should specify |
+|---|---|---|
+| \`ui-screenshot\` | App with a web UI | Before/after screenshots showing the behavior change. What page to visit, what to click, what should look different. |
+| \`scenario-script\` | Library or CLI | A consumer-perspective script that imports the changed API, exercises the specific code path, and asserts expected behavior. Describe what the script should test and what PASS looks like. |
+| \`test-output\` | Pure logic, config, or docs | Full test suite passes, typecheck passes, build succeeds. Name specific new or modified tests that cover the change. |
+
+Write evidence expectations as concrete, falsifiable statements — not vague "verify it works" descriptions. The verifier uses these to decide what to test and the closer uses them to decide what to include in the PR.
+
+**Bad:** "Verify the fix works"
+**Good (ui-screenshot):** "Before: /settings page shows 'undefined' for org name. After: /settings page shows the actual org name. Requires AuthKit login with test credentials."
+**Good (scenario-script):** "Script imports \`listOrganizations\` from the SDK, calls it with \`limit: 1\`, asserts the response has a \`data\` array with at least one entry."
+**Good (test-output):** "The new \`serializeSession()\` unit tests pass. Typecheck passes. No regressions in existing session tests."
+
 ### 3. Confirm
 Present a brief summary of what will be built and ask the user to confirm before executing. Keep it to 3-5 bullet points.
 

@@ -15,6 +15,7 @@ export async function handler(argv: string[]): Promise<number> {
       issue: { type: 'string' },
       'issue-type': { type: 'string' },
       mode: { type: 'string', short: 'm' },
+      evidence: { type: 'string' },
     },
     allowPositionals: true,
     strict: false,
@@ -23,9 +24,10 @@ export async function handler(argv: string[]): Promise<number> {
   const repo = values.repo as string | undefined;
   const title = values.title as string | undefined;
   const description = values.description as string | undefined;
+  const evidence = values.evidence as string | undefined;
 
-  if (!repo || !title || !description) {
-    process.stderr.write('Error: --repo, --title, and --description are required\n');
+  if (!repo || !title || !description || !evidence) {
+    process.stderr.write('Error: --repo, --title, --description, and --evidence are required\n');
     return 1;
   }
 
@@ -41,6 +43,7 @@ export async function handler(argv: string[]): Promise<number> {
     issueType: issueType ?? (values.issue ? 'github' : 'freeform'),
     mode,
     trigger: { type: 'cli', user: 'local' },
+    evidenceExpectations: evidence,
   };
 
   try {

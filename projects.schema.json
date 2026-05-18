@@ -24,6 +24,11 @@
             "description": "Whether this repo has a web UI (app) or is a pure library. Library repos skip the Playwright manual test requirement.",
             "default": "app"
           },
+          "evidenceStrategy": {
+            "type": "string",
+            "enum": ["ui-screenshot", "scenario-script", "test-output"],
+            "description": "What kind of evidence proves a change works. ui-screenshot: Playwright before/after for apps with UI. scenario-script: consumer script that exercises the changed API for libraries. test-output: test suite + typecheck + build for pure-logic/config changes. Defaults based on type: app→ui-screenshot, library→scenario-script."
+          },
           "path": {
             "type": "string",
             "description": "Relative path from case/ to the repo root"

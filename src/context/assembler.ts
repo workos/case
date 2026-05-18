@@ -1,4 +1,5 @@
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
+import { resolveEvidenceStrategy } from '../types.js';
 import type { RepoContext } from './prefetch.js';
 import { readPackageAssetSync } from '../package-assets.js';
 
@@ -127,8 +128,10 @@ function buildContextBlock(
       break;
 
     case 'verifier':
-      // Deliberately minimal — fresh-context testing
+      // Deliberately minimal — fresh-context testing, plus evidence strategy
       appendProjectCommands(lines, config);
+      lines.push(`- **Evidence strategy**: \`${resolveEvidenceStrategy(config.project)}\``);
+      lines.push('');
       break;
 
     case 'reviewer':

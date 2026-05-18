@@ -24,6 +24,7 @@ describe('createTask', () => {
       title: 'Fix broken test',
       description: 'The login test is failing intermittently.',
       trigger: { type: 'manual', description: 'Created manually' },
+      evidenceExpectations: 'Full test suite passes. The flaky login test passes 10 consecutive runs.',
     };
 
     const result = await createTask(tempDir, request, { repoPath: tempDir });
@@ -43,6 +44,8 @@ describe('createTask', () => {
     expect(taskMd).toContain('Fix broken test');
     expect(taskMd).toContain('The login test');
     expect(taskMd).toContain('Repo:** cli');
+    expect(taskMd).toContain('## Evidence Expectations');
+    expect(taskMd).toContain('flaky login test passes 10 consecutive runs');
     expect((await Bun.file(join(tempDir, '.case', 'active')).text()).trim()).toBe(result.taskId);
   });
 
@@ -55,6 +58,7 @@ describe('createTask', () => {
       issue: 'https://github.com/workos/authkit-ssr/issues/42',
       mode: 'unattended',
       trigger: { type: 'webhook', event: 'workflow_run', deliveryId: 'abc-123' },
+      evidenceExpectations: 'Lint passes cleanly. No regressions in existing tests.',
     };
 
     const result = await createTask(tempDir, request, { repoPath: tempDir });
@@ -77,6 +81,7 @@ describe('createTask', () => {
       checkCommand: 'vitest run --reporter=json',
       checkBaseline: 10,
       checkTarget: 12,
+      evidenceExpectations: 'Test count increases from 10 to 12.',
     };
 
     const result = await createTask(tempDir, request, { repoPath: tempDir });
