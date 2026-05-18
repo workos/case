@@ -2,13 +2,7 @@ import type { Notifier } from '../notify.js';
 import { defaultAskUser } from '../notify.js';
 import type { PipelineMode } from '../types.js';
 import { bold, cyan, dim, green, red, yellow } from './color.js';
-import {
-  formatDuration,
-  formatHeartbeatWhimsy,
-  formatPhaseEnd,
-  formatPhaseHeader,
-  formatToolLine,
-} from './format.js';
+import { formatDuration, formatHeartbeatWhimsy, formatPhaseEnd, formatPhaseHeader, formatToolLine } from './format.js';
 
 export interface StructuredLogRendererOptions {
   /** Output sink. Default: writes to process.stdout. */
@@ -44,12 +38,7 @@ function colorDuration(durationMs: number): string {
  * Recolor a formatted phase-end line: green or red icon + threshold-colored
  * duration. Body padding stays default.
  */
-function colorPhaseEndLine(
-  phase: string,
-  agent: string,
-  durationMs: number,
-  status: 'completed' | 'failed',
-): string {
+function colorPhaseEndLine(phase: string, agent: string, durationMs: number, status: 'completed' | 'failed'): string {
   const raw = formatPhaseEnd(phase, agent, durationMs, status);
   const durText = formatDuration(durationMs);
   const body = raw.endsWith(durText) ? raw.slice(0, raw.length - durText.length) : raw;
@@ -110,7 +99,8 @@ export function createStructuredLogRenderer(options: StructuredLogRendererOption
   const heartbeatIntervalMs = options.heartbeatIntervalMs ?? 10_000;
   const now = options.now ?? (() => Date.now());
   const setIntervalFn = options.setInterval ?? ((cb, ms) => setInterval(cb, ms));
-  const clearIntervalFn = options.clearInterval ?? ((handle) => clearInterval(handle as ReturnType<typeof setInterval>));
+  const clearIntervalFn =
+    options.clearInterval ?? ((handle) => clearInterval(handle as ReturnType<typeof setInterval>));
 
   let heartbeatTimer: unknown = null;
   let lastActivityAt = 0;

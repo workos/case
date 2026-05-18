@@ -82,11 +82,7 @@ export function createNotifier(mode: PipelineMode): Notifier {
  * Shared askUser implementation used by both the legacy notifier and the
  * structured-log renderer. Kept here so behavior stays consistent.
  */
-export async function defaultAskUser(
-  mode: PipelineMode,
-  userPrompt: string,
-  options: string[],
-): Promise<string> {
+export async function defaultAskUser(mode: PipelineMode, userPrompt: string, options: string[]): Promise<string> {
   if (mode === 'unattended') {
     const choice = options[options.length - 1];
     process.stdout.write(`[unattended] Auto-selecting: ${choice}\n`);

@@ -1,10 +1,5 @@
 import type { PipelineEvent } from '../events/schema.js';
-import {
-  formatDuration,
-  formatPhaseEnd,
-  formatPhaseHeader,
-  formatToolLine,
-} from '../render/format.js';
+import { formatDuration, formatPhaseEnd, formatPhaseHeader, formatToolLine } from '../render/format.js';
 import { cyan, dim, green, red, yellow } from '../render/color.js';
 
 /**

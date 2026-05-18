@@ -136,9 +136,7 @@ describe('renderWatchEvent — no color', () => {
   });
 
   test('status_changed shows new status', () => {
-    const out = renderWatchEvent(
-      makeEvent('status_changed', { from: 'implementing', to: 'evaluating' } as any),
-    );
+    const out = renderWatchEvent(makeEvent('status_changed', { from: 'implementing', to: 'evaluating' } as any));
     expect(out).toBe('→ evaluating');
   });
 

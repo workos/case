@@ -27,13 +27,7 @@ import type { Notifier } from '../notify.js';
 import { defaultAskUser } from '../notify.js';
 import type { PipelineMode } from '../types.js';
 import { bold, cyan, dim, green, red, yellow } from './color.js';
-import {
-  formatDuration,
-  formatHeartbeatWhimsy,
-  formatPhaseEnd,
-  formatPhaseHeader,
-  formatToolLine,
-} from './format.js';
+import { formatDuration, formatHeartbeatWhimsy, formatPhaseEnd, formatPhaseHeader, formatToolLine } from './format.js';
 
 /** Duration thresholds for color escalation (ms). Mirrors structured-log.ts. */
 const DURATION_YELLOW_MS = 30_000;
@@ -113,12 +107,7 @@ function colorToolLine(tool: string, args: string, durationMs?: number): string 
 }
 
 /** Re-color a formatted phase-end line. */
-function colorPhaseEndLine(
-  phase: string,
-  agent: string,
-  durationMs: number,
-  status: 'completed' | 'failed',
-): string {
+function colorPhaseEndLine(phase: string, agent: string, durationMs: number, status: 'completed' | 'failed'): string {
   const raw = formatPhaseEnd(phase, agent, durationMs, status);
   const durText = formatDuration(durationMs);
   const body = raw.endsWith(durText) ? raw.slice(0, raw.length - durText.length) : raw;
