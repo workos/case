@@ -275,6 +275,14 @@ describe('TuiRenderer', () => {
     expect(header.includes('1/4')).toBe(true);
   });
 
+  test('header renders the robot as a standalone block above the title', () => {
+    const { harness, options } = makeHarness();
+    createTuiRenderer(options);
+    const lines = harness.recordedHeader().split('\n');
+    expect(lines.slice(0, 4)).toEqual(['▄█████▄', '█ ● ○ █', '█▄░░░▄█', '▀██ ██▀']);
+    expect(lines[4]).toBe('Case Pipeline');
+  });
+
   test('send() routes message into the feed', () => {
     const { options } = makeHarness();
     const r = createTuiRenderer(options);

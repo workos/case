@@ -14,8 +14,9 @@
  *     lists) and then asking the TUI for a redraw.
  *
  * To match the spec's intent without fighting the library, we keep two `Text`
- * components — one for the header (title + step indicator + progress bar) and
- * one for the activity feed (a buffered list of recent lines, capped at 100).
+ * components — one for the header (robot + title + step indicator + progress
+ * bar) and one for the activity feed (a buffered list of recent lines, capped
+ * at 100).
  * Header state lives on the renderer; the components only render strings.
  *
  * `destroy()` tears down the pi-tui terminal and releases SIGINT/exit
@@ -148,16 +149,28 @@ const ROBOT = ['▄█████▄', '█ ● ○ █', '█▄░░░▄�
 function renderHeader(state: TuiRendererState): string {
   const total = state.completedPhases.length + (state.activePhase ? 1 : 0) + state.pendingPhases.length;
   const done = state.completedPhases.length;
-  const robotLine = ROBOT.map((part) => cyan(part)).join('  ');
-  const title = `${robotLine}  ${bold('Case Pipeline')}`;
+  const robot = ROBOT.map((line) => cyan(line)).join('\n');
+  const title = bold('Case Pipeline');
   const indicator = renderStepIndicator(state.completedPhases, state.activePhase, state.pendingPhases);
   const progress = renderProgressBar(done, total);
-  return `${title}\n${indicator}\n${progress}`;
+  return `${robot}\n${title}\n${indicator}\n${progress}`;
+}
+
+/**
+ * Text pads rendered lines to the full viewport width. That is normally fine,
+ * but terminals that render East Asian Ambiguous block glyphs as wide can
+ * autowrap on those trailing spaces. The TUI clears each line before drawing,
+ * so the header can safely emit trimmed lines.
+ */
+class HeaderText extends Text {
+  override render(width: number): string[] {
+    return super.render(width).map((line) => line.trimEnd());
+  }
 }
 
 /**
  * Build a real pi-tui surface backed by `ProcessTerminal`. Composed of:
- *   - a header `Box` containing a `Text` for title/indicator/bar
+ *   - a header `Text` for robot/title/indicator/bar
  *   - a feed `Box` containing a `Text` for the scrolling activity lines
  */
 function createProcessTuiSurface(onInterrupt?: () => void): TuiSurface {
@@ -179,15 +192,13 @@ function createProcessTuiSurface(onInterrupt?: () => void): TuiSurface {
   const terminal = new InterruptibleProcessTerminal();
   const tui = new TUI(terminal, false);
 
-  const headerText = new Text('', 1, 0);
-  const headerBox = new Box(1, 0);
-  headerBox.addChild(headerText);
+  const headerText = new HeaderText('', 1, 0);
 
   const feedText = new Text('', 1, 0);
   const feedBox = new Box(1, 1);
   feedBox.addChild(feedText);
 
-  tui.addChild(headerBox);
+  tui.addChild(headerText);
   tui.addChild(feedBox);
 
   return {
