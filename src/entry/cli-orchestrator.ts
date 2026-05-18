@@ -6,7 +6,10 @@ import { buildPipelineConfig } from '../config.js';
 import { runPipeline } from '../pipeline.js';
 import { runBootstrap } from '../commands/bootstrap.js';
 import { runCommand } from '../util/run-command.js';
-import type { IssueContext, PipelineMode, TaskCreateRequest } from '../types.js';
+import { createStructuredLogRenderer } from '../render/structured-log.js';
+import { formatSetupStep } from '../render/format.js';
+import type { Notifier } from '../notify.js';
+import type { IssueContext, PipelineMode, PipelinePhase, TaskCreateRequest } from '../types.js';
 import type { TaskMatch } from './task-scanner.js';
 
 export interface CliOrchestratorOptions {
@@ -17,6 +20,17 @@ export interface CliOrchestratorOptions {
   /** Skip re-entry detection and create a fresh task. */
   fresh?: boolean;
   caseRoot: string;
+}
+
+const SETUP_PHASE: PipelinePhase = 'setup';
+
+/**
+ * Emit a setup-phase tool line via the notifier. We bypass the Notifier's
+ * toolStart implementation (which uses `formatToolLine`) because setup steps
+ * don't need a duration suffix — `formatSetupStep` gives us the right shape.
+ */
+function setupStep(notifier: Notifier, label: string, detail?: string): void {
+  notifier.send(formatSetupStep(label, detail));
 }
 
 /**
@@ -33,10 +47,13 @@ export interface CliOrchestratorOptions {
 export async function runCliOrchestrator(options: CliOrchestratorOptions): Promise<void> {
   const { argument, mode, dryRun, fresh, caseRoot } = options;
 
+  const notifier = createStructuredLogRenderer({ mode });
+  const setupStartedAt = Date.now();
+  notifier.phaseStart(SETUP_PHASE, 'cli');
+
   // --- Step 0: Detect repo ---
-  process.stdout.write('Detecting repo...\n');
   const detected = await detectRepo(caseRoot);
-  process.stdout.write(`  Repo: ${detected.name} (${detected.path})\n`);
+  setupStep(notifier, 'Detect repo', detected.name);
 
   // --- Step 0b: Check for existing task (re-entry) ---
   let match: TaskMatch | null = null;
@@ -51,25 +68,26 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   }
 
   if (match) {
-    return resumeTask(match, detected.path, mode, dryRun);
+    return resumeTask(match, detected.path, mode, dryRun, notifier, setupStartedAt);
   }
 
   // No existing task found — create new or exit
   if (!argument) {
-    process.stdout.write('No active task found. Usage: bun src/index.ts <issue-number>\n');
+    notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'failed');
+    notifier.send('No active task found. Usage: bun src/index.ts <issue-number>');
     return;
   }
 
   // --- Step 1: Fetch issue context ---
   const argType = detectArgumentType(argument);
-  process.stdout.write(`  Issue type: ${argType} (${argument})\n`);
+  setupStep(notifier, 'Issue type', `${argType} (${argument})`);
 
   const issueContext: IssueContext = await fetchIssue(argType, argument, detected.project.remote);
-  process.stdout.write(`  Issue: ${issueContext.title}\n`);
+  setupStep(notifier, 'Fetch issue', issueContext.title);
 
   // --- Step 2: Create branch + task files ---
   const branchName = deriveBranchName(issueContext);
-  process.stdout.write(`  Branch: ${branchName}\n`);
+  setupStep(notifier, 'Branch', branchName);
 
   // Create or checkout branch
   await ensureBranch(branchName, detected.path);
@@ -86,52 +104,62 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   };
 
   const taskResult = await createTask(caseRoot, request, { issueContext, branch: branchName, repoPath: detected.path });
-  process.stdout.write(`  Task: ${taskResult.taskId}\n`);
-  process.stdout.write(`    JSON: ${taskResult.taskJsonPath}\n`);
-  process.stdout.write(`    Spec: ${taskResult.taskMdPath}\n`);
+  setupStep(notifier, 'Task', taskResult.taskId);
 
   // --- Step 3: Run baseline ---
-  process.stdout.write('Running baseline...\n');
   const baseline = await runBootstrap(detected.name, caseRoot);
 
   if (!baseline.ok) {
     const failed = baseline.steps.find((step) => step.exitCode !== 0);
+    setupStep(notifier, 'Baseline', 'failed');
+    notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'failed');
     process.stderr.write(`Baseline failed:\n${failed?.output ?? ''}\n`);
     process.stderr.write('Fix the issues above before retrying.\n');
     process.exit(1);
   }
-  process.stdout.write('  Baseline passed.\n');
+  setupStep(notifier, 'Baseline', 'passed');
+
+  notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'completed');
 
   // --- Step 4: Dispatch to pipeline ---
-  process.stdout.write('Dispatching to pipeline...\n');
   const config = await buildPipelineConfig({
     taskJsonPath: taskResult.taskJsonPath,
     mode,
     dryRun,
   });
 
-  await runPipeline(config);
+  await runPipeline({ ...config, notifier });
 }
 
 /**
  * Resume an existing task from the correct pipeline phase.
  * Handles terminal states (pr-opened) and branch recovery.
  */
-async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode, dryRun: boolean): Promise<void> {
+async function resumeTask(
+  match: TaskMatch,
+  repoPath: string,
+  mode: PipelineMode,
+  dryRun: boolean,
+  notifier: Notifier,
+  setupStartedAt: number,
+): Promise<void> {
   const { taskJson, taskJsonPath, entryPhase } = match;
 
   // Guard: task already has a PR open
   if (taskJson.status === 'pr-opened' || taskJson.status === 'merged') {
     const prInfo = taskJson.prUrl ? `: ${taskJson.prUrl}` : '';
-    process.stdout.write(`PR already exists${prInfo}. Nothing to do.\n`);
+    setupStep(notifier, 'Status', `${taskJson.status}${prInfo}`);
+    notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'completed');
+    notifier.send(`PR already exists${prInfo}. Nothing to do.`);
     return;
   }
 
-  process.stdout.write(`Resuming task ${taskJson.id} from ${entryPhase} phase\n`);
+  setupStep(notifier, 'Resume task', `${taskJson.id} (entry: ${entryPhase})`);
 
   // Checkout the task's branch if it has one
   if (taskJson.branch) {
     await ensureBranch(taskJson.branch, repoPath, true);
+    setupStep(notifier, 'Branch', taskJson.branch);
   }
 
   // Build config from existing task JSON and dispatch
@@ -141,8 +169,9 @@ async function resumeTask(match: TaskMatch, repoPath: string, mode: PipelineMode
     dryRun,
   });
 
-  process.stdout.write('Dispatching to pipeline...\n');
-  await runPipeline(config);
+  notifier.phaseEnd(SETUP_PHASE, 'cli', Date.now() - setupStartedAt, 'completed');
+
+  await runPipeline({ ...config, notifier });
 }
 
 /**

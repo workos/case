@@ -64,6 +64,17 @@ export function formatToolLine(tool: string, args: string, durationMs?: number):
 }
 
 /**
+ * Format a setup-phase step line. Same shape as a tool line but without
+ * trailing duration — setup steps complete fast enough that per-step timing
+ * adds noise.
+ * Example: "    ↳ Detect repo: authkit-nextjs"
+ */
+export function formatSetupStep(label: string, detail?: string): string {
+  const suffix = detail ? `: ${detail}` : '';
+  return `    ↳ ${label}${suffix}`;
+}
+
+/**
  * Format the step-indicator line summarizing pipeline position.
  * Example: "[2/5] ✓ implement → ○ verify → · review → · close → · retro"
  *   ✓ = completed   ○ = active   · = pending

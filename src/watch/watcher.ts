@@ -18,6 +18,8 @@ const MILESTONE_EVENTS = new Set([
   'status_changed',
   'pipeline_start',
   'pipeline_end',
+  'tool_start',
+  'tool_end',
 ]);
 
 export async function* watchEventLog(options: WatchOptions): AsyncGenerator<PipelineEvent> {

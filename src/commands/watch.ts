@@ -9,6 +9,7 @@ export async function handler(argv: string[]): Promise<number> {
     args: argv,
     options: {
       raw: { type: 'boolean' },
+      'no-color': { type: 'boolean' },
     },
     allowPositionals: true,
     strict: false,
@@ -18,6 +19,12 @@ export async function handler(argv: string[]): Promise<number> {
   if (!taskSlug) {
     process.stderr.write('Error: case watch <taskSlug> is required\n');
     return 1;
+  }
+
+  // Apply --no-color before importing the renderer so `isColorEnabled()`
+  // (evaluated lazily at render time) reflects the flag.
+  if (values['no-color']) {
+    process.env.NO_COLOR = '1';
   }
 
   const caseRoot = resolvePackageRoot();

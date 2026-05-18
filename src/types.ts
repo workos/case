@@ -119,7 +119,15 @@ export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   standard: ['implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
-export type PipelinePhase = 'implement' | 'verify' | 'review' | 'close' | 'retrospective' | 'complete' | 'abort';
+export type PipelinePhase =
+  | 'setup'
+  | 'implement'
+  | 'verify'
+  | 'review'
+  | 'close'
+  | 'retrospective'
+  | 'complete'
+  | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
 export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];

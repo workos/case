@@ -235,6 +235,44 @@ describe('runCliOrchestrator — re-entry', () => {
     expect(mockRunPipeline).not.toHaveBeenCalled();
   });
 
+  it('renders setup phase header and steps via Notifier', async () => {
+    // No branch field = skip branch checkout
+    const task = makeTaskJson({ status: 'implementing', branch: undefined });
+
+    mockDetectArgumentType.mockReturnValue('github');
+    mockFindTaskByIssue.mockResolvedValue({
+      taskJson: task,
+      taskJsonPath: taskPath('cli-abc-fix-test', 'task.json'),
+      taskMdPath: taskPath('cli-abc-fix-test', 'md'),
+      entryPhase: 'verify',
+    });
+
+    const writes: string[] = [];
+    const origWrite = process.stdout.write;
+    process.stdout.write = ((chunk: string) => {
+      writes.push(chunk);
+      return true;
+    }) as typeof process.stdout.write;
+
+    await runCliOrchestrator({
+      argument: '1523',
+      mode: 'attended',
+      dryRun: false,
+      caseRoot: tempDir,
+    });
+
+    process.stdout.write = origWrite;
+
+    const combined = writes.join('');
+    // Phase header
+    expect(combined).toContain('▶ setup (cli)');
+    // Setup step (formatSetupStep)
+    expect(combined).toContain('    ↳ Detect repo: cli');
+    expect(combined).toContain('    ↳ Resume task: cli-abc-fix-test');
+    // Phase-end line
+    expect(combined).toContain('✓ setup completed');
+  });
+
   it('exits early for pr-opened status', async () => {
     const task = makeTaskJson({
       status: 'pr-opened',

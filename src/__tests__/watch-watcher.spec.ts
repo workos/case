@@ -2,7 +2,6 @@ import { describe, test, expect, afterAll } from 'bun:test';
 import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { watchEventLog } from '../watch/watcher.js';
-import { renderWatchEvent } from '../watch/renderer.js';
 import type { PipelineEvent } from '../events/schema.js';
 
 const tmpDir = resolve(process.env.TMPDIR ?? '/tmp', `case-watch-test-${Date.now()}`);
@@ -57,7 +56,7 @@ describe('watchEventLog', () => {
     expect(collected[3].event).toBe('pipeline_end');
   });
 
-  test('structured mode filters out tool events', async () => {
+  test('structured mode includes tool events (milestone set expanded)', async () => {
     const taskSlug = 'test-filter';
     const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
     await mkdir(eventDir, { recursive: true });
@@ -99,7 +98,9 @@ describe('watchEventLog', () => {
       collected.push(event);
     }
 
-    expect(collected).toHaveLength(2); // pipeline_start + pipeline_end, no tool events
+    // Tool events are now shown by default — pipeline_start + tool_start + tool_end + pipeline_end.
+    expect(collected).toHaveLength(4);
+    expect(collected.map((e) => e.event)).toEqual(['pipeline_start', 'tool_start', 'tool_end', 'pipeline_end']);
   });
 
   test('raw mode yields all events', async () => {
@@ -220,47 +221,4 @@ describe('watchEventLog', () => {
   });
 });
 
-describe('renderWatchEvent', () => {
-  test('renders phase_start', () => {
-    const event = JSON.parse(makeEvent({ event: 'phase_start', phase: 'implement', agent: 'implementer' }));
-    expect(renderWatchEvent(event)).toBe('▶ implement (implementer)');
-  });
-
-  test('renders phase_end completed', () => {
-    const event = JSON.parse(
-      makeEvent({ event: 'phase_end', phase: 'verify', agent: 'verifier', outcome: 'completed', durationMs: 42000 }),
-    );
-    expect(renderWatchEvent(event)).toBe('✓ verify completed (42s)');
-  });
-
-  test('renders phase_end failed', () => {
-    const event = JSON.parse(
-      makeEvent({ event: 'phase_end', phase: 'review', agent: 'reviewer', outcome: 'failed', durationMs: 18000 }),
-    );
-    expect(renderWatchEvent(event)).toBe('✗ review failed (18s)');
-  });
-
-  test('renders revision_requested', () => {
-    const event = JSON.parse(
-      makeEvent({ event: 'revision_requested', source: 'verifier', cycle: 1, failedCategories: [] }),
-    );
-    expect(renderWatchEvent(event)).toBe('↻ revision requested by verifier (cycle 1)');
-  });
-
-  test('renders pipeline_end completed', () => {
-    const event = JSON.parse(makeEvent({ event: 'pipeline_end', outcome: 'completed', durationMs: 222000 }));
-    expect(renderWatchEvent(event)).toBe('✓ pipeline complete (3m 42s)');
-  });
-
-  test('renders pipeline_end failed', () => {
-    const event = JSON.parse(
-      makeEvent({ event: 'pipeline_end', outcome: 'failed', failedAgent: 'reviewer', durationMs: 135000 }),
-    );
-    expect(renderWatchEvent(event)).toBe('✗ pipeline failed at reviewer (2m 15s)');
-  });
-
-  test('renders status_changed', () => {
-    const event = JSON.parse(makeEvent({ event: 'status_changed', from: 'implementing', to: 'evaluating' }));
-    expect(renderWatchEvent(event)).toBe('→ evaluating');
-  });
-});
+// Renderer-specific tests live in `watch-renderer.spec.ts`.
