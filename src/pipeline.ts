@@ -29,16 +29,16 @@ const log = createLogger();
 export async function runPipeline(config: PipelineConfig): Promise<void> {
   // Task JSON lives in the target repo's ignored .case directory.
   const store = new TaskStore(config.taskJsonPath, config.packageRoot);
-  // Renderer selection: explicit `notifier` wins; else pick TUI or structured
-  // by config.renderer (defaults to 'structured'). TUI renderers must be
-  // destroyed on exit so we keep a typed handle for cleanup.
+  // Renderer selection: TUI wins when explicitly requested (even over a
+  // pre-built notifier from cli-orchestrator's setup phase). Otherwise an
+  // explicit notifier takes priority, falling back to structured log.
   let tuiRenderer: TuiRenderer | null = null;
   let notifier: Notifier;
-  if (config.notifier) {
-    notifier = config.notifier;
-  } else if (config.renderer === 'tui') {
+  if (config.renderer === 'tui') {
     tuiRenderer = createTuiRenderer({ mode: config.mode });
     notifier = tuiRenderer;
+  } else if (config.notifier) {
+    notifier = config.notifier;
   } else {
     notifier = createStructuredLogRenderer({ mode: config.mode });
   }
