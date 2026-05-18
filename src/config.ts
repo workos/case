@@ -40,7 +40,7 @@ export async function loadProjectsManifest(caseRoot: string): Promise<LoadedProj
     const candidate = candidates[i]!;
     const file = Bun.file(candidate.path);
     if (await file.exists()) {
-      if (i > 0 && !deprecationWarned) {
+      if (i > 0 && !deprecationWarned && process.env.CASE_QUIET !== '1') {
         deprecationWarned = true;
         process.stderr.write(
           `case: deprecation — projects.json read from legacy path ${candidate.path}; move it to ${candidates[0]?.path} (or run 'ca init --migrate-from <repo>').\n`,
