@@ -10,6 +10,7 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
 
 // Mock the Pi SDK before importing the module under test
 const mockCreateAgentSession = mock();
+const mockCreateAgentSessionRuntime = mock();
 const mockInteractiveModeRun = mock();
 const mockResourceLoaderReload = mock();
 
@@ -35,17 +36,25 @@ mock.module('../entry/issue-fetcher.js', () => ({
   fetchIssue: mockFetchIssue,
 }));
 
+const mockSession = { id: 'test-session' };
+const mockRuntime = {
+  session: mockSession,
+  diagnostics: [],
+  modelFallbackMessage: undefined as string | undefined,
+};
+
 mock.module('@mariozechner/pi-coding-agent', () => ({
   createAgentSession: mockCreateAgentSession,
+  createAgentSessionRuntime: mockCreateAgentSessionRuntime,
   InteractiveMode: class MockInteractiveMode {
-    session: unknown;
+    runtime: unknown;
     options: unknown;
-    constructor(session: unknown, options?: unknown) {
-      this.session = session;
+    constructor(runtime: unknown, options?: unknown) {
+      this.runtime = runtime;
       this.options = options;
     }
     async run() {
-      return mockInteractiveModeRun(this.session, this.options);
+      return mockInteractiveModeRun(this.runtime, this.options);
     }
   },
   DefaultResourceLoader: class MockResourceLoader {
@@ -58,12 +67,14 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
     }
   },
   SettingsManager: { create: () => ({ setQuietStartup: () => {} }) },
+  SessionManager: { create: () => ({}) },
   AuthStorage: { create: () => ({}) },
-  ModelRegistry: class {
-    constructor() {}
-    find() {
-      return { id: 'mock-model' };
-    }
+  ModelRegistry: {
+    create: () => ({
+      find() {
+        return { id: 'mock-model' };
+      },
+    }),
   },
   getAgentDir: () => '/tmp/pi-agent',
 }));
@@ -84,10 +95,9 @@ const mockDetected = {
 };
 
 describe('startOrchestratorSession', () => {
-  const mockSession = { id: 'test-session' };
-
   beforeEach(() => {
     mockCreateAgentSession.mockReset();
+    mockCreateAgentSessionRuntime.mockReset();
     mockInteractiveModeRun.mockReset();
     mockResourceLoaderReload.mockReset();
     mockDetectRepo.mockReset();
@@ -99,7 +109,18 @@ describe('startOrchestratorSession', () => {
       session: mockSession,
       extensionsResult: {},
       modelFallbackMessage: undefined,
+      services: {},
+      diagnostics: [],
     });
+
+    // createAgentSessionRuntime calls the factory internally, so we mock it
+    // to call the factory once (to exercise our tool registration code) then
+    // return the mock runtime.
+    mockCreateAgentSessionRuntime.mockImplementation(async (factory: Function, opts: any) => {
+      await factory(opts);
+      return { ...mockRuntime };
+    });
+
     mockInteractiveModeRun.mockResolvedValue(undefined);
     mockResourceLoaderReload.mockResolvedValue(undefined);
     mockDetectRepo.mockResolvedValue(mockDetected);
@@ -179,18 +200,18 @@ describe('startOrchestratorSession', () => {
     expect(options.initialMessage).toContain('Not in a recognized target repo');
   });
 
-  it('includes caseRoot in system prompt', async () => {
+  it('includes caseRoot in system prompt via appendSystemPrompt array', async () => {
     await startOrchestratorSession({ caseRoot: '/my/case/root', mode: 'attended' });
 
     const opts = mockResourceLoaderReload.mock.calls[0][0];
-    expect(opts.appendSystemPrompt).toContain('/my/case/root');
+    expect(opts.appendSystemPrompt).toBeInstanceOf(Array);
+    expect(opts.appendSystemPrompt[0]).toContain('/my/case/root');
   });
 
   it('passes modelFallbackMessage to InteractiveMode', async () => {
-    mockCreateAgentSession.mockResolvedValue({
-      session: mockSession,
-      extensionsResult: {},
-      modelFallbackMessage: 'Fell back to default model',
+    mockCreateAgentSessionRuntime.mockImplementation(async (factory: Function, opts: any) => {
+      await factory(opts);
+      return { ...mockRuntime, modelFallbackMessage: 'Fell back to default model' };
     });
 
     await startOrchestratorSession({ caseRoot: '/case', mode: 'attended' });

@@ -23,7 +23,7 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
   private activeAgent: Agent | null = null;
 
   constructor() {
-    this.registry = new ModelRegistry(AuthStorage.create());
+    this.registry = ModelRegistry.create(AuthStorage.create());
   }
 
   async spawn(options: SpawnAgentOptions): Promise<SpawnAgentResult> {
