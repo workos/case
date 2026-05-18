@@ -3,7 +3,6 @@
   "repos": [
     {
       "name": "cli",
-      "type": "library",
       "evidenceStrategy": "scenario-script",
       "path": "../cli/main",
       "remote": "git@github.com:workos/workos-cli.git",
@@ -20,7 +19,6 @@
     },
     {
       "name": "skills",
-      "type": "library",
       "evidenceStrategy": "test-output",
       "path": "../skills",
       "remote": "git@github.com:workos/skills.git",
@@ -36,7 +34,6 @@
     },
     {
       "name": "authkit-session",
-      "type": "library",
       "evidenceStrategy": "scenario-script",
       "path": "../authkit-session",
       "remote": "git@github.com:workos/authkit-ssr.git",
@@ -53,6 +50,7 @@
     },
     {
       "name": "authkit-tanstack-start",
+      "evidenceStrategy": "scenario-script",
       "path": "../authkit-tanstack-start",
       "remote": "git@github.com:workos/authkit-tanstack-start.git",
       "description": "WorkOS library for TanStack Start providing authentication and session management helpers",
@@ -68,6 +66,7 @@
     },
     {
       "name": "authkit-nextjs",
+      "evidenceStrategy": "scenario-script",
       "path": "../authkit-nextjs",
       "remote": "git@github.com:workos/authkit-nextjs.git",
       "description": "Authentication and session helpers for using WorkOS & AuthKit with Next.js",
@@ -84,7 +83,6 @@
     },
     {
       "name": "workos-node",
-      "type": "library",
       "evidenceStrategy": "scenario-script",
       "path": "../workos-node/main",
       "remote": "git@github.com:workos/workos-node.git",

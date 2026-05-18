@@ -172,8 +172,7 @@ export type EvidenceStrategy = 'ui-screenshot' | 'scenario-script' | 'test-outpu
 
 export interface ProjectEntry {
   name: string;
-  type?: 'app' | 'library' | string;
-  evidenceStrategy?: EvidenceStrategy;
+  evidenceStrategy: EvidenceStrategy;
   path: string;
   remote: string;
   description?: string;
@@ -183,9 +182,7 @@ export interface ProjectEntry {
 }
 
 export function resolveEvidenceStrategy(project?: ProjectEntry): EvidenceStrategy {
-  if (project?.evidenceStrategy) return project.evidenceStrategy;
-  if (project?.type === 'library') return 'scenario-script';
-  return 'ui-screenshot';
+  return project?.evidenceStrategy ?? 'test-output';
 }
 
 export interface FailureAnalysis {

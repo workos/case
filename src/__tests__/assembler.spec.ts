@@ -107,7 +107,7 @@ describe('assemblePrompt', () => {
       makeConfig({
         project: {
           name: 'cli',
-          type: 'library',
+          evidenceStrategy: 'scenario-script',
           path: '/repos/cli',
           remote: 'git@github.com:workos/workos-cli.git',
           language: 'typescript',
@@ -120,8 +120,8 @@ describe('assemblePrompt', () => {
       new Map(),
     );
 
-    expect(prompt).toContain('Repo type');
-    expect(prompt).toContain('library');
+    expect(prompt).toContain('Evidence strategy');
+    expect(prompt).toContain('scenario-script');
     expect(prompt).toContain('Project Commands');
     expect(prompt).toContain('pnpm typecheck');
   });

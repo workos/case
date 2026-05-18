@@ -49,9 +49,11 @@ Read the output to understand: current branch, last commits, task status, which 
 
 ### 2. Determine Scope
 
-First, check the `Repo type` field in the Task Context.
+Check the `Evidence strategy` field in the Task Context.
 
-- **If `library`**: This is a pure library with no web UI. Skip Playwright (step 3) and go to **step 2b (Library Verification)** instead.
+- **If `scenario-script`**: This is a library or CLI with no web UI. Skip Playwright (step 3) and go to **step 2b (Library Verification)** instead.
+- **If `test-output`**: Only automated evidence is needed. Skip to step 5 (Record) — the implementer's test output is the primary evidence.
+- **If `ui-screenshot`**: Continue below.
 
 Then check if `src/` files changed (use both HEAD~1 and main for broad coverage):
 
@@ -59,7 +61,7 @@ Then check if `src/` files changed (use both HEAD~1 and main for broad coverage)
 git diff --name-only HEAD~1 | grep "^src/" || git diff --name-only main | grep "^src/"
 ```
 
-- **If `src/` files changed AND repo type is `app`**: Manual testing is required. Continue to step 3.
+- **If `src/` files changed AND strategy is `ui-screenshot`**: Manual testing is required. Continue to step 3.
 - **If NO `src/` files changed**: Manual testing is optional. Skip to step 5 (Record), marking verification as complete without Playwright evidence.
 
 ### 2b. Library Verification

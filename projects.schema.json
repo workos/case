@@ -12,22 +12,16 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "path", "remote", "description", "language", "packageManager", "commands"],
+        "required": ["name", "evidenceStrategy", "path", "remote", "description", "language", "packageManager", "commands"],
         "properties": {
           "name": {
             "type": "string",
             "description": "Short identifier for the repo (used in task file prefixes)"
           },
-          "type": {
-            "type": "string",
-            "enum": ["app", "library"],
-            "description": "Whether this repo has a web UI (app) or is a pure library. Library repos skip the Playwright manual test requirement.",
-            "default": "app"
-          },
           "evidenceStrategy": {
             "type": "string",
             "enum": ["ui-screenshot", "scenario-script", "test-output"],
-            "description": "What kind of evidence proves a change works. ui-screenshot: Playwright before/after for apps with UI. scenario-script: consumer script that exercises the changed API for libraries. test-output: test suite + typecheck + build for pure-logic/config changes. Defaults based on type: app→ui-screenshot, library→scenario-script."
+            "description": "What kind of evidence proves a change works. ui-screenshot: Playwright before/after for apps with UI. scenario-script: consumer script that exercises the changed API for libraries. test-output: test suite + typecheck + build for pure-logic/config changes."
           },
           "path": {
             "type": "string",

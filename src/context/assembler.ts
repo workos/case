@@ -46,7 +46,7 @@ function substitutePathVars(content: string, config: PipelineConfig): string {
   return content
     .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
     .replace(/\{\{dataDir\}\}/g, config.dataDir)
-    .replace(/\{\{repoType\}\}/g, config.project?.type ?? 'app');
+    .replace(/\{\{evidenceStrategy\}\}/g, resolveEvidenceStrategy(config.project));
 }
 
 const INJECT_MARKER = /<!--\s*inject:\s*(\S+)\s*-->/g;
@@ -117,7 +117,7 @@ function buildContextBlock(
   lines.push(`- **Target repo**: \`${config.repoPath}\``);
   lines.push(`- **Repo name**: ${config.repoName}`);
   if (config.project) {
-    lines.push(`- **Repo type**: ${config.project.type ?? 'app'}`);
+    lines.push(`- **Evidence strategy**: \`${resolveEvidenceStrategy(config.project)}\``);
     lines.push(`- **Package manager**: ${config.project.packageManager}`);
   }
   lines.push('');
@@ -128,10 +128,8 @@ function buildContextBlock(
       break;
 
     case 'verifier':
-      // Deliberately minimal — fresh-context testing, plus evidence strategy
+      // Deliberately minimal — fresh-context testing
       appendProjectCommands(lines, config);
-      lines.push(`- **Evidence strategy**: \`${resolveEvidenceStrategy(config.project)}\``);
-      lines.push('');
       break;
 
     case 'reviewer':

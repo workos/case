@@ -24,6 +24,7 @@ import * as init from './init.js';
 import * as analyzeFailure from './analyze-failure.js';
 import * as bootstrap from './bootstrap.js';
 import * as check from './check.js';
+import * as onboard from './onboard.js';
 
 export type CommandGroup = 'human' | 'agent' | 'internal';
 
@@ -39,6 +40,7 @@ export const commandMap: Record<string, Command> = {
   init: { handler: init.handler, description: init.description, group: 'human' },
   check: { handler: check.handler, description: check.description, group: 'human' },
   bootstrap: { handler: bootstrap.handler, description: bootstrap.description, group: 'human' },
+  onboard: { handler: onboard.handler, description: onboard.description, group: 'human' },
   session: { handler: session.handler, description: session.description, group: 'agent' },
   status: { handler: status.handler, description: status.description, group: 'agent' },
   'mark-tested': { handler: markTested.handler, description: markTested.description, group: 'agent' },
