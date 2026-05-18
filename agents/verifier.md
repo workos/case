@@ -103,67 +103,31 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 
 5. **Read the issue** from the task file to understand the exact scenario.
 
-6. **Read credentials** if the scenario needs real API calls:
+6. **Read credentials** if the scenario needs real API calls. The credentials file path is in the Task Context under **Credentials**:
 
    ```bash
-   cat ~/.config/case/credentials
+   cat <credentials-path-from-context>
    ```
 
-   Credentials available: `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, and others. Use them in the script via environment variables — never hardcode them.
+   Use the env vars from the credentials file in the script — never hardcode them.
 
 7. **Write the scenario script** to `/tmp/verify-<task-id>.ts` (or `.js`). The script should:
-   - Import from the local package (e.g., `import { WorkOS } from './src/index.ts'` or from the build output)
+   - Import from the local package (from `./src/index.ts` or the build output)
    - Exercise the exact code path that was changed or added
    - Assert the expected behavior (throw on failure, print PASS on success)
    - Be self-contained and disposable (not committed)
-
-   **Examples by change type:**
-
-   _Bug fix — a method was returning wrong results:_
-
-   ```ts
-   import { WorkOS } from './src/index.ts';
-   const workos = new WorkOS({ apiKey: process.env.WORKOS_API_KEY });
-   // Reproduce the exact scenario from the issue
-   const result = workos.sso.getAuthorizationUrl({
-     redirectUri: 'http://localhost:3000/callback',
-     clientId: process.env.WORKOS_CLIENT_ID!,
-   });
-   // Verify the fix: URL should contain the expected parameter
-   if (!result.includes('client_id=')) throw new Error('FAIL: missing client_id in URL');
-   console.log('PASS: authorization URL contains client_id');
-   ```
-
-   _New feature — a new method or option was added:_
-
-   ```ts
-   import { WorkOS } from './src/index.ts';
-   const workos = new WorkOS({ apiKey: process.env.WORKOS_API_KEY });
-   // Verify the new API exists and returns expected shape
-   const result = await workos.organizations.list({ limit: 1 });
-   if (!Array.isArray(result.data)) throw new Error('FAIL: expected array');
-   console.log('PASS: new list method returns expected shape');
-   ```
-
-   _Export change — a new type or function was exported:_
-
-   ```ts
-   // Verify the export is accessible from the package entry point
-   import { NewType, newFunction } from './src/index.ts';
-   if (typeof newFunction !== 'function') throw new Error('FAIL: newFunction not exported');
-   console.log('PASS: new exports are accessible');
-   ```
+   - If the Task Context includes **Verification Notes**, follow them for repo-specific import patterns and API usage
 
    **Guidelines:**
    - If the change is purely structural (types, exports, refactoring), the script can be synchronous and skip API calls
    - If the change affects runtime behavior (bug fix, new API method), make real API calls using credentials
    - If real API calls would be destructive or require specific server state, test what you can (URL generation, serialization, type checks) and note the limitation
-   - Keep it focused — test the specific change, not the entire SDK
+   - Keep it focused — test the specific change, not the entire package
 
 8. **Run the scenario script:**
    ```bash
-   # Load credentials as env vars
-   set -a; source ~/.config/case/credentials; set +a
+   # Load credentials as env vars (path from Task Context → Credentials)
+   set -a; source <credentials-path-from-context>; set +a
    bun /tmp/verify-<task-id>.ts 2>&1 | tee -a /tmp/verifier-test-output.txt
    ```
    If the script fails, report exactly what failed and why.
@@ -215,7 +179,7 @@ If the implementer added a new export, alias, or API:
 - If the example app doesn't use the new export yet, **temporarily modify it** to import/use the new export, then verify it works. Document what you changed.
 - After verification, revert any temporary changes (the implementer or closer can decide if the example update should be permanent).
 
-6. Read test credentials from `~/.config/case/credentials` (use for .env files only — **never log credentials**)
+6. Read test credentials from the path in Task Context → **Credentials** (use for .env files only — **never log credentials**)
 7. Load the `playwright-cli` skill for browser testing
 8. Open browser and navigate:
    ```bash
@@ -360,7 +324,7 @@ If verification failed (the fix doesn't work), set `"status":"failed"` and descr
 
 ## Credential Safety
 
-- Read credentials from `~/.config/case/credentials` only
+- Read credentials from the path in Task Context → **Credentials** only
 - Use credentials only in `.env` files for example apps
 - **NEVER** log credential values to stdout, the progress log, or AGENT_RESULT
 - **NEVER** use credentials in raw curl/API calls
@@ -373,7 +337,7 @@ If verification failed (the fix doesn't work), set `"status":"failed"` and descr
 - **Never create PRs.** That's the closer's job.
 - **Never set `tested` or `manualTested` directly in task JSON.** Marker commands handle this.
 - **Always test the specific fix scenario.** "It loads" is not verification. "The org switch works with a custom cookie name" is verification. Your before/after screenshots must show a visible difference.
-- **Always complete the login flow when testing authenticated features.** Use the credentials from `~/.config/case/credentials` and follow the AuthKit login procedure in step 3c. Never screenshot an unauthenticated landing page as "evidence" for an auth feature.
+- **Always complete the login flow when testing authenticated features.** Use the credentials from Task Context and follow the login procedure in the Verification Notes (if provided) or step 3c. Never screenshot an unauthenticated landing page as "evidence" for an auth feature.
 - **Never record video of a page doing nothing.** If you use video, the recording must capture real interactions. If you're only loading a page and taking a screenshot, skip video entirely.
 - **Always create evidence markers via marker commands** — never `touch` marker files directly.
 - **Always end with `<<<AGENT_RESULT` / `AGENT_RESULT>>>`.** The orchestrator depends on this.

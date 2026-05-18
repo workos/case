@@ -170,6 +170,8 @@ export interface PipelineConfig {
 
 export type EvidenceStrategy = 'ui-screenshot' | 'scenario-script' | 'test-output';
 
+export const DEFAULT_CREDENTIALS_PATH = '~/.config/case/credentials';
+
 export interface ProjectEntry {
   name: string;
   evidenceStrategy: EvidenceStrategy;
@@ -179,6 +181,8 @@ export interface ProjectEntry {
   language: string;
   packageManager: string;
   commands: Record<string, string>;
+  credentials?: string;
+  verificationNotes?: string;
 }
 
 export function resolveEvidenceStrategy(project?: ProjectEntry): EvidenceStrategy {

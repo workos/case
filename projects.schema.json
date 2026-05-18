@@ -55,6 +55,15 @@
               "format": { "type": "string", "description": "Run formatter" }
             },
             "additionalProperties": { "type": "string" }
+          },
+          "credentials": {
+            "type": "string",
+            "description": "Path to a sourceable env file with credentials for integration testing. Defaults to ~/.config/case/credentials.",
+            "default": "~/.config/case/credentials"
+          },
+          "verificationNotes": {
+            "type": "string",
+            "description": "Free-text hints for the verifier agent — auth flows, env var names, gotchas. Injected into the verifier context."
           }
         },
         "additionalProperties": false
