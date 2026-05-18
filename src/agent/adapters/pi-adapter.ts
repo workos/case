@@ -75,6 +75,21 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
       if (event.type === 'tool_execution_start') {
         if (options.onHeartbeat) options.onHeartbeat(Date.now() - start);
         toolTimers.set(event.toolCallId, Date.now());
+        const sanitizedArgs = sanitizeForTrace(event.args);
+        // Renderer hook — wrap in try/catch so rendering bugs never kill the agent.
+        if (options.onToolActivity) {
+          try {
+            options.onToolActivity({
+              type: 'start',
+              tool: event.toolName,
+              args: typeof sanitizedArgs === 'string' ? sanitizedArgs : JSON.stringify(sanitizedArgs),
+            });
+          } catch (e) {
+            log.error('onToolActivity start callback threw', {
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
         if (options.phase) {
           const toolEvent = {
             event: 'tool_start' as const,
@@ -82,7 +97,7 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
             agent: options.agentName,
             toolCallId: event.toolCallId,
             tool: event.toolName,
-            args: sanitizeForTrace(event.args),
+            args: sanitizedArgs,
           };
           if (options.eventAppender) {
             void options.eventAppender.append(toolEvent);
@@ -94,6 +109,21 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
       if (event.type === 'tool_execution_end') {
         const toolStart = toolTimers.get(event.toolCallId);
         toolTimers.delete(event.toolCallId);
+        const durationMs = toolStart ? Date.now() - toolStart : 0;
+        if (options.onToolActivity) {
+          try {
+            options.onToolActivity({
+              type: 'end',
+              tool: event.toolName,
+              durationMs,
+              isError: event.isError,
+            });
+          } catch (e) {
+            log.error('onToolActivity end callback threw', {
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
         if (options.phase) {
           const toolEvent = {
             event: 'tool_end' as const,
@@ -101,7 +131,7 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
             agent: options.agentName,
             toolCallId: event.toolCallId,
             tool: event.toolName,
-            durationMs: toolStart ? Date.now() - toolStart : 0,
+            durationMs,
             isError: event.isError,
             result: sanitizeForTrace(event.result),
           };

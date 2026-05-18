@@ -39,12 +39,18 @@ const mockCreateNotifier = mock(() => ({
   askUser: mockNotifierAskUser,
   phaseStart: mockNotifierPhaseStart,
   phaseEnd: mockNotifierPhaseEnd,
+  toolStart: mock(),
+  toolEnd: mock(),
+  stepIndicator: mock(),
+  startHeartbeat: mock(),
+  stopHeartbeat: mock(),
 }));
 
 mock.module('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
 mock.module('../notify.js', () => ({
   createNotifier: mockCreateNotifier,
   formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
+  defaultAskUser: async (_mode: any, _prompt: string, options: string[]) => options[options.length - 1],
 }));
 // Evidence assembler is NOT mocked — it uses the already-mocked runCommand and store
 
@@ -80,6 +86,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
     maxRetries: 1,
     dryRun: false,
     runtime: mockRuntime as any,
+    notifier: mockCreateNotifier() as any,
     ...overrides,
   };
 }

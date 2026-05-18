@@ -142,6 +142,10 @@ export interface PipelineConfig {
   maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
   onAgentHeartbeat?: (elapsedMs: number) => void;
+  /** Called on every tool start/end during agent execution. Used to drive live terminal feedback. */
+  onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
+  /** Optional pre-built notifier override (tests / custom renderers). Defaults to StructuredLogRenderer. */
+  notifier?: import('./notify.js').Notifier;
   /** Per-run trace writer for tool-level observability (deprecated — use eventAppender). */
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */
@@ -212,6 +216,8 @@ export interface SpawnAgentOptions {
   model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;
+  /** Called on every tool start/end so renderers can show live activity. */
+  onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
   /** Trace writer for per-run observability (deprecated — use eventAppender). */
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */

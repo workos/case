@@ -97,6 +97,11 @@ class MockNotifier {
   askUser() {
     return Promise.resolve('Abort');
   }
+  toolStart() {}
+  toolEnd() {}
+  stepIndicator() {}
+  startHeartbeat() {}
+  stopHeartbeat() {}
 }
 
 describe('findReadyNodes', () => {

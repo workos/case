@@ -39,6 +39,10 @@ export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
       node.startedAt = new Date().toISOString();
     }
 
+    // Step indicator: visible phases derived from the current cycle's ready nodes,
+    // not the full graph (revision cycles would inflate the count).
+    emitStepIndicator(ctx, readyNodes);
+
     for (const node of readyNodes) {
       await appender.append({ event: 'phase_start', phase: node.phase, agent: node.agent });
       ctx.notifier.phaseStart(node.phase, node.agent);
@@ -46,13 +50,19 @@ export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
 
     await emitStatusChange(ctx);
 
-    const results = await Promise.all(
-      readyNodes.map(async (node) => {
-        const pendingRevision = getPendingRevisionForNode(node, revisionRequests);
-        const result = await ctx.dispatchPhase(node, pendingRevision);
-        return { node, result };
-      }),
-    );
+    ctx.notifier.startHeartbeat();
+    let results: Array<{ node: DagNode; result: AgentResult }>;
+    try {
+      results = await Promise.all(
+        readyNodes.map(async (node) => {
+          const pendingRevision = getPendingRevisionForNode(node, revisionRequests);
+          const result = await ctx.dispatchPhase(node, pendingRevision);
+          return { node, result };
+        }),
+      );
+    } finally {
+      ctx.notifier.stopHeartbeat();
+    }
 
     for (const { node, result } of results) {
       const elapsed = Date.now() - Date.parse(node.startedAt!);
@@ -114,7 +124,13 @@ export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
         retro.state = 'running';
         await appender.append({ event: 'phase_start', phase: 'retrospective', agent: 'retrospective' });
         ctx.notifier.phaseStart('retrospective', 'retrospective');
-        const result = await ctx.dispatchPhase(retro);
+        ctx.notifier.startHeartbeat();
+        let result: AgentResult;
+        try {
+          result = await ctx.dispatchPhase(retro);
+        } finally {
+          ctx.notifier.stopHeartbeat();
+        }
         const elapsed = Date.now() - Date.parse(retro.startedAt!);
         retro.result = result;
         retro.state = 'completed';
@@ -275,4 +291,36 @@ async function emitStatusChange(ctx: ExecuteGraphContext): Promise<void> {
   if (currentStatus !== status) {
     await ctx.appender.append({ event: 'status_changed', from: currentStatus, to: status });
   }
+}
+
+/**
+ * Emit a step indicator for the visible (current-cycle) phases.
+ * Revision cycles create extra implement_N/verify_N/review_N nodes — we collapse
+ * them so the user sees a stable "5 phase" pipeline regardless of how many
+ * revision rounds happen.
+ */
+function emitStepIndicator(ctx: ExecuteGraphContext, readyNodes: DagNode[]): void {
+  const phases = visiblePhases(ctx.graph);
+  if (phases.length === 0) return;
+
+  // Active phase = the first ready node's phase (or whichever is first by index).
+  const activePhase = readyNodes[0]?.phase ?? null;
+  const activeIdx = activePhase ? phases.indexOf(activePhase) : -1;
+  if (activeIdx < 0) return;
+
+  const completed = phases.slice(0, activeIdx);
+  const pending = phases.slice(activeIdx + 1);
+  ctx.notifier.stepIndicator(completed, activePhase!, pending);
+}
+
+/**
+ * Distinct ordered phase names from the graph (collapses cycle suffixes).
+ * Falls back to insertion order from graph.nodes.
+ */
+function visiblePhases(graph: import('./types.js').PipelineGraph): string[] {
+  const seen: string[] = [];
+  for (const [, node] of graph.nodes) {
+    if (!seen.includes(node.phase)) seen.push(node.phase);
+  }
+  return seen;
 }

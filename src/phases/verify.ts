@@ -51,6 +51,7 @@ export async function runVerifyPhase(
     packageRoot: config.packageRoot,
     dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
+    onToolActivity: config.onToolActivity,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
     phase: 'verify',
