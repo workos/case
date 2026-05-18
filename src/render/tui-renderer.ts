@@ -29,6 +29,7 @@ import { defaultAskUser } from '../notify.js';
 import type { PipelineMode } from '../types.js';
 import { bold, cyan, dim, green, red, yellow } from './color.js';
 import { formatDuration, formatHeartbeatWhimsy, formatPhaseEnd, formatPhaseHeader, formatToolLine } from './format.js';
+import { createStructuredLogRenderer } from './structured-log.js';
 
 /** Duration thresholds for color escalation (ms). Mirrors structured-log.ts. */
 const DURATION_YELLOW_MS = 30_000;
@@ -253,6 +254,7 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   let lastActivityAt = 0;
   let tickCount = 0;
   let destroyed = false;
+  let fallback: Notifier | null = null;
 
   function requestInterruptExit(): void {
     destroy();
@@ -316,24 +318,26 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
       process.off('exit', exitHandler);
       process.off('SIGINT', sigintHandler);
     }
+    fallback = createStructuredLogRenderer({ mode });
   }
 
   const notifier: Notifier = {
     send(message) {
+      if (fallback) return fallback.send(message);
       pushFeed(message);
     },
 
     phaseStart(phase, agent) {
+      if (fallback) return fallback.phaseStart(phase, agent);
       lastActivityAt = now();
       tickCount = 0;
       transitionToPhase(phase);
-      // Visual separation between phases.
       if (state.feed.length > 0) pushFeed('');
       pushFeed(colorPhaseHeader(phase, agent));
     },
 
     phaseEnd(phase, agent, durationMs, status) {
-      // Mark the phase as completed in the header, clear active.
+      if (fallback) return fallback.phaseEnd(phase, agent, durationMs, status);
       if (state.activePhase === phase) {
         state.completedPhases.push(phase);
         state.activePhase = null;
@@ -343,12 +347,14 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
     },
 
     toolStart(tool, args) {
+      if (fallback) return fallback.toolStart(tool, args);
       lastActivityAt = now();
       tickCount = 0;
       pushFeed(colorToolLine(tool, args));
     },
 
     toolEnd(tool, durationMs, isError) {
+      if (fallback) return fallback.toolEnd(tool, durationMs, isError);
       lastActivityAt = now();
       tickCount = 0;
       const suffix = isError ? red(' (error)') : '';
@@ -356,6 +362,7 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
     },
 
     stepIndicator(completed, active, pending) {
+      if (fallback) return fallback.stepIndicator(completed, active, pending);
       state.completedPhases = [...completed];
       state.activePhase = active || null;
       state.pendingPhases = [...pending];
@@ -363,6 +370,7 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
     },
 
     startHeartbeat() {
+      if (fallback) return fallback.startHeartbeat();
       if (heartbeatTimer !== null) {
         clearIntervalFn(heartbeatTimer);
         heartbeatTimer = null;
@@ -378,6 +386,7 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
     },
 
     stopHeartbeat() {
+      if (fallback) return fallback.stopHeartbeat();
       if (heartbeatTimer !== null) {
         clearIntervalFn(heartbeatTimer);
         heartbeatTimer = null;
@@ -386,10 +395,6 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
     },
 
     async askUser(userPrompt, choices) {
-      // Tear down the TUI so the prompt can use plain stdin/stdout. The
-      // pipeline doesn't restart it after — askUser is only reached at
-      // failure-recovery handoffs where the structured experience would
-      // already be paused.
       destroy();
       return defaultAskUser(mode, userPrompt, choices);
     },
