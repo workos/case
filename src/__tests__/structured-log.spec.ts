@@ -1,5 +1,24 @@
-import { describe, test, expect } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { createStructuredLogRenderer } from '../render/structured-log.js';
+
+// Lock color OFF for all structured-log tests so assertions that compare exact
+// strings (no ANSI escapes) are stable regardless of the host environment.
+let savedNoColor: string | undefined;
+let savedForceColor: string | undefined;
+
+beforeEach(() => {
+  savedNoColor = process.env.NO_COLOR;
+  savedForceColor = process.env.FORCE_COLOR;
+  process.env.NO_COLOR = '1';
+  delete process.env.FORCE_COLOR;
+});
+
+afterEach(() => {
+  if (savedNoColor === undefined) delete process.env.NO_COLOR;
+  else process.env.NO_COLOR = savedNoColor;
+  if (savedForceColor === undefined) delete process.env.FORCE_COLOR;
+  else process.env.FORCE_COLOR = savedForceColor;
+});
 
 interface Harness {
   lines: string[];
@@ -166,5 +185,104 @@ describe('StructuredLogRenderer', () => {
     const n = createStructuredLogRenderer(options);
     const choice = await n.askUser('pick one', ['A', 'B', 'C']);
     expect(choice).toBe('C');
+  });
+
+  test('heartbeat rotates whimsy messages across ticks', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.startHeartbeat();
+    harness.ticks[0]!(); // tick 0 → "thinking..."
+    harness.ticks[0]!(); // tick 1 → "pondering..."
+    expect(harness.lines[harness.lines.length - 2]!.includes('thinking...')).toBe(true);
+    expect(harness.lines[harness.lines.length - 1]!.includes('pondering...')).toBe(true);
+  });
+
+  test('toolStart resets the whimsy tick counter', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.startHeartbeat();
+    harness.ticks[0]!(); // tick 0 → "thinking..."
+    harness.ticks[0]!(); // tick 1 → "pondering..."
+    n.toolStart('Read', 'x.ts'); // resets tick to 0
+    harness.ticks[0]!(); // tick 0 → "thinking..." again
+    const last = harness.lines[harness.lines.length - 1]!;
+    expect(last.includes('thinking...')).toBe(true);
+    expect(last.includes('pondering...')).toBe(false);
+  });
+});
+
+describe('StructuredLogRenderer color thresholds (FORCE_COLOR)', () => {
+  // These tests opt back into color to verify boundary thresholds.
+  beforeEach(() => {
+    delete process.env.NO_COLOR;
+    process.env.FORCE_COLOR = '1';
+  });
+
+  function lastLine(harness: Harness): string {
+    return harness.lines[harness.lines.length - 1]!;
+  }
+
+  test('duration 29s is default (no yellow/red ANSI code)', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.toolEnd('Read', 29_000, false);
+    const out = lastLine(harness);
+    expect(out.includes('\x1b[33m')).toBe(false); // no yellow
+    expect(out.includes('\x1b[31m29s')).toBe(false); // 29s not red
+  });
+
+  test('duration 30s is yellow', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.toolEnd('Read', 30_000, false);
+    expect(lastLine(harness).includes('\x1b[33m30s\x1b[0m')).toBe(true);
+  });
+
+  test('duration 119s is yellow (just under 2min)', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.toolEnd('Read', 119_000, false);
+    expect(lastLine(harness).includes('\x1b[33m')).toBe(true);
+    expect(lastLine(harness).includes('\x1b[31m1m')).toBe(false);
+  });
+
+  test('duration 120s is red', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.toolEnd('Read', 120_000, false);
+    expect(lastLine(harness).includes('\x1b[31m2m 0s\x1b[0m')).toBe(true);
+  });
+
+  test('phaseEnd completed uses green icon', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.phaseEnd('implement' as any, 'implementer', 5_000, 'completed');
+    expect(lastLine(harness).startsWith('\x1b[32m✓\x1b[0m')).toBe(true);
+  });
+
+  test('phaseEnd failed uses red icon', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.phaseEnd('implement' as any, 'implementer', 5_000, 'failed');
+    expect(lastLine(harness).startsWith('\x1b[31m✗\x1b[0m')).toBe(true);
+  });
+
+  test('stepIndicator uses green ✓, cyan ○, dim ·', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.stepIndicator(['implement'], 'verify', ['review']);
+    const out = lastLine(harness);
+    expect(out.includes('\x1b[32m✓\x1b[0m')).toBe(true);
+    expect(out.includes('\x1b[36m○\x1b[0m')).toBe(true);
+    expect(out.includes('\x1b[2m·\x1b[0m')).toBe(true);
+  });
+
+  test('phaseStart wraps prefix in bold and separator in dim', () => {
+    const { harness, options } = makeHarness();
+    const n = createStructuredLogRenderer(options);
+    n.phaseStart('implement' as any, 'implementer');
+    const out = lastLine(harness);
+    expect(out.startsWith('\x1b[1m')).toBe(true); // bold prefix
+    expect(out.includes('\x1b[2m─')).toBe(true); // dim separator
   });
 });

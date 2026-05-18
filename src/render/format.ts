@@ -87,6 +87,39 @@ export function formatHeartbeat(elapsedMs: number): string {
 }
 
 /**
+ * Rotating pool of whimsical thinking messages. Cycled by `tickCount`
+ * (deterministic, not random) so users see variety without repetition.
+ */
+const THINKING_MESSAGES = [
+  'thinking...',
+  'pondering...',
+  'mulling it over...',
+  'reading the tea leaves...',
+  'consulting the oracle...',
+  'staring into the void...',
+  'connecting the dots...',
+  'chewing on it...',
+  'letting it marinate...',
+  'downloading more RAM...',
+  'asking the rubber duck...',
+  'untangling spaghetti...',
+  'counting semicolons...',
+  'debugging the universe...',
+  'reticulating splines...',
+] as const;
+
+/**
+ * Format a whimsical heartbeat line. The message rotates by `tickCount`
+ * modulo the pool size, so tick 0 → "thinking...", tick 14 → "reticulating
+ * splines...", tick 15 wraps back to "thinking...".
+ */
+export function formatHeartbeatWhimsy(elapsedMs: number, tickCount: number): string {
+  const idx = ((tickCount % THINKING_MESSAGES.length) + THINKING_MESSAGES.length) % THINKING_MESSAGES.length;
+  const msg = THINKING_MESSAGES[idx];
+  return `    ··· ${msg} (${formatDuration(elapsedMs)})`;
+}
+
+/**
  * Pad a left string with spaces so the right string sits at column LINE_WIDTH.
  * If the combination doesn't fit, falls back to a single space separator.
  */

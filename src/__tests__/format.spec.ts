@@ -2,6 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import {
   formatDuration,
   formatHeartbeat,
+  formatHeartbeatWhimsy,
   formatPhaseEnd,
   formatPhaseHeader,
   formatStepIndicator,
@@ -108,5 +109,43 @@ describe('formatHeartbeat', () => {
 
   test('handles sub-second elapsed', () => {
     expect(formatHeartbeat(500)).toBe('    ··· thinking (<1s)');
+  });
+});
+
+describe('formatHeartbeatWhimsy', () => {
+  test('tickCount 0 → "thinking..."', () => {
+    expect(formatHeartbeatWhimsy(10_000, 0)).toBe('    ··· thinking... (10s)');
+  });
+
+  test('tickCount 1 → "pondering..."', () => {
+    expect(formatHeartbeatWhimsy(10_000, 1)).toBe('    ··· pondering... (10s)');
+  });
+
+  test('tickCount 14 → "reticulating splines..."', () => {
+    expect(formatHeartbeatWhimsy(10_000, 14)).toBe('    ··· reticulating splines... (10s)');
+  });
+
+  test('tickCount 15 wraps to "thinking..."', () => {
+    expect(formatHeartbeatWhimsy(10_000, 15)).toBe('    ··· thinking... (10s)');
+  });
+
+  test('tickCount 29 wraps to "reticulating splines..." again', () => {
+    // 29 % 15 === 14
+    expect(formatHeartbeatWhimsy(10_000, 29)).toBe('    ··· reticulating splines... (10s)');
+  });
+
+  test('elapsed sub-second renders <1s', () => {
+    expect(formatHeartbeatWhimsy(500, 0)).toBe('    ··· thinking... (<1s)');
+  });
+
+  test('elapsed minutes+seconds formats correctly', () => {
+    expect(formatHeartbeatWhimsy(102_000, 0)).toBe('    ··· thinking... (1m 42s)');
+  });
+
+  test('negative tickCount is handled gracefully', () => {
+    // Defensive: -1 should not crash and should land on a real message.
+    const out = formatHeartbeatWhimsy(10_000, -1);
+    expect(out.startsWith('    ··· ')).toBe(true);
+    expect(out.endsWith(' (10s)')).toBe(true);
   });
 });
