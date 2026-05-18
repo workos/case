@@ -142,26 +142,17 @@ function renderStepIndicator(completed: string[], active: string | null, pending
   return parts.join('  ');
 }
 
-const ROBOT = [
-  ' [___] ',
-  ' |o o| ',
-  ' |___| ',
-  '  d b  ',
-];
+const ROBOT = ['▄█████▄', '█ ● ○ █', '█▄░░░▄█', '▀██ ██▀'];
 
-/** Build the full header text (title + indicator + progress bar + robot). */
+/** Build the full header text (robot + title + indicator + progress bar). */
 function renderHeader(state: TuiRendererState): string {
   const total = state.completedPhases.length + (state.activePhase ? 1 : 0) + state.pendingPhases.length;
   const done = state.completedPhases.length;
-  const title = bold('Case Pipeline');
+  const robotLine = ROBOT.map((part) => cyan(part)).join('  ');
+  const title = `${robotLine}  ${bold('Case Pipeline')}`;
   const indicator = renderStepIndicator(state.completedPhases, state.activePhase, state.pendingPhases);
   const progress = renderProgressBar(done, total);
-
-  const left = [title, indicator, progress, ''];
-  const robot = ROBOT.map((line) => cyan(line));
-  const gap = '    ';
-  const lines = left.map((l, i) => (robot[i] ? `${l}${gap}${robot[i]}` : l));
-  return lines.join('\n');
+  return `${title}\n${indicator}\n${progress}`;
 }
 
 /**
