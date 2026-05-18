@@ -22,7 +22,7 @@
  * handlers, restoring the terminal even on crash.
  */
 
-import { Box, ProcessTerminal, Text, TUI } from '@mariozechner/pi-tui';
+import { Box, matchesKey, ProcessTerminal, Text, TUI } from '@mariozechner/pi-tui';
 import type { Notifier } from '../notify.js';
 import { defaultAskUser } from '../notify.js';
 import type { PipelineMode } from '../types.js';
@@ -157,8 +157,23 @@ function renderHeader(state: TuiRendererState): string {
  *   - a header `Box` containing a `Text` for title/indicator/bar
  *   - a feed `Box` containing a `Text` for the scrolling activity lines
  */
-function createProcessTuiSurface(): TuiSurface {
-  const terminal = new ProcessTerminal();
+function createProcessTuiSurface(onInterrupt?: () => void): TuiSurface {
+  class InterruptibleProcessTerminal extends ProcessTerminal {
+    override start(onInput: (data: string) => void, onResize: () => void): void {
+      super.start((data) => {
+        // ProcessTerminal owns raw-mode stdin and buffers it before invoking
+        // this callback. Intercept here instead of adding a competing stdin
+        // listener; Ctrl+C may arrive as \x03, Kitty CSI-u, or modifyOtherKeys.
+        if (onInterrupt && matchesKey(data, 'ctrl+c')) {
+          onInterrupt();
+          return;
+        }
+        onInput(data);
+      }, onResize);
+    }
+  }
+
+  const terminal = new InterruptibleProcessTerminal();
   const tui = new TUI(terminal, false);
 
   const headerText = new Text('', 1, 0);
@@ -212,8 +227,6 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   const maxFeedLines = options.maxFeedLines ?? MAX_FEED_LINES;
   const registerProcessHandlers = options.registerProcessHandlers ?? true;
 
-  const surface = options.tui ?? createProcessTuiSurface();
-
   const state: TuiRendererState = {
     completedPhases: [],
     activePhase: null,
@@ -226,6 +239,13 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   let lastActivityAt = 0;
   let tickCount = 0;
   let destroyed = false;
+
+  function requestInterruptExit(): void {
+    destroy();
+    process.exit(130);
+  }
+
+  const surface = options.tui ?? createProcessTuiSurface(registerProcessHandlers ? requestInterruptExit : undefined);
 
   function pushFeed(line: string): void {
     state.feed.push(line);
@@ -254,19 +274,6 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   surface.start();
   refreshHeader();
 
-  // In raw mode, the kernel doesn't generate SIGINT for Ctrl+C — it arrives
-  // as the raw byte \x03 on stdin. We listen at the process.stdin level
-  // (prepended, so we fire before pi-tui's handler) to guarantee clean exit.
-  const stdinCtrlCHandler = (data: Buffer) => {
-    if (data.length === 1 && data[0] === 0x03) {
-      destroy();
-      process.exit(130);
-    }
-  };
-  if (registerProcessHandlers) {
-    process.stdin.prependListener('data', stdinCtrlCHandler);
-  }
-
   // Terminal safety: always restore on exit, SIGINT, uncaughtException.
   const exitHandler = () => destroy();
   const sigintHandler = () => {
@@ -292,7 +299,6 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
       // best-effort cleanup
     }
     if (registerProcessHandlers) {
-      process.stdin.off('data', stdinCtrlCHandler);
       process.off('exit', exitHandler);
       process.off('SIGINT', sigintHandler);
     }
