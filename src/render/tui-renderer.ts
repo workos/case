@@ -70,7 +70,6 @@ export interface TuiSurface {
   setFeed(text: string): void;
   start(): void;
   stop(): void;
-  onCtrlC?: (handler: () => void) => void;
 }
 
 export interface TuiRendererState {
@@ -193,15 +192,6 @@ function createProcessTuiSurface(): TuiSurface {
         terminal.stop();
       }
     },
-    onCtrlC(handler: () => void) {
-      tui.addInputListener((data: string) => {
-        if (data === '\x03') {
-          handler();
-          return { consume: true };
-        }
-        return undefined;
-      });
-    },
   };
 }
 
@@ -264,12 +254,18 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   surface.start();
   refreshHeader();
 
-  // In raw mode, Ctrl+C is swallowed by pi-tui instead of generating SIGINT.
-  // Listen for it explicitly and trigger a clean exit.
-  surface.onCtrlC?.(() => {
-    destroy();
-    process.exit(130);
-  });
+  // In raw mode, the kernel doesn't generate SIGINT for Ctrl+C — it arrives
+  // as the raw byte \x03 on stdin. We listen at the process.stdin level
+  // (prepended, so we fire before pi-tui's handler) to guarantee clean exit.
+  const stdinCtrlCHandler = (data: Buffer) => {
+    if (data.length === 1 && data[0] === 0x03) {
+      destroy();
+      process.exit(130);
+    }
+  };
+  if (registerProcessHandlers) {
+    process.stdin.prependListener('data', stdinCtrlCHandler);
+  }
 
   // Terminal safety: always restore on exit, SIGINT, uncaughtException.
   const exitHandler = () => destroy();
@@ -296,6 +292,7 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
       // best-effort cleanup
     }
     if (registerProcessHandlers) {
+      process.stdin.off('data', stdinCtrlCHandler);
       process.off('exit', exitHandler);
       process.off('SIGINT', sigintHandler);
     }
