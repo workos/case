@@ -268,12 +268,12 @@ function buildOrchestratorSystemPrompt(caseRoot: string): string {
       ]
     : [
         `- Case root: ${caseRoot}`,
-        `- Projects manifest: ${caseRoot}/projects.json`,
+        `- Projects manifest: ~/.config/case/projects.json (or ca onboard to add repos)`,
         `- Golden principles: ${caseRoot}/docs/golden-principles.md`,
         `- Agent prompts: ${caseRoot}/agents/`,
       ];
 
-  return `You are the Case orchestrator — an interactive agent for managing WorkOS OSS repos.
+  return `You are the Case orchestrator — an interactive agent for managing target repos.
 
 **Always wait for the user's first message before calling any tools.** The initial context below is background information, not a request to act. Greet the user briefly and wait.
 

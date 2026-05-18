@@ -157,11 +157,11 @@ function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetect
   else if (existsSync(resolve(repoPath, 'yarn.lock'))) packageManager = 'yarn';
   else if (existsSync(resolve(repoPath, 'bun.lockb')) || existsSync(resolve(repoPath, 'bun.lock'))) packageManager = 'bun';
 
-  const run = packageManager === 'npm' ? 'npm run' : packageManager;
+  const run = (packageManager === 'npm' || packageManager === 'bun') ? `${packageManager} run` : packageManager;
   const commands: Record<string, string> = {};
 
   commands.setup = `${packageManager} install`;
-  if (scripts.test) commands.test = `${packageManager} test`;
+  commands.test = scripts.test ? `${run} test` : `${packageManager} test`;
   if (scripts.build) commands.build = `${run} build`;
   if (scripts.lint) commands.lint = `${run} lint`;
   if (scripts.typecheck) commands.typecheck = `${run} typecheck`;
