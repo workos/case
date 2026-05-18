@@ -1,13 +1,15 @@
 import {
   createAgentSession,
+  createAgentSessionRuntime,
   InteractiveMode,
   DefaultResourceLoader,
   SettingsManager,
   AuthStorage,
   ModelRegistry,
   getAgentDir,
+  SessionManager,
 } from '@mariozechner/pi-coding-agent';
-import type { ExtensionAPI, ToolDefinition } from '@mariozechner/pi-coding-agent';
+import type { ExtensionAPI, ToolDefinition, CreateAgentSessionRuntimeResult } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
 import { basename } from 'node:path';
 import { getModelForAgent } from './config.js';
@@ -36,7 +38,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
   const cwd = process.cwd();
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
-  const modelRegistry = new ModelRegistry(authStorage);
+  const modelRegistry = ModelRegistry.create(authStorage);
 
   // Resolve model: CLI override (env var) > config file > Pi defaults
   const modelOverride = process.env.CASE_MODEL_OVERRIDE;
@@ -52,39 +54,65 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
 
   const settingsManager = SettingsManager.create(cwd, agentDir);
   settingsManager.setQuietStartup(true);
+  const sessionManager = SessionManager.create(cwd);
 
-  const resourceLoader = new DefaultResourceLoader({
+  const caseRoot = options.caseRoot;
+  const systemPrompt = buildOrchestratorSystemPrompt(caseRoot);
+
+  const runtimeFactory = async (factoryOpts: {
+    cwd: string;
+    agentDir: string;
+    sessionManager: SessionManager;
+  }): Promise<CreateAgentSessionRuntimeResult> => {
+    const sm = SettingsManager.create(factoryOpts.cwd, factoryOpts.agentDir);
+    sm.setQuietStartup(true);
+
+    const rl = new DefaultResourceLoader({
+      cwd: factoryOpts.cwd,
+      agentDir: factoryOpts.agentDir,
+      settingsManager: sm,
+      appendSystemPrompt: [systemPrompt],
+      extensionFactories: [minimalStatusline(factoryOpts.cwd)],
+    });
+    await rl.reload();
+
+    const result = await createAgentSession({
+      cwd: factoryOpts.cwd,
+      agentDir: factoryOpts.agentDir,
+      authStorage,
+      modelRegistry,
+      model: model ?? undefined,
+      resourceLoader: rl,
+      sessionManager: factoryOpts.sessionManager,
+      customTools: [
+        createPipelineTool(caseRoot),
+        createIssueTool(caseRoot),
+        createTaskTool(caseRoot),
+        createBaselineTool(caseRoot),
+      ] as unknown as ToolDefinition[],
+    });
+
+    return {
+      ...result,
+      services: { settingsManager: sm, resourceLoader: rl } as any,
+      diagnostics: [],
+    };
+  };
+
+  const runtime = await createAgentSessionRuntime(runtimeFactory, {
     cwd,
     agentDir,
-    settingsManager,
-    appendSystemPrompt: buildOrchestratorSystemPrompt(options.caseRoot),
-    extensionFactories: [minimalStatusline(cwd)],
-  });
-  await resourceLoader.reload();
-
-  const { session, extensionsResult, modelFallbackMessage } = await createAgentSession({
-    cwd,
-    agentDir,
-    authStorage,
-    modelRegistry,
-    model: model ?? undefined,
-    resourceLoader,
-    customTools: [
-      createPipelineTool(options.caseRoot),
-      createIssueTool(options.caseRoot),
-      createTaskTool(options.caseRoot),
-      createBaselineTool(options.caseRoot),
-    ] as unknown as ToolDefinition[],
+    sessionManager,
   });
 
-  if (process.env.CASE_DEBUG && extensionsResult?.errors?.length) {
-    for (const err of extensionsResult.errors) {
-      process.stderr.write(`⚠ Extension error: ${err.path}\n  ${err.error}\n`);
+  if (process.env.CASE_DEBUG) {
+    for (const diag of runtime.diagnostics) {
+      process.stderr.write(`⚠ ${diag.message}\n`);
     }
   }
 
-  const interactive = new InteractiveMode(session, {
-    modelFallbackMessage,
+  const interactive = new InteractiveMode(runtime, {
+    modelFallbackMessage: runtime.modelFallbackMessage,
     initialMessage: contextBriefing,
   });
   await interactive.run();

@@ -119,7 +119,15 @@ export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   standard: ['implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
-export type PipelinePhase = 'implement' | 'verify' | 'review' | 'close' | 'retrospective' | 'complete' | 'abort';
+export type PipelinePhase =
+  | 'setup'
+  | 'implement'
+  | 'verify'
+  | 'review'
+  | 'close'
+  | 'retrospective'
+  | 'complete'
+  | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
 export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
@@ -142,12 +150,22 @@ export interface PipelineConfig {
   maxRevisionCycles?: number;
   /** Called periodically with elapsed ms while an agent is running. */
   onAgentHeartbeat?: (elapsedMs: number) => void;
+  /** Called on every tool start/end during agent execution. Used to drive live terminal feedback. */
+  onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
+  /** Optional pre-built notifier override (tests / custom renderers). Defaults to StructuredLogRenderer. */
+  notifier?: import('./notify.js').Notifier;
   /** Per-run trace writer for tool-level observability (deprecated — use eventAppender). */
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */
   eventAppender?: import('./events/appender.js').EventAppender;
   /** Agent runtime for spawning agents. */
   runtime?: import('./agent/runtime.js').CaseAgentRuntime;
+  /**
+   * Renderer selector: `'structured'` (default) is the line-based stdout
+   * renderer; `'tui'` launches a full-screen pi-tui session. Ignored when a
+   * pre-built `notifier` is supplied.
+   */
+  renderer?: 'structured' | 'tui';
 }
 
 export interface ProjectEntry {
@@ -212,6 +230,8 @@ export interface SpawnAgentOptions {
   model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;
+  /** Called on every tool start/end so renderers can show live activity. */
+  onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
   /** Trace writer for per-run observability (deprecated — use eventAppender). */
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */

@@ -56,9 +56,15 @@ export async function dispatch(argv: string[]): Promise<number> {
     return commandMap.run.handler([]);
   }
 
-  // Router-level help.
+  // Router-level flags.
   if (argv[0] === '--help' || argv[0] === '-h') {
     printHelp();
+    return 0;
+  }
+
+  if (argv[0] === '--version' || argv[0] === '-V') {
+    const { version } = await import('../version.js');
+    process.stdout.write(`${version}\n`);
     return 0;
   }
 
@@ -100,6 +106,7 @@ export function printHelp(): void {
   }
   lines.push('');
   lines.push('Run `ca <command> --help` for command-specific options.');
+  lines.push('Run `ca --version` to print the version.');
   lines.push('');
   process.stdout.write(lines.join('\n'));
 }

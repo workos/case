@@ -42,11 +42,12 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
   createEditTool: mock(() => ({ name: 'edit', label: 'Edit' })),
   createBashTool: mock(() => ({ name: 'bash', label: 'Bash' })),
   AuthStorage: { create: () => ({}) },
-  ModelRegistry: class MockModelRegistry {
-    constructor() {}
-    find() {
-      return { id: 'mock-model', provider: 'anthropic' };
-    }
+  ModelRegistry: {
+    create: () => ({
+      find() {
+        return { id: 'mock-model', provider: 'anthropic' };
+      },
+    }),
   },
 }));
 
