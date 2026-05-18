@@ -143,10 +143,10 @@ function renderStepIndicator(completed: string[], active: string | null, pending
 }
 
 const ROBOT = [
-  '▄█████▄',
-  '█ ● ○ █',
-  '█▄░░░▄█',
-  '▀██ ██▀',
+  ' [___] ',
+  ' |o o| ',
+  ' |___| ',
+  '  d b  ',
 ];
 
 /** Build the full header text (title + indicator + progress bar + robot). */
