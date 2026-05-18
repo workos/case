@@ -183,6 +183,7 @@ function createProcessTuiSurface(): TuiSurface {
       tui.requestRender();
     },
     start() {
+      terminal.clearScreen();
       tui.start();
     },
     stop() {
