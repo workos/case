@@ -57,11 +57,18 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     notifier.send(`  ... still running (${formatDuration(elapsedMs)})`);
   };
 
+  // Ctrl+C: abort the active agent and clean up.
+  const sigintHandler = () => {
+    config.runtime?.abort();
+    if (tuiRenderer) tuiRenderer.destroy();
+    process.exit(130);
+  };
+  process.on('SIGINT', sigintHandler);
+
   try {
     await runPipelineBody(config, store, notifier, previousResults);
   } finally {
-    // Always restore the terminal — even on crash. The structured renderer
-    // is a no-op here; only the TUI needs explicit teardown.
+    process.off('SIGINT', sigintHandler);
     tuiRenderer?.destroy();
   }
 }

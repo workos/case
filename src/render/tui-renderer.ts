@@ -70,6 +70,7 @@ export interface TuiSurface {
   setFeed(text: string): void;
   start(): void;
   stop(): void;
+  onCtrlC?: (handler: () => void) => void;
 }
 
 export interface TuiRendererState {
@@ -191,6 +192,15 @@ function createProcessTuiSurface(): TuiSurface {
         terminal.stop();
       }
     },
+    onCtrlC(handler: () => void) {
+      tui.addInputListener((data: string) => {
+        if (data === '\x03') {
+          handler();
+          return { consume: true };
+        }
+        return undefined;
+      });
+    },
   };
 }
 
@@ -252,6 +262,13 @@ export function createTuiRenderer(options: TuiRendererOptions): TuiRenderer {
   // Start the TUI surface immediately so the empty header/feed are visible.
   surface.start();
   refreshHeader();
+
+  // In raw mode, Ctrl+C is swallowed by pi-tui instead of generating SIGINT.
+  // Listen for it explicitly and trigger a clean exit.
+  surface.onCtrlC?.(() => {
+    destroy();
+    process.exit(130);
+  });
 
   // Terminal safety: always restore on exit, SIGINT, uncaughtException.
   const exitHandler = () => destroy();
