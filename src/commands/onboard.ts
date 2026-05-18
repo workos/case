@@ -155,7 +155,7 @@ function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetect
   let packageManager = 'npm';
   if (existsSync(resolve(repoPath, 'pnpm-lock.yaml'))) packageManager = 'pnpm';
   else if (existsSync(resolve(repoPath, 'yarn.lock'))) packageManager = 'yarn';
-  else if (existsSync(resolve(repoPath, 'bun.lockb')) || existsSync(resolve(repoPath, 'bun.lock'))) packageManager = 'pnpm';
+  else if (existsSync(resolve(repoPath, 'bun.lockb')) || existsSync(resolve(repoPath, 'bun.lock'))) packageManager = 'bun';
 
   const run = packageManager === 'npm' ? 'npm run' : packageManager;
   const commands: Record<string, string> = {};
@@ -167,7 +167,7 @@ function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetect
   if (scripts.typecheck) commands.typecheck = `${run} typecheck`;
   if (scripts.format) commands.format = `${run} format`;
 
-  const language = existsSync(resolve(repoPath, 'tsconfig.json')) ? 'typescript' : 'typescript';
+  const language = 'typescript';
 
   return { language, packageManager, commands, description };
 }

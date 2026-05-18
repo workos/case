@@ -41,7 +41,7 @@
           },
           "packageManager": {
             "type": "string",
-            "enum": ["pnpm", "npm", "yarn", "uv", "pip", "go", "bundler", "composer", "dotnet", "mix", "gradle"]
+            "enum": ["pnpm", "npm", "yarn", "bun", "uv", "pip", "go", "bundler", "composer", "dotnet", "mix", "gradle"]
           },
           "commands": {
             "type": "object",
