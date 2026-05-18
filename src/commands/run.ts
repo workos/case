@@ -33,6 +33,7 @@ export async function handler(argv: string[]): Promise<number> {
       model: { type: 'string' },
       'dry-run': { type: 'boolean' },
       fresh: { type: 'boolean' },
+      tui: { type: 'boolean' },
     },
     allowPositionals: true,
     strict: false,
@@ -112,6 +113,7 @@ Options:
   --mode, -m <mode>       "attended" (default) or "unattended"
   --dry-run               Validate without spawning agents
   --fresh                 Ignore existing task state and start clean
+  --tui                   Launch full-screen TUI mode (requires --task)
   --help, -h              Show this help
 `;
   process.stdout.write(text);
@@ -136,6 +138,10 @@ async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
       mode,
       dryRun: values['dry-run'] as boolean | undefined,
     });
+
+    if (values.tui) {
+      config.renderer = 'tui';
+    }
 
     await runPipeline(config);
     return 0;

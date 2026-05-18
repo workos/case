@@ -3,6 +3,7 @@ import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { formatDuration } from './notify.js';
 import { createStructuredLogRenderer } from './render/structured-log.js';
+import { createTuiRenderer, type TuiRenderer } from './render/tui-renderer.js';
 import type { Notifier } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
 import { runVerifyPhase } from './phases/verify.js';
@@ -28,7 +29,19 @@ const log = createLogger();
 export async function runPipeline(config: PipelineConfig): Promise<void> {
   // Task JSON lives in the target repo's ignored .case directory.
   const store = new TaskStore(config.taskJsonPath, config.packageRoot);
-  const notifier = config.notifier ?? createStructuredLogRenderer({ mode: config.mode });
+  // Renderer selection: explicit `notifier` wins; else pick TUI or structured
+  // by config.renderer (defaults to 'structured'). TUI renderers must be
+  // destroyed on exit so we keep a typed handle for cleanup.
+  let tuiRenderer: TuiRenderer | null = null;
+  let notifier: Notifier;
+  if (config.notifier) {
+    notifier = config.notifier;
+  } else if (config.renderer === 'tui') {
+    tuiRenderer = createTuiRenderer({ mode: config.mode });
+    notifier = tuiRenderer;
+  } else {
+    notifier = createStructuredLogRenderer({ mode: config.mode });
+  }
   const previousResults = new Map<AgentName, AgentResult>();
 
   // Bridge tool activity from adapters into the renderer.
@@ -44,11 +57,26 @@ export async function runPipeline(config: PipelineConfig): Promise<void> {
     notifier.send(`  ... still running (${formatDuration(elapsedMs)})`);
   };
 
+  try {
+    await runPipelineBody(config, store, notifier, previousResults);
+  } finally {
+    // Always restore the terminal — even on crash. The structured renderer
+    // is a no-op here; only the TUI needs explicit teardown.
+    tuiRenderer?.destroy();
+  }
+}
+
+async function runPipelineBody(
+  config: PipelineConfig,
+  store: TaskStore,
+  notifier: Notifier,
+  previousResults: Map<AgentName, AgentResult>,
+): Promise<void> {
+  let humanOverrides = 0;
+
   const task = await store.read();
   const profile = task.profile ?? 'standard';
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
-
-  let humanOverrides = 0;
 
   const runId = crypto.randomUUID();
   config.runtime ??= new PiRuntimeAdapter();

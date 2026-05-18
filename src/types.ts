@@ -160,6 +160,12 @@ export interface PipelineConfig {
   eventAppender?: import('./events/appender.js').EventAppender;
   /** Agent runtime for spawning agents. */
   runtime?: import('./agent/runtime.js').CaseAgentRuntime;
+  /**
+   * Renderer selector: `'structured'` (default) is the line-based stdout
+   * renderer; `'tui'` launches a full-screen pi-tui session. Ignored when a
+   * pre-built `notifier` is supplied.
+   */
+  renderer?: 'structured' | 'tui';
 }
 
 export interface ProjectEntry {
