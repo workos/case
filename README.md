@@ -2,13 +2,13 @@
 
 <img width="500" height="500" alt="Case" src="docs/case-logo.svg" />
 
-Case is the reliability layer for agent-authored WorkOS OSS pull requests.
+Case is the reliability layer for agent-authored pull requests.
 
-Its job is narrow: turn a clearly scoped WorkOS OSS task into a reviewed PR with evidence, and make the next run better when this one fails. Case is not a generic agent platform, a dashboard product, or a place to accumulate every possible workflow idea. Humans steer. Agents execute. The harness keeps the work reviewable.
+Its job is narrow: turn a clearly scoped task into a reviewed PR with evidence, and make the next run better when this one fails. Case is not a generic agent platform, a dashboard product, or a place to accumulate every possible workflow idea. Humans steer. Agents execute. The harness keeps the work reviewable.
 
 ## Why It Exists
 
-Agents are useful when the surrounding system makes good work easier than bad work. Case provides that surrounding system for the WorkOS open source repos:
+Agents are useful when the surrounding system makes good work easier than bad work. Case provides that surrounding system:
 
 - A shared map of target repos, commands, architecture notes, and conventions.
 - A task format that separates human intent from machine-updated state.
@@ -18,7 +18,7 @@ Agents are useful when the surrounding system makes good work easier than bad wo
 
 The north star:
 
-> Case exists to make agent-authored WorkOS OSS PRs reliable, reviewable, and self-improving.
+> Case exists to make agent-authored PRs reliable, reviewable, and self-improving.
 
 ## Core Loop
 
@@ -106,6 +106,7 @@ ca 1234                 # create or resume a GitHub issue run
 ca DX-1234              # create or resume a Linear issue run
 ca --agent              # interactive steering session
 ca --agent 1234         # steering session with issue context
+ca onboard <path>       # add a repo to projects.json
 ca run --task <file>    # run an existing task JSON
 ca watch <task-slug>    # live-tail the event log
 ```
@@ -120,7 +121,7 @@ ca mark-manual-tested
 ca mark-reviewed --critical 0
 ca upload <file>
 ca snapshot <agent-name>
-ca create --repo <name> --title <title> --description <text>
+ca create --repo <name> --title <title> --description <text> --evidence <expectations>
 ca analyze-failure <task.json> <agent> <error>
 ca bootstrap <repo>
 ca check [--repo <repo>]
@@ -167,6 +168,8 @@ CASE_DATA_DIR=/tmp/case-test ca init
 
 Static package assets are versioned with Case and embedded into the standalone binary: `agents/`, markdown under `docs/`, and text rules under `ast-rules/`. When running from a checkout, disk files win so local prompt/doc edits are picked up immediately; set `CASE_PACKAGE_ROOT=/path/to/case` to force a specific checkout as the disk override.
 
+Each entry in `projects.json` may optionally include `credentials` (per-repo secrets needed for verification) and `verificationNotes` (free-form context the verifier should know about the repo).
+
 For portable binary installs, keep `projects.json` in `~/.config/case/` via `ca init --projects <path>` or `ca init --migrate-from <case-checkout>`. Repo paths in a portable `projects.json` should be absolute or relative to that `projects.json` file.
 
 ## Pipeline
@@ -182,6 +185,8 @@ Revision loops are evaluator-driven. A verifier or reviewer rubric failure can s
 
 Every run writes an append-only event log under `<target-repo>/.case/<task-slug>/events/`. `ca watch <task-slug>` renders those events while a run is active.
 
+Every task carries `evidenceExpectations` — the concrete artifacts the verifier must produce. The orchestrator writes these based on the target repo's `evidenceStrategy` so the verifier knows what counts as proof up front.
+
 ## Agent Roles
 
 | Agent         | Responsibility                                                       | Does Not Do                         |
@@ -193,7 +198,7 @@ Every run writes an append-only event log under `<target-repo>/.case/<task-slug>
 | Closer        | Creates the PR after evidence gates pass                             | Implement or test                   |
 | Retrospective | Records learnings and proposes harness improvements                  | Edit target repo code               |
 
-¹ The orchestrator is TypeScript runtime code (`src/agent/orchestrator-session.ts`), not an LLM agent prompt like the others.
+¹ The orchestrator runs as an LLM agent session via `ca --agent`, or as TypeScript runtime code for direct `ca <issue>` dispatch.
 
 The key boundary is context isolation. Implementer context includes task details, playbooks, repo learnings, and revision feedback. Verifier context is intentionally fresher. Reviewer context is focused on the diff and principles.
 
@@ -206,6 +211,12 @@ Evidence markers live under the target repo's `.case/<task-slug>/` directory:
 - `reviewed`: created by `ca mark-reviewed --critical 0`.
 
 The closer checks these markers before opening a PR. The point is not ceremony; it is making the PR auditable without trusting a chat transcript.
+
+Each repo declares an `evidenceStrategy` in `projects.json` that drives what the verifier produces:
+
+- `ui-screenshot`: Playwright before/after screenshots for user-facing UI changes.
+- `scenario-script`: a consumer script that exercises the specific user-facing scenario.
+- `test-output`: automated test output only (for libraries and non-UI code).
 
 ## Self-Improvement
 
@@ -240,18 +251,15 @@ Priority:
 
 ## Repository Map
 
-Target repos are listed in `projects.json`.
+Target repos are listed in `~/.config/case/projects.json` (created by `ca init` + `ca onboard`). The schema is `projects.schema.json` in this repo.
 
-| Repo                   | Path                        | Purpose                               |
-| ---------------------- | --------------------------- | ------------------------------------- |
-| cli                    | `../cli/main`               | WorkOS CLI                            |
-| skills                 | `../skills`                 | WorkOS integration skills             |
-| authkit-session        | `../authkit-session`        | Framework-agnostic session management |
-| authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK            |
-| authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                   |
-| workos-node            | `../workos-node/main`       | WorkOS Node.js SDK                    |
+Add a repo with:
 
-Add a repo by updating `projects.json`, adding any needed architecture notes under `docs/architecture/`, and verifying with:
+```bash
+ca onboard <path>
+```
+
+Then add any needed architecture notes under `docs/architecture/` and verify with:
 
 ```bash
 ca check --repo <name>

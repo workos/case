@@ -13,7 +13,7 @@ It provides the cross-cutting knowledge, conventions, and task dispatch that no 
 
 ## Philosophy
 
-- **Case exists to make agent-authored WorkOS OSS PRs reliable, reviewable, and self-improving.** Keep the core loop small unless reliability requires more.
+- **Case exists to make agent-authored PRs reliable, reviewable, and self-improving.** Keep the core loop small unless reliability requires more.
 - **Humans steer, agents execute.** Engineers define goals and acceptance criteria. Agents implement.
 - **Never write code directly.** All code changes in target repos flow through agents. Engineers only improve this harness.
 - **When agents struggle, fix the harness.** The fix is never "try harder" — it's a missing doc, playbook, convention, or enforcement rule.
@@ -48,8 +48,7 @@ Case depends on the skills plugin for product knowledge. They are complementary,
 ```
 AGENTS.md                 # Entry point for agents (routing map)
 CLAUDE.md                 # This file (meta-instructions for case itself)
-projects.json             # Manifest of target repos
-projects.schema.json      # JSON Schema for the manifest
+projects.schema.json      # JSON Schema for the project manifest
 docs/
   architecture/           # Canonical patterns per repo type
   conventions/            # Shared rules (commits, testing, PRs)
@@ -57,20 +56,17 @@ docs/
   playbooks/              # Step-by-step guides for recurring operations
 tasks/
   active/                 # Current task files for agent execution
-  done/                   # Completed tasks (moved after PR merge)
   templates/              # Reusable task templates
 src/commands/
   check.ts                # Cross-repo convention enforcement
   bootstrap.ts            # Per-repo readiness verification
+  onboard.ts              # Human-facing onboarding for a new repo
 ```
 
 ## Commands
 
 ```bash
-# Validate manifest
-node -e "JSON.parse(require('fs').readFileSync('projects.json','utf8'))"
-
-# Check conventions across repos
+# Check conventions across repos (also validates the manifest)
 ca check
 
 # Check a single repo
@@ -78,4 +74,7 @@ ca check --repo cli
 
 # Bootstrap a repo for agent work
 ca bootstrap cli
+
+# Onboard a new repo
+ca onboard <path>
 ```

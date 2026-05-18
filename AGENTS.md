@@ -1,4 +1,4 @@
-# Case — WorkOS OSS Harness
+# Case — Agent Harness
 
 Spine repo for orchestrating agent work across WorkOS open source projects.
 Humans steer. Agents execute. When agents struggle, fix the harness.
@@ -21,9 +21,9 @@ echo "$SESSION"
 | authkit-session        | `../authkit-session`        | Framework-agnostic session management                | TS/pnpm |
 | authkit-tanstack-start | `../authkit-tanstack-start` | AuthKit TanStack Start SDK                           | TS/pnpm |
 | authkit-nextjs         | `../authkit-nextjs`         | AuthKit Next.js SDK                                  | TS/pnpm |
-| workos-node            | `../workos-node/main`       | WorkOS Node.js SDK                                   | TS/pnpm |
+| workos-node            | `../workos-node/main`       | WorkOS Node.js SDK                                   | TS/npm  |
 
-Full metadata (commands, remotes, language): `projects.json`
+Full metadata (commands, remotes, evidence strategy): `~/.config/case/projects.json`
 
 ## Navigation
 
