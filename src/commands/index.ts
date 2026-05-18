@@ -25,29 +25,33 @@ import * as analyzeFailure from './analyze-failure.js';
 import * as bootstrap from './bootstrap.js';
 import * as check from './check.js';
 
+export type CommandGroup = 'human' | 'agent' | 'internal';
+
 export interface Command {
   handler: (argv: string[]) => Promise<number>;
   description: string;
+  group: CommandGroup;
 }
 
 export const commandMap: Record<string, Command> = {
-  run: { handler: run.handler, description: run.description },
-  watch: { handler: watch.handler, description: watch.description },
-  create: { handler: create.handler, description: create.description },
-  session: { handler: session.handler, description: session.description },
-  status: { handler: status.handler, description: status.description },
-  'mark-tested': { handler: markTested.handler, description: markTested.description },
+  run: { handler: run.handler, description: run.description, group: 'human' },
+  watch: { handler: watch.handler, description: watch.description, group: 'human' },
+  init: { handler: init.handler, description: init.description, group: 'human' },
+  check: { handler: check.handler, description: check.description, group: 'human' },
+  bootstrap: { handler: bootstrap.handler, description: bootstrap.description, group: 'human' },
+  session: { handler: session.handler, description: session.description, group: 'agent' },
+  status: { handler: status.handler, description: status.description, group: 'agent' },
+  'mark-tested': { handler: markTested.handler, description: markTested.description, group: 'agent' },
   'mark-manual-tested': {
     handler: markManualTested.handler,
     description: markManualTested.description,
+    group: 'agent',
   },
-  'mark-reviewed': { handler: markReviewed.handler, description: markReviewed.description },
-  upload: { handler: upload.handler, description: upload.description },
-  snapshot: { handler: snapshot.handler, description: snapshot.description },
-  init: { handler: init.handler, description: init.description },
-  'analyze-failure': { handler: analyzeFailure.handler, description: analyzeFailure.description },
-  bootstrap: { handler: bootstrap.handler, description: bootstrap.description },
-  check: { handler: check.handler, description: check.description },
+  'mark-reviewed': { handler: markReviewed.handler, description: markReviewed.description, group: 'agent' },
+  upload: { handler: upload.handler, description: upload.description, group: 'agent' },
+  snapshot: { handler: snapshot.handler, description: snapshot.description, group: 'agent' },
+  create: { handler: create.handler, description: create.description, group: 'internal' },
+  'analyze-failure': { handler: analyzeFailure.handler, description: analyzeFailure.description, group: 'internal' },
 };
 
 export async function dispatch(argv: string[]): Promise<number> {
@@ -87,6 +91,12 @@ export async function dispatch(argv: string[]): Promise<number> {
   return cmd.handler(argv.slice(1));
 }
 
+const groupMeta: Record<CommandGroup, { label: string; note?: string }> = {
+  human: { label: 'Commands' },
+  agent: { label: 'Agent commands', note: 'Used by pipeline agents — not typically run by hand.' },
+  internal: { label: 'Internal', note: 'Called programmatically by the orchestrator.' },
+};
+
 export function printHelp(): void {
   const lines: string[] = [];
   lines.push('Usage: ca <command> [options]');
@@ -96,14 +106,21 @@ export function printHelp(): void {
   lines.push('Core:');
   lines.push('  ca 1234           Create or resume a pipeline run from a GitHub issue');
   lines.push('  ca --agent 1234   Start an interactive steering session before running');
-  lines.push('');
-  lines.push('Commands:');
 
-  const verbs = Object.keys(commandMap);
-  const pad = Math.max(...verbs.map((v) => v.length)) + 2;
-  for (const verb of verbs) {
-    lines.push(`  ${verb.padEnd(pad)}${commandMap[verb]!.description}`);
+  const allVerbs = Object.keys(commandMap);
+  const pad = Math.max(...allVerbs.map((v) => v.length)) + 2;
+
+  for (const group of ['human', 'agent', 'internal'] as CommandGroup[]) {
+    const verbs = allVerbs.filter((v) => commandMap[v]!.group === group);
+    if (verbs.length === 0) continue;
+    const { label, note } = groupMeta[group];
+    lines.push('');
+    lines.push(`${label}:${note ? `  (${note})` : ''}`);
+    for (const verb of verbs) {
+      lines.push(`  ${verb.padEnd(pad)}${commandMap[verb]!.description}`);
+    }
   }
+
   lines.push('');
   lines.push('Run `ca <command> --help` for command-specific options.');
   lines.push('Run `ca --version` to print the version.');
