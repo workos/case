@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve, relative, basename } from 'node:path';
-import { loadProjectsManifest } from '../config.js';
-import { resolvePackageRoot } from '../paths.js';
+import { resolve, relative, basename, dirname } from 'node:path';
+import { mkdir } from 'node:fs/promises';
+import { loadProjectsManifest, type LoadedProjectsManifest } from '../config.js';
+import { resolveDataDir, resolvePackageRoot } from '../paths.js';
 import { runCommandLine } from '../util/run-command.js';
 import type { EvidenceStrategy, ProjectEntry } from '../types.js';
 
@@ -35,7 +36,7 @@ export async function handler(argv: string[]): Promise<number> {
   }
 
   const caseRoot = resolvePackageRoot();
-  const manifest = await loadProjectsManifest(caseRoot);
+  const manifest = await loadOrCreateManifest(caseRoot);
 
   const existing = manifest.repos.find(
     (r) => resolve(manifest.repoBasePath, r.path) === absPath || r.name === basename(absPath),
@@ -100,6 +101,19 @@ export async function handler(argv: string[]): Promise<number> {
   }
 
   return 0;
+}
+
+async function loadOrCreateManifest(caseRoot: string): Promise<LoadedProjectsManifest> {
+  try {
+    return await loadProjectsManifest(caseRoot);
+  } catch {
+    const dataDir = resolveDataDir();
+    const path = resolve(dataDir, 'projects.json');
+    await mkdir(dirname(path), { recursive: true });
+    await Bun.write(path, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2) + '\n');
+    process.stdout.write(`Created ${path}\n`);
+    return { repos: [], path, repoBasePath: dataDir };
+  }
 }
 
 async function probeRepo(absPath: string, basePath: string): Promise<DetectedRepo> {
