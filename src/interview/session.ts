@@ -92,18 +92,31 @@ function getLastAssistantText(session: { state: { messages: unknown[] } }): stri
 }
 
 /**
- * Prompt the user for free-form text input via readline.
- * Returns `null` if the user sends EOF (Ctrl-D) to signal abort.
+ * Persistent readline wrapper. A single interface is kept alive across all
+ * questions — creating/destroying per-question kills stdin on the second call
+ * because `rl.close()` pauses the underlying stream.
  */
-function askUserFreeform(prompt: string): Promise<string | null> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  return new Promise((resolve) => {
-    rl.question(prompt, (answer) => {
-      rl.close();
-      resolve(answer);
+class InterviewReadline {
+  private rl: ReturnType<typeof createInterface>;
+  private closed = false;
+
+  constructor() {
+    this.rl = createInterface({ input: process.stdin, output: process.stderr });
+    this.rl.on('close', () => {
+      this.closed = true;
     });
-    rl.on('close', () => resolve(null));
-  });
+  }
+
+  ask(prompt: string): Promise<string | null> {
+    if (this.closed) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this.rl.question(prompt, (answer) => resolve(answer));
+    });
+  }
+
+  close(): void {
+    if (!this.closed) this.rl.close();
+  }
 }
 
 /**
@@ -213,6 +226,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   });
 
   let allResponseText = '';
+  const rl = new InterviewReadline();
 
   try {
     // First turn: send the briefing. The agent explores the repo and may ask
@@ -228,9 +242,10 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
 
       // The agent asked a question. Print it and get the human's answer.
       process.stderr.write(`\n${lastText}\n`);
-      const answer = await askUserFreeform('\n> ');
+      const answer = await rl.ask('\n> ');
       if (answer === null) {
         process.stderr.write('\nInterview aborted by user.\n');
+        rl.close();
         await runtime.dispose();
         return null;
       }
@@ -243,10 +258,12 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
     process.stderr.write(
       `\nInterview session error: ${(err as Error).message}\n` + `Falling back to mechanical-only onboarding.\n`,
     );
+    rl.close();
     await runtime.dispose();
     return null;
   }
 
+  rl.close();
   await runtime.dispose();
 
   if (!allResponseText.includes(AGENT_RESULT_END)) {

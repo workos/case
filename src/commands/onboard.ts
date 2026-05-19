@@ -101,6 +101,12 @@ function printUsage(): void {
 }
 
 async function runOnboard(repoPath: string, caseRoot: string, options: { interview: boolean }): Promise<number> {
+  // Suppress structured JSON logs during interactive onboarding — the human
+  // is watching the terminal and doesn't need JSON-lines noise from probeRepo.
+  if (options.interview && !process.env.CASE_DEBUG) {
+    process.env.CASE_QUIET = '1';
+  }
+
   const absPath = resolve(repoPath);
   if (!existsSync(absPath)) {
     process.stderr.write(`Error: path not found: ${absPath}\n`);
@@ -158,6 +164,10 @@ async function runOnboard(repoPath: string, caseRoot: string, options: { intervi
 }
 
 async function runReInterview(repoName: string, caseRoot: string): Promise<number> {
+  if (!process.env.CASE_DEBUG) {
+    process.env.CASE_QUIET = '1';
+  }
+
   const manifest = await loadProjectsManifest(caseRoot).catch(() => null);
   if (!manifest) {
     process.stderr.write(`Error: projects.json not found. Run 'ca init' or 'ca onboard <path>' first.\n`);
