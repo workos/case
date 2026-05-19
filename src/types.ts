@@ -168,15 +168,25 @@ export interface PipelineConfig {
   renderer?: 'structured' | 'tui';
 }
 
+export type EvidenceStrategy = 'ui-screenshot' | 'scenario-script' | 'test-output';
+
+export const DEFAULT_CREDENTIALS_PATH = '~/.config/case/credentials';
+
 export interface ProjectEntry {
   name: string;
-  type?: 'app' | 'library' | string;
+  evidenceStrategy: EvidenceStrategy;
   path: string;
   remote: string;
   description?: string;
   language: string;
   packageManager: string;
   commands: Record<string, string>;
+  credentials?: string;
+  verificationNotes?: string;
+}
+
+export function resolveEvidenceStrategy(project?: ProjectEntry): EvidenceStrategy {
+  return project?.evidenceStrategy ?? 'test-output';
 }
 
 export interface FailureAnalysis {
@@ -330,8 +340,8 @@ export interface TaskCreateRequest {
   nonGoals?: string;
   /** Edge cases to consider (done contract) */
   edgeCases?: string;
-  /** What evidence proves the fix works (done contract) */
-  evidenceExpectations?: string;
+  /** What evidence proves the fix works — required for all tasks (done contract) */
+  evidenceExpectations: string;
 }
 
 // Event system re-exports

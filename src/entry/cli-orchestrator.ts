@@ -9,7 +9,8 @@ import { runCommand } from '../util/run-command.js';
 import { createStructuredLogRenderer } from '../render/structured-log.js';
 import { formatSetupStep } from '../render/format.js';
 import type { Notifier } from '../notify.js';
-import type { IssueContext, PipelineMode, PipelinePhase, TaskCreateRequest } from '../types.js';
+import type { IssueContext, PipelineMode, PipelinePhase, TaskCreateRequest, EvidenceStrategy } from '../types.js';
+import { resolveEvidenceStrategy } from '../types.js';
 import type { TaskMatch } from './task-scanner.js';
 
 export interface CliOrchestratorOptions {
@@ -95,6 +96,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   await ensureBranch(branchName, detected.path);
 
   // Create task files
+  const strategy = resolveEvidenceStrategy(detected.project);
   const request: TaskCreateRequest = {
     repo: detected.name,
     title: issueContext.title,
@@ -103,6 +105,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
     issueType: issueContext.issueType,
     mode,
     trigger: { type: 'cli', user: 'local' },
+    evidenceExpectations: defaultEvidenceExpectations(strategy, issueContext),
   };
 
   const taskResult = await createTask(caseRoot, request, { issueContext, branch: branchName, repoPath: detected.path });
@@ -202,6 +205,30 @@ function deriveBranchPrefix(labels: string[]): string {
   if (lowered.some((l) => l.includes('feature') || l.includes('enhancement'))) return 'feat';
   if (lowered.some((l) => l.includes('chore') || l.includes('maintenance') || l.includes('docs'))) return 'chore';
   return 'fix';
+}
+
+const EVIDENCE_TEMPLATES: Record<EvidenceStrategy, (issue: IssueContext) => string> = {
+  'ui-screenshot': (issue) =>
+    [
+      `Before/after screenshots demonstrating the behavior change described in: ${issue.title}`,
+      'Navigate to the affected page, reproduce the scenario from the issue, and capture the state before and after the fix.',
+      'If auth is required, complete the AuthKit login flow with test credentials.',
+    ].join('\n'),
+  'scenario-script': (issue) =>
+    [
+      `Consumer script that imports the changed API and exercises the code path described in: ${issue.title}`,
+      'Script should assert expected behavior and print PASS/FAIL.',
+      'Full test suite and typecheck must also pass.',
+    ].join('\n'),
+  'test-output': (issue) =>
+    [
+      `Full test suite passes with no regressions. Typecheck and build succeed.`,
+      `Specific tests covering the change described in: ${issue.title}`,
+    ].join('\n'),
+};
+
+function defaultEvidenceExpectations(strategy: EvidenceStrategy, issue: IssueContext): string {
+  return EVIDENCE_TEMPLATES[strategy](issue);
 }
 
 /**

@@ -139,7 +139,7 @@ function buildTaskMarkdown(request: TaskCreateRequest, taskJson: TaskJson, issue
   if (request.edgeCases) {
     lines.push('## Edge Cases', '', request.edgeCases, '');
   }
-  if (request.evidenceExpectations) {
+  if (request.evidenceExpectations !== undefined) {
     lines.push('## Evidence Expectations', '', request.evidenceExpectations, '');
   }
 

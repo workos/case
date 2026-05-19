@@ -1,12 +1,9 @@
-# Case harness marker files (created during pipeline runs)
-.case-active
-.case-tested
-.case-manual-tested
-.case-reviewed
-
 # Repo-local Case runtime state. Target repos should ignore this directory too;
 # `ca bootstrap` adds the rule automatically.
 .case/
+
+# User-local project manifest (lives in ~/.config/case/projects.json)
+projects.json
 
 # Legacy in-repo runtime state retained only as a read fallback during migration.
 tasks/active/
@@ -14,6 +11,7 @@ tasks/done/
 docs/learnings/
 docs/proposed-amendments/*.md
 !docs/proposed-amendments/.gitkeep
+!docs/proposed-amendments/README.md
 docs/run-log.jsonl
 docs/agent-versions/
 

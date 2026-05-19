@@ -32,6 +32,7 @@ describe('commandMap registration', () => {
       'init',
       'check',
       'bootstrap',
+      'onboard',
       'session',
       'status',
       'mark-tested',

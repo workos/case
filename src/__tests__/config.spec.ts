@@ -28,7 +28,7 @@ describe('projects config', () => {
         repos: [
           {
             name: 'cli',
-            type: 'library',
+            evidenceStrategy: 'scenario-script',
             path: 'repos/cli',
             remote: 'git@github.com:workos/workos-cli.git',
             language: 'typescript',

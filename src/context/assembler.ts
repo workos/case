@@ -1,4 +1,5 @@
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, TaskJson } from '../types.js';
+import { resolveEvidenceStrategy, DEFAULT_CREDENTIALS_PATH } from '../types.js';
 import type { RepoContext } from './prefetch.js';
 import { readPackageAssetSync } from '../package-assets.js';
 
@@ -45,7 +46,7 @@ function substitutePathVars(content: string, config: PipelineConfig): string {
   return content
     .replace(/\{\{packageRoot\}\}/g, config.packageRoot)
     .replace(/\{\{dataDir\}\}/g, config.dataDir)
-    .replace(/\{\{repoType\}\}/g, config.project?.type ?? 'app');
+    .replace(/\{\{evidenceStrategy\}\}/g, resolveEvidenceStrategy(config.project));
 }
 
 const INJECT_MARKER = /<!--\s*inject:\s*(\S+)\s*-->/g;
@@ -116,7 +117,7 @@ function buildContextBlock(
   lines.push(`- **Target repo**: \`${config.repoPath}\``);
   lines.push(`- **Repo name**: ${config.repoName}`);
   if (config.project) {
-    lines.push(`- **Repo type**: ${config.project.type ?? 'app'}`);
+    lines.push(`- **Evidence strategy**: \`${resolveEvidenceStrategy(config.project)}\``);
     lines.push(`- **Package manager**: ${config.project.packageManager}`);
   }
   lines.push('');
@@ -127,8 +128,9 @@ function buildContextBlock(
       break;
 
     case 'verifier':
-      // Deliberately minimal — fresh-context testing
+      // Deliberately minimal — fresh-context testing, plus project-specific hints
       appendProjectCommands(lines, config);
+      appendVerifierContext(lines, config);
       break;
 
     case 'reviewer':
@@ -199,6 +201,19 @@ function appendImplementerContext(
 
   if (task.fastTestCommand) {
     lines.push(`- **Fast test command**: \`${task.fastTestCommand}\``);
+  }
+}
+
+function appendVerifierContext(lines: string[], config: PipelineConfig): void {
+  const creds = config.project?.credentials ?? DEFAULT_CREDENTIALS_PATH;
+  lines.push(`- **Credentials**: \`${creds}\``);
+
+  if (config.project?.verificationNotes) {
+    lines.push('');
+    lines.push('### Verification Notes');
+    lines.push('');
+    lines.push(config.project.verificationNotes);
+    lines.push('');
   }
 }
 

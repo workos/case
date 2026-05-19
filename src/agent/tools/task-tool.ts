@@ -19,9 +19,10 @@ const taskParams = Type.Object({
   ),
   nonGoals: Type.Optional(Type.String({ description: 'What is explicitly NOT in scope for this task' })),
   edgeCases: Type.Optional(Type.String({ description: 'Edge cases the implementer should consider' })),
-  evidenceExpectations: Type.Optional(
-    Type.String({ description: 'What evidence proves the fix works (screenshots, test output, etc.)' }),
-  ),
+  evidenceExpectations: Type.String({
+    description:
+      'Required. Concrete, falsifiable description of what evidence the verifier must produce. Adapt to the repo evidenceStrategy: ui-screenshot → before/after screenshots with specific pages and interactions; scenario-script → consumer script exercising the changed API; test-output → specific tests that must pass.',
+  }),
 });
 
 export function createTaskTool(caseRoot: string) {
