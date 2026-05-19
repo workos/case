@@ -207,10 +207,12 @@ export interface DetectedRepoForSynthesis {
 export function synthesizeProjectEntry(findings: InterviewFindings, detected: DetectedRepoForSynthesis): ProjectEntry {
   const commands: Record<string, string> = { ...detected.commands };
   for (const [key, value] of Object.entries(findings.commandOverrides)) {
-    // Only override with non-empty strings. The agent may emit empty values
-    // for keys it didn't have an answer for — treat those as "keep detected".
     if (typeof value === 'string' && value.trim().length > 0) {
       commands[key] = value;
+    } else if (typeof value === 'string' && value.trim().length === 0) {
+      // Empty string = delete the command. Lets the agent remove placeholder
+      // scripts (e.g., `echo "Error: no test specified" && exit 1`).
+      delete commands[key];
     }
   }
 

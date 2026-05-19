@@ -108,6 +108,8 @@ Question bank (in order):
 
 Group answers into `verificationNotes` (free text), `credentials` (path or empty), `commandOverrides` (only commands the human flagged), and `conventions` (rule + reason pairs).
 
+**`commandOverrides` convention**: set a key to a non-empty string to replace the detected command. Set a key to `""` (empty string) to **remove** the command entirely — use this when the detected command is a placeholder (e.g., `echo "Error: no test specified" && exit 1`).
+
 ### 6. Seed learnings
 
 From what you read in steps 1-2, capture 2-5 `learnings` entries:

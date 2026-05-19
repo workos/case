@@ -378,7 +378,10 @@ function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetect
   const commands: Record<string, string> = {};
 
   commands.setup = `${packageManager} install`;
-  commands.test = scripts.test ? `${run} test` : `${packageManager} test`;
+  const isPlaceholderTest = !scripts.test || /echo\s+.*no test/i.test(scripts.test);
+  if (!isPlaceholderTest) {
+    commands.test = `${run} test`;
+  }
   if (scripts.build) commands.build = `${run} build`;
   if (scripts.lint) commands.lint = `${run} lint`;
   if (scripts.typecheck) commands.typecheck = `${run} typecheck`;
