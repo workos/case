@@ -401,6 +401,49 @@ export interface TaskCreateRequest {
   evidenceExpectations: string;
 }
 
+// --- Working Memory (Phase 3: Agent Working Memory Protocol) ---
+
+/**
+ * Structured, schema-validated working memory persisted between phases.
+ *
+ * Lives at `<repoPath>/.case/<task-slug>/working-memory.json`. Written by
+ * agents via `ca update-memory`, read by the orchestrator to inject prior
+ * context into each phase's prompt. Versioned for forward-compat.
+ */
+export interface WorkingMemory {
+  /** Schema version — bump on breaking changes. */
+  version: 1;
+  /** ISO-8601 datetime of the last write. */
+  updatedAt: string;
+  /** Short description of what the agent is currently doing or last completed. */
+  currentState: string;
+  /** Current implementation strategy. */
+  approach: string;
+  /** Files modified in this session. Appended on update. */
+  filesChanged: string[];
+  /** Errors encountered and their resolution status. Appended on update. */
+  errorsSeen: WorkingMemoryError[];
+  /** Approaches tried and their outcomes. Appended on update. */
+  approachesTried: WorkingMemoryApproach[];
+  /** Current blocking issues. Appended on update. */
+  blockers: string[];
+}
+
+export interface WorkingMemoryError {
+  error: string;
+  file?: string;
+  resolution: 'fixed' | 'workaround' | 'unresolved';
+}
+
+export interface WorkingMemoryApproach {
+  approach: string;
+  outcome: 'success' | 'partial' | 'failed';
+  reason?: string;
+}
+
+/** Partial update payload — every field is optional. Arrays append, scalars replace. */
+export type WorkingMemoryUpdate = Partial<Omit<WorkingMemory, 'version' | 'updatedAt'>>;
+
 // Event system re-exports
 export type { PipelineEvent } from './events/schema.js';
 export type { PipelineState } from './events/types.js';

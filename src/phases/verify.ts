@@ -1,9 +1,12 @@
+import { resolve } from 'node:path';
 import type { AgentName, AgentResult, PhaseOutcome, PhaseOutput, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import { buildRevisionRequest } from './revision.js';
+import { readWorkingMemory } from '../memory/working-memory.js';
+import { formatForVerifier, taskSlugFromTaskJsonPath } from '../memory/format.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -42,7 +45,8 @@ export async function runVerifyPhase(
 
   const task = await store.read();
   const repoContext = await prefetchRepoContext(config, 'verifier');
-  const prompt = await assemblePrompt('verifier', config, task, repoContext, previousResults);
+  const basePrompt = await assemblePrompt('verifier', config, task, repoContext, previousResults);
+  const prompt = prependWorkingMemory(basePrompt, config);
 
   const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
   const { result } = await spawn({
@@ -104,6 +108,19 @@ function classifyVerifierFailure(fails: Array<{ category: string; detail: string
     return { phase: 'verify', outcome: 'fail-test', details: fails[0]?.detail };
   }
   return { phase: 'verify', outcome: 'fail-soft-findings', details: fails[0]?.detail };
+}
+
+/**
+ * Read structured working memory (if present) and prepend a concise context
+ * section so the verifier inherits the implementer's approach + files. Cold
+ * start returns the base prompt unchanged.
+ */
+function prependWorkingMemory(basePrompt: string, config: PipelineConfig): string {
+  const slug = taskSlugFromTaskJsonPath(config.taskJsonPath);
+  const taskDir = resolve(config.repoPath, '.case', slug);
+  const memory = readWorkingMemory(taskDir);
+  if (!memory) return basePrompt;
+  return formatForVerifier(memory) + '\n' + basePrompt;
 }
 
 /** Translate a hard verifier-agent failure into a typed outcome. */

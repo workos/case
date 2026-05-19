@@ -38,6 +38,7 @@ describe('commandMap registration', () => {
       'mark-tested',
       'mark-manual-tested',
       'mark-reviewed',
+      'update-memory',
       'upload',
       'snapshot',
       'create',

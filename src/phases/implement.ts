@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type {
   AgentName,
   AgentResult,
@@ -12,6 +13,8 @@ import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import { analyzeFailure } from '../commands/analyze-failure.js';
+import { readWorkingMemory } from '../memory/working-memory.js';
+import { formatForImplementer, taskSlugFromTaskJsonPath } from '../memory/format.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -35,7 +38,8 @@ export async function runImplementPhase(
 
   const task = await store.read();
   const repoContext = await prefetchRepoContext(config, 'implementer');
-  const prompt = await assemblePrompt('implementer', config, task, repoContext, previousResults, revision);
+  const basePrompt = await assemblePrompt('implementer', config, task, repoContext, previousResults, revision);
+  const prompt = prependWorkingMemory(basePrompt, config);
 
   const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
   const { result } = await spawn({
@@ -163,6 +167,20 @@ async function attemptRetry(
 
   log.phase('implement', 'retry-failed', { error: retryResult.error });
   return null;
+}
+
+/**
+ * Read structured working memory (if present) and prepend it as a `## Prior
+ * Context` section. Returns `basePrompt` unchanged on cold start. Falls back
+ * silently on read errors — the legacy `working.md` injected by the assembler
+ * still covers the no-memory case until agents adopt `ca update-memory`.
+ */
+function prependWorkingMemory(basePrompt: string, config: PipelineConfig): string {
+  const slug = taskSlugFromTaskJsonPath(config.taskJsonPath);
+  const taskDir = resolve(config.repoPath, '.case', slug);
+  const memory = readWorkingMemory(taskDir);
+  if (!memory) return basePrompt;
+  return formatForImplementer(memory) + '\n' + basePrompt;
 }
 
 function dryRunResult(phase: string): PhaseOutput {
