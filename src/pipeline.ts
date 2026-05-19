@@ -19,6 +19,7 @@ import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
 import { createLogger } from './util/logger.js';
 import { buildGraph } from './dag/builder.js';
 import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
+import { resolveOutcome } from './dag/outcome-table.js';
 import type { DagNode } from './dag/types.js';
 import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
 import { restoreGraphState } from './dag/restore.js';
@@ -225,6 +226,26 @@ interface PipelineCallbacks {
   setFailedAgent: (a: AgentName) => void;
 }
 
+/**
+ * Validate a phase's typed outcome against the unified failure matrix. The
+ * matrix is the source of truth for `(phase, outcome) → next-action`; this
+ * call surfaces drift between a phase impl and the matrix immediately. The
+ * legacy `nextPhase` field still drives control flow until the executor is
+ * fully migrated.
+ */
+function consultMatrix(outcome: import('./types.js').PhaseOutcome | undefined): void {
+  if (!outcome) return;
+  try {
+    resolveOutcome(outcome.phase, outcome.outcome);
+  } catch (err) {
+    log.error('outcome matrix lookup failed', {
+      phase: outcome.phase,
+      outcome: outcome.outcome,
+      error: (err as Error).message,
+    });
+  }
+}
+
 async function dispatchNode(
   node: DagNode,
   config: PipelineConfig,
@@ -240,6 +261,7 @@ async function dispatchNode(
         await store.setPendingRevision(revision);
       }
       const output = await runImplementPhase(config, store, previousResults, revision);
+      consultMatrix(output.outcome);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'implementer', output.result, [
           'Retry with guidance',
@@ -259,6 +281,7 @@ async function dispatchNode(
 
     case 'verify': {
       const output = await runVerifyPhase(config, store, previousResults);
+      consultMatrix(output.outcome);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'verifier', output.result, [
           'Re-implement and re-verify',
@@ -278,6 +301,7 @@ async function dispatchNode(
 
     case 'review': {
       const output = await runReviewPhase(config, store, previousResults);
+      consultMatrix(output.outcome);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
           'Re-implement and re-review',
@@ -300,6 +324,7 @@ async function dispatchNode(
 
     case 'close': {
       const output = await runClosePhase(config, store, previousResults);
+      consultMatrix(output.outcome);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
         if (choice === 'Abort') {

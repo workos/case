@@ -2,6 +2,7 @@ import type {
   AgentName,
   AgentResult,
   FailureAnalysis,
+  PhaseOutcome,
   PhaseOutput,
   PipelineConfig,
   RevisionRequest,
@@ -53,7 +54,8 @@ export async function runImplementPhase(
   if (result.status === 'completed') {
     previousResults.set('implementer', result);
     log.phase('implement', 'completed');
-    return { result, nextPhase: 'verify' };
+    const outcome: PhaseOutcome = { phase: 'implement', outcome: 'success' };
+    return { result, nextPhase: 'verify', outcome };
   }
 
   log.phase('implement', 'failed', { error: result.error });
@@ -65,7 +67,38 @@ export async function runImplementPhase(
 
   previousResults.set('implementer', result);
   log.phase('implement', 'aborted');
-  return { result, nextPhase: 'abort' };
+  return {
+    result,
+    nextPhase: 'abort',
+    outcome: classifyImplementFailure(result),
+  };
+}
+
+/**
+ * Map an `AgentResult.error` string into a typed `PhaseOutcome`. The matrix
+ * accepts `fail-test | fail-type-error | fail-lint | fail-build |
+ * fail-timeout | fail-agent-protocol` for implement; unknown errors fall
+ * back to `fail-agent-protocol` so the executor still has a defined route.
+ */
+function classifyImplementFailure(result: AgentResult): PhaseOutcome {
+  const err = (result.error ?? result.summary ?? '').toLowerCase();
+  if (!err) return { phase: 'implement', outcome: 'fail-agent-protocol' };
+  if (err.includes('timeout') || err.includes('timed out')) {
+    return { phase: 'implement', outcome: 'fail-timeout', details: result.error ?? undefined };
+  }
+  if (err.includes('type') && err.includes('error')) {
+    return { phase: 'implement', outcome: 'fail-type-error', details: result.error ?? undefined };
+  }
+  if (err.includes('lint') || err.includes('eslint')) {
+    return { phase: 'implement', outcome: 'fail-lint', details: result.error ?? undefined };
+  }
+  if (err.includes('build')) {
+    return { phase: 'implement', outcome: 'fail-build', details: result.error ?? undefined };
+  }
+  if (err.includes('test')) {
+    return { phase: 'implement', outcome: 'fail-test', details: result.error ?? undefined };
+  }
+  return { phase: 'implement', outcome: 'fail-agent-protocol', details: result.error ?? undefined };
 }
 
 async function attemptRetry(
@@ -121,7 +154,11 @@ async function attemptRetry(
   if (retryResult.status === 'completed') {
     previousResults.set('implementer', retryResult);
     log.phase('implement', 'retry-succeeded');
-    return { result: retryResult, nextPhase: 'verify' };
+    return {
+      result: retryResult,
+      nextPhase: 'verify',
+      outcome: { phase: 'implement', outcome: 'success' },
+    };
   }
 
   log.phase('implement', 'retry-failed', { error: retryResult.error });
@@ -145,5 +182,6 @@ function dryRunResult(phase: string): PhaseOutput {
       error: null,
     },
     nextPhase: 'verify',
+    outcome: { phase: 'implement', outcome: 'success', details: 'dry-run' },
   };
 }

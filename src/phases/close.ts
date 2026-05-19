@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PhaseOutput, PipelineConfig } from '../types.js';
+import type { AgentName, AgentResult, PhaseOutcome, PhaseOutput, PipelineConfig } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
 import { assemblePrompt } from '../context/assembler.js';
@@ -36,6 +36,7 @@ export async function runClosePhase(
         error: null,
       },
       nextPhase: 'retrospective',
+      outcome: { phase: 'close', outcome: 'success', details: 'dry-run' },
     };
   }
 
@@ -67,10 +68,34 @@ export async function runClosePhase(
 
     previousResults.set('closer', result);
     log.phase('close', 'completed', { prUrl: result.artifacts.prUrl });
-    return { result, nextPhase: 'retrospective' };
+    return {
+      result,
+      nextPhase: 'retrospective',
+      outcome: { phase: 'close', outcome: 'success' },
+    };
   }
 
   previousResults.set('closer', result);
   log.phase('close', 'failed', { error: result.error });
-  return { result, nextPhase: 'abort' };
+  return {
+    result,
+    nextPhase: 'abort',
+    outcome: classifyCloseFailure(result),
+  };
+}
+
+/**
+ * Translate a closer failure into a typed outcome. The matrix routes
+ * `fail-github-unreachable` to a single retry; other failures bubble up as
+ * `surface` so a human can verify whether a partial PR exists.
+ */
+function classifyCloseFailure(result: AgentResult): PhaseOutcome {
+  const err = (result.error ?? '').toLowerCase();
+  if (err.includes('github') || err.includes('gh ') || err.includes('rate limit') || err.includes('network')) {
+    return { phase: 'close', outcome: 'fail-github-unreachable', details: result.error ?? undefined };
+  }
+  if (err.includes('timeout') || err.includes('timed out')) {
+    return { phase: 'close', outcome: 'fail-timeout', details: result.error ?? undefined };
+  }
+  return { phase: 'close', outcome: 'fail-agent-protocol', details: result.error ?? undefined };
 }

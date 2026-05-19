@@ -218,7 +218,64 @@ export interface PhaseOutput {
   nextPhase: PipelinePhase;
   /** Structured revision request when evaluator found fixable issues */
   revision?: RevisionRequest;
+  /**
+   * Typed phase outcome. Populated by phase implementations so the executor
+   * can consult the unified failure matrix (`src/dag/outcome-table.ts`)
+   * instead of inferring from `nextPhase` / `revision`. The legacy fields
+   * remain populated for backwards compatibility.
+   */
+  outcome?: PhaseOutcome;
 }
+
+/** Phase names that participate in the unified outcome matrix. */
+export type PhaseName = 'implement' | 'verify' | 'review' | 'close' | 'retrospective';
+
+/**
+ * Closed enumeration of outcomes that any phase may surface. The matrix
+ * (`src/dag/outcome-table.ts`) maps every applicable (phase, outcome) pair
+ * to a concrete next-action. No catch-all `'unknown'` variant — new failure
+ * modes must be added here and to the matrix together.
+ */
+export type OutcomeKind =
+  | 'success'
+  | 'fail-test'
+  | 'fail-type-error'
+  | 'fail-lint'
+  | 'fail-build'
+  | 'fail-timeout'
+  | 'fail-agent-protocol'
+  | 'fail-no-code-changes'
+  | 'fail-critical-findings'
+  | 'fail-soft-findings'
+  | 'fail-github-unreachable'
+  | 'fail-evidence-missing'
+  | 'abort-user'
+  | 'budget-exhausted';
+
+/**
+ * Discriminated next-action surfaced by `resolveOutcome`. The executor
+ * pattern-matches on `action` to determine routing without casting.
+ */
+export type OutcomeAction =
+  | { action: 'advance'; to: PhaseName | 'complete' }
+  | { action: 'retry'; maxAttempts: number }
+  | { action: 'revision'; cycle: 'next' }
+  | { action: 'abort'; reason: string }
+  | { action: 'skip-to'; to: PhaseName | 'complete'; withWarning: string }
+  | { action: 'surface'; message: string };
+
+/**
+ * A typed outcome surfaced by a phase, paired with optional human-readable
+ * detail. The matrix key is `${phase}:${outcome}`.
+ */
+export interface PhaseOutcome {
+  phase: PhaseName;
+  outcome: OutcomeKind;
+  details?: string;
+}
+
+/** Composite key shape for the outcome matrix. */
+export type PhaseOutcomeKey = `${PhaseName}:${OutcomeKind}`;
 
 export interface AgentModelConfig {
   provider: string;
