@@ -271,6 +271,16 @@ async function loadOrCreateManifest(caseRoot: string): Promise<LoadedProjectsMan
   } catch {
     const dataDir = resolveDataDir();
     const path = resolve(dataDir, 'projects.json');
+
+    // Never overwrite an existing file — if loadProjectsManifest threw on a
+    // file that exists (corrupt JSON, schema mismatch, etc.), creating a fresh
+    // empty one would silently destroy the user's repo entries.
+    if (existsSync(path)) {
+      throw new Error(
+        `projects.json exists at ${path} but could not be loaded. Fix or delete it manually.`,
+      );
+    }
+
     await mkdir(dirname(path), { recursive: true });
     await Bun.write(path, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2) + '\n');
     process.stdout.write(`Created ${path}\n`);
