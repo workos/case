@@ -222,14 +222,16 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: undefined,
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
-
-    process.stdout.write = origWrite;
+    try {
+      await runCliOrchestrator({
+        argument: undefined,
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
     expect(writes.some((w) => w.includes('No active task found'))).toBe(true);
     expect(mockRunPipeline).not.toHaveBeenCalled();
@@ -254,14 +256,16 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: '1523',
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
-
-    process.stdout.write = origWrite;
+    try {
+      await runCliOrchestrator({
+        argument: '1523',
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
     const combined = writes.join('');
     // Phase header
@@ -294,14 +298,16 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: '1523',
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
-
-    process.stdout.write = origWrite;
+    try {
+      await runCliOrchestrator({
+        argument: '1523',
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
     expect(writes.some((w) => w.includes('PR already exists'))).toBe(true);
     expect(writes.some((w) => w.includes('https://github.com/workos/cli/pull/42'))).toBe(true);
