@@ -148,16 +148,36 @@ async function detectFromPackageFile(repoPath: string): Promise<PackageDetection
 
   // Fallback: check for other ecosystems
   if (existsSync(resolve(repoPath, 'go.mod'))) {
-    return { language: 'go', packageManager: 'go', commands: { setup: 'go mod download', test: 'go test ./...' }, description: '' };
+    return {
+      language: 'go',
+      packageManager: 'go',
+      commands: { setup: 'go mod download', test: 'go test ./...' },
+      description: '',
+    };
   }
   if (existsSync(resolve(repoPath, 'pyproject.toml')) || existsSync(resolve(repoPath, 'setup.py'))) {
-    return { language: 'python', packageManager: 'pip', commands: { setup: 'pip install -e .', test: 'pytest' }, description: '' };
+    return {
+      language: 'python',
+      packageManager: 'pip',
+      commands: { setup: 'pip install -e .', test: 'pytest' },
+      description: '',
+    };
   }
   if (existsSync(resolve(repoPath, 'Gemfile'))) {
-    return { language: 'ruby', packageManager: 'bundler', commands: { setup: 'bundle install', test: 'bundle exec rspec' }, description: '' };
+    return {
+      language: 'ruby',
+      packageManager: 'bundler',
+      commands: { setup: 'bundle install', test: 'bundle exec rspec' },
+      description: '',
+    };
   }
 
-  return { language: 'typescript', packageManager: 'npm', commands: { setup: 'npm install', test: 'npm test' }, description: '' };
+  return {
+    language: 'typescript',
+    packageManager: 'npm',
+    commands: { setup: 'npm install', test: 'npm test' },
+    description: '',
+  };
 }
 
 function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetection {
@@ -169,9 +189,10 @@ function detectFromNodePackage(repoPath: string, pkgPath: string): PackageDetect
   let packageManager = 'npm';
   if (existsSync(resolve(repoPath, 'pnpm-lock.yaml'))) packageManager = 'pnpm';
   else if (existsSync(resolve(repoPath, 'yarn.lock'))) packageManager = 'yarn';
-  else if (existsSync(resolve(repoPath, 'bun.lockb')) || existsSync(resolve(repoPath, 'bun.lock'))) packageManager = 'bun';
+  else if (existsSync(resolve(repoPath, 'bun.lockb')) || existsSync(resolve(repoPath, 'bun.lock')))
+    packageManager = 'bun';
 
-  const run = (packageManager === 'npm' || packageManager === 'bun') ? `${packageManager} run` : packageManager;
+  const run = packageManager === 'npm' || packageManager === 'bun' ? `${packageManager} run` : packageManager;
   const commands: Record<string, string> = {};
 
   commands.setup = `${packageManager} install`;

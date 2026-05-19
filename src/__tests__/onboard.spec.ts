@@ -9,7 +9,12 @@ function captureStream(stream: NodeJS.WriteStream): { lines: string[]; restore: 
     lines.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf-8'));
     return true;
   };
-  return { lines, restore: () => { (stream as any).write = original; } };
+  return {
+    lines,
+    restore: () => {
+      (stream as any).write = original;
+    },
+  };
 }
 
 describe('onboard — evidence strategy inference', () => {

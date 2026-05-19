@@ -12,7 +12,16 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "evidenceStrategy", "path", "remote", "description", "language", "packageManager", "commands"],
+        "required": [
+          "name",
+          "evidenceStrategy",
+          "path",
+          "remote",
+          "description",
+          "language",
+          "packageManager",
+          "commands"
+        ],
         "properties": {
           "name": {
             "type": "string",
