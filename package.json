@@ -30,7 +30,8 @@
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
     "@mariozechner/pi-tui": "^0.73.1",
-    "@sinclair/typebox": "^0.34.49"
+    "@sinclair/typebox": "^0.34.49",
+    "pi-askuserquestion": "github:ghoseb/pi-askuserquestion"
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.42.3",

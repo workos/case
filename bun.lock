@@ -10,6 +10,7 @@
         "@mariozechner/pi-coding-agent": "^0.73.1",
         "@mariozechner/pi-tui": "^0.73.1",
         "@sinclair/typebox": "^0.34.49",
+        "pi-askuserquestion": "github:ghoseb/pi-askuserquestion",
       },
       "devDependencies": {
         "@ast-grep/cli": "^0.42.3",
@@ -448,6 +449,8 @@
     "path-scurry": ["path-scurry@2.0.2", "", { "dependencies": { "lru-cache": "^11.0.0", "minipass": "^7.1.2" } }, "sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg=="],
 
     "pend": ["pend@1.2.0", "", {}, "sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg=="],
+
+    "pi-askuserquestion": ["pi-askuserquestion@github:ghoseb/pi-askuserquestion#f8a7c69", { "peerDependencies": { "@mariozechner/pi-coding-agent": "*", "@mariozechner/pi-tui": "*", "@sinclair/typebox": "*" } }, "ghoseb-pi-askuserquestion-f8a7c69", "sha512-s81KWTbC1HDsky7Bq41FCgQLyL6OxpPI8AtlVb+prPKMQH1XvKoUvghhApiFX+qY6daOQShpkhSG2cEwmV5oKw=="],
 
     "proper-lockfile": ["proper-lockfile@4.1.2", "", { "dependencies": { "graceful-fs": "^4.2.4", "retry": "^0.12.0", "signal-exit": "^3.0.2" } }, "sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA=="],
 

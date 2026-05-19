@@ -37,7 +37,8 @@ import type {
   CreateAgentSessionRuntimeResult,
   ToolDefinition,
 } from '@mariozechner/pi-coding-agent';
-import { basename } from 'node:path';
+import { basename, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
@@ -85,8 +86,23 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
     process.env.CASE_QUIET = '1';
   }
 
-  // Suppress pi's version check and subscription warning.
+  // Run pi fully isolated — no global settings, extensions, packages,
+  // statusline, or theme from the user's ~/.pi/agent. Just auth (needed
+  // for model access). PI_CODING_AGENT_DIR controls where pi reads
+  // config; pointing it at a temp dir gives us a clean slate.
+  const realAgentDir = getAgentDir();
+  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-interview-pi-${process.pid}`;
+  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
   process.env.PI_SKIP_VERSION_CHECK = '1';
+
+  // Symlink auth.json so model credentials are available in isolation.
+  const { mkdirSync, symlinkSync, existsSync } = await import('node:fs');
+  mkdirSync(isolatedAgentDir, { recursive: true });
+  const realAuth = `${realAgentDir}/auth.json`;
+  const isolatedAuth = `${isolatedAgentDir}/auth.json`;
+  if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
+    symlinkSync(realAuth, isolatedAuth);
+  }
 
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
@@ -113,14 +129,17 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   }): Promise<CreateAgentSessionRuntimeResult> => {
     const sm = SettingsManager.create(factoryOpts.cwd, factoryOpts.agentDir);
     sm.setQuietStartup(true);
-    sm.setWarnings({ ...sm.getWarnings(), anthropicExtraUsage: false });
+
+    // Resolve bundled extensions shipped with case (in node_modules).
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const askUserQuestionPath = resolve(thisDir, '../../node_modules/pi-askuserquestion');
 
     const rl = new DefaultResourceLoader({
       cwd: factoryOpts.cwd,
       agentDir: factoryOpts.agentDir,
       settingsManager: sm,
       appendSystemPrompt: [systemPrompt],
-      extensionsOverride: (base) => ({ ...base, errors: [] }),
+      additionalExtensionPaths: [askUserQuestionPath],
     });
     await rl.reload();
 
