@@ -4,7 +4,10 @@ import { mkdir } from 'node:fs/promises';
 import { loadProjectsManifest, type LoadedProjectsManifest } from '../config.js';
 import { isEmbeddedPackageRoot, resolveDataDir, resolvePackageRoot } from '../paths.js';
 import { runCommandLine } from '../util/run-command.js';
-import type { EvidenceStrategy, ProjectEntry } from '../types.js';
+import { synthesizeProjectEntry, validateEvidenceStrategy } from '../interview/findings.js';
+import { startInterviewSession } from '../interview/session.js';
+import { writeClaudeLocal, writeLearnings, writeProjectsEntry } from '../interview/writers.js';
+import type { EvidenceStrategy, InterviewFindings, ProjectEntry } from '../types.js';
 
 export const description = 'Add a new repo to projects.json with auto-detected settings';
 
@@ -19,23 +22,89 @@ interface DetectedRepo {
   evidenceStrategy: EvidenceStrategy;
 }
 
-export async function handler(argv: string[]): Promise<number> {
-  const repoPath = argv[0];
+interface OnboardFlags {
+  /** Positional path argument (or repo name when reInterview is set). */
+  argument?: string;
+  /** Run the interactive interview after the mechanical probe. */
+  interview: boolean;
+  /** Re-interview an already-onboarded repo (argument is a repo name). */
+  reInterview: boolean;
+  help: boolean;
+}
 
-  if (!repoPath || repoPath === '--help' || repoPath === '-h') {
-    process.stderr.write('Usage: ca onboard <path-to-repo>\n');
-    process.stderr.write('\nProbes the repo for package manager, language, scripts, and git remote.\n');
-    process.stderr.write('Adds an entry to projects.json with the detected settings.\n');
-    return repoPath ? 0 : 1;
+export async function handler(argv: string[]): Promise<number> {
+  const flags = parseFlags(argv);
+
+  if (flags.help) {
+    printUsage();
+    return 0;
   }
 
+  if (!flags.argument) {
+    printUsage();
+    return 1;
+  }
+
+  const caseRoot = resolvePackageRoot();
+
+  if (flags.reInterview) {
+    return runReInterview(flags.argument!, caseRoot);
+  }
+
+  return runOnboard(flags.argument!, caseRoot, { interview: flags.interview });
+}
+
+function parseFlags(argv: string[]): OnboardFlags {
+  const flags: OnboardFlags = {
+    interview: false,
+    reInterview: false,
+    help: false,
+  };
+
+  for (const arg of argv) {
+    if (arg === '--help' || arg === '-h') {
+      flags.help = true;
+      continue;
+    }
+    if (arg === '--interview') {
+      flags.interview = true;
+      continue;
+    }
+    if (arg === '--re-interview') {
+      flags.reInterview = true;
+      continue;
+    }
+    if (arg.startsWith('-')) {
+      // Unknown flag — ignored for forward compatibility.
+      continue;
+    }
+    if (!flags.argument) flags.argument = arg;
+  }
+
+  return flags;
+}
+
+function printUsage(): void {
+  process.stderr.write('Usage: ca onboard <path-to-repo> [--interview]\n');
+  process.stderr.write('       ca onboard <repo-name> --re-interview\n');
+  process.stderr.write('\nProbes the repo for package manager, language, scripts, and git remote.\n');
+  process.stderr.write('Adds an entry to projects.json with the detected settings.\n');
+  process.stderr.write('\nFlags:\n');
+  process.stderr.write('  --interview      Run the interactive interview after mechanical probe.\n');
+  process.stderr.write('  --re-interview   Re-run the interview for an already-onboarded repo (argument is repo name).\n');
+}
+
+async function runOnboard(
+  repoPath: string,
+  caseRoot: string,
+  options: { interview: boolean },
+): Promise<number> {
   const absPath = resolve(repoPath);
   if (!existsSync(absPath)) {
     process.stderr.write(`Error: path not found: ${absPath}\n`);
     return 1;
   }
 
-  const caseRoot = resolvePackageRoot();
   const manifest = await loadOrCreateManifest(caseRoot);
 
   const existing = manifest.repos.find(
@@ -49,7 +118,119 @@ export async function handler(argv: string[]): Promise<number> {
   process.stdout.write(`Probing ${absPath}...\n`);
 
   const detected = await probeRepo(absPath, manifest.repoBasePath);
+  printDetected(detected);
 
+  let entry: ProjectEntry = toMechanicalEntry(detected);
+  let findings: InterviewFindings | null = null;
+
+  if (options.interview) {
+    findings = await startInterviewSession({
+      repoPath: absPath,
+      detected,
+      caseRoot,
+    });
+    if (findings) {
+      const validation = validateEvidenceStrategy(findings);
+      for (const warning of validation.warnings) {
+        process.stderr.write(`  Warning: ${warning}\n`);
+      }
+      entry = synthesizeProjectEntry(findings, detected);
+    } else {
+      process.stderr.write('  Interview yielded no findings — writing mechanical entry only.\n');
+    }
+  }
+
+  try {
+    writeProjectsEntry(manifest.path, entry);
+  } catch (err) {
+    process.stderr.write(`Error writing projects.json: ${(err as Error).message}\n`);
+    return 1;
+  }
+
+  if (findings) {
+    writeLearnings(absPath, findings);
+    writeClaudeLocal(absPath, findings);
+  }
+
+  return runBootstrapStep(entry.name, caseRoot);
+}
+
+async function runReInterview(repoName: string, caseRoot: string): Promise<number> {
+  const manifest = await loadProjectsManifest(caseRoot).catch(() => null);
+  if (!manifest) {
+    process.stderr.write(
+      `Error: projects.json not found. Run 'ca init' or 'ca onboard <path>' first.\n`,
+    );
+    return 1;
+  }
+
+  const existing = manifest.repos.find((r) => r.name === repoName);
+  if (!existing) {
+    const available = manifest.repos.map((r) => r.name).join(', ') || '(none)';
+    process.stderr.write(
+      `Error: repo "${repoName}" not found in projects.json.\n` +
+        `Available repos: ${available}\n`,
+    );
+    return 1;
+  }
+
+  const absPath = resolve(manifest.repoBasePath, existing.path);
+  if (!existsSync(absPath)) {
+    process.stderr.write(`Error: repo path not found on disk: ${absPath}\n`);
+    return 1;
+  }
+
+  process.stdout.write(`Re-interviewing ${existing.name} (${absPath})...\n`);
+
+  const detected = await probeRepo(absPath, manifest.repoBasePath);
+  printDetected(detected);
+
+  const findings = await startInterviewSession({
+    repoPath: absPath,
+    detected,
+    caseRoot,
+    existingEntry: existing,
+  });
+
+  if (!findings) {
+    process.stderr.write('Interview yielded no findings — projects.json unchanged.\n');
+    return 1;
+  }
+
+  const validation = validateEvidenceStrategy(findings);
+  for (const warning of validation.warnings) {
+    process.stderr.write(`  Warning: ${warning}\n`);
+  }
+
+  const entry = synthesizeProjectEntry(findings, detected);
+
+  try {
+    writeProjectsEntry(manifest.path, entry, existing.name);
+  } catch (err) {
+    process.stderr.write(`Error updating projects.json: ${(err as Error).message}\n`);
+    return 1;
+  }
+
+  writeLearnings(absPath, findings);
+  writeClaudeLocal(absPath, findings);
+
+  return runBootstrapStep(entry.name, caseRoot);
+}
+
+function toMechanicalEntry(detected: DetectedRepo): ProjectEntry {
+  return {
+    name: detected.name,
+    evidenceStrategy: detected.evidenceStrategy,
+    path: detected.path,
+    remote: detected.remote,
+    description: detected.description,
+    language: detected.language,
+    packageManager: detected.packageManager,
+    commands: detected.commands,
+  };
+}
+
+function printDetected(detected: DetectedRepo): void {
   process.stdout.write(`\n  Name:             ${detected.name}\n`);
   process.stdout.write(`  Path:             ${detected.path}\n`);
   process.stdout.write(`  Remote:           ${detected.remote}\n`);
@@ -61,30 +242,14 @@ export async function handler(argv: string[]): Promise<number> {
   for (const [key, cmd] of Object.entries(detected.commands)) {
     process.stdout.write(`    ${key}: ${cmd}\n`);
   }
+  process.stdout.write('\n');
+}
 
-  const entry: ProjectEntry = {
-    name: detected.name,
-    evidenceStrategy: detected.evidenceStrategy,
-    path: detected.path,
-    remote: detected.remote,
-    description: detected.description,
-    language: detected.language,
-    packageManager: detected.packageManager,
-    commands: detected.commands,
-  };
-
-  const raw = readFileSync(manifest.path, 'utf-8');
-  const json = JSON.parse(raw) as { $schema?: string; repos: ProjectEntry[] };
-  json.repos.push(entry);
-  await Bun.write(manifest.path, JSON.stringify(json, null, 2) + '\n');
-
-  process.stdout.write(`\nAdded "${detected.name}" to ${manifest.path}\n`);
-
-  // Run bootstrap to validate
+async function runBootstrapStep(repoName: string, caseRoot: string): Promise<number> {
   process.stdout.write(`\nRunning bootstrap...\n`);
   const { runBootstrap } = await import('./bootstrap.js');
   try {
-    const result = await runBootstrap(detected.name, caseRoot);
+    const result = await runBootstrap(repoName, caseRoot);
     for (const step of result.steps) {
       const seconds = (step.durationMs / 1000).toFixed(1);
       const tag = step.exitCode === 0 ? 'OK' : 'FAIL';
@@ -95,12 +260,11 @@ export async function handler(argv: string[]): Promise<number> {
       return 1;
     }
     process.stdout.write('Ready.\n');
+    return 0;
   } catch (err) {
     process.stderr.write(`Bootstrap error: ${(err as Error).message}\n`);
     return 1;
   }
-
-  return 0;
 }
 
 async function loadOrCreateManifest(caseRoot: string): Promise<LoadedProjectsManifest> {
