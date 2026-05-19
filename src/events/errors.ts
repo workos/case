@@ -59,6 +59,7 @@ export function validateTransition(event: PipelineEvent, state: PipelineState | 
     case 'tool_end':
     case 'revision_budget_exhausted':
     case 'fingerprint_match':
+    case 'scout_completed':
     case 'status_changed':
     case 'marker_written': {
       assertRunning(event, state);

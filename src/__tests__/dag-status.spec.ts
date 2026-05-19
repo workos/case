@@ -77,6 +77,7 @@ describe('projectStatusFromGraph', () => {
 
   test('returns merged when all nodes are completed/skipped', () => {
     const graph = buildGraph('standard', 2);
+    setNodeState(graph, 'scout_0', 'completed');
     setNodeState(graph, 'implement_0', 'completed');
     setNodeState(graph, 'verify_0', 'completed');
     setNodeState(graph, 'review_0', 'completed');

@@ -33,6 +33,7 @@ export class UnknownOutcomeError extends Error {
  * (e.g. `fail-github-unreachable` only makes sense for `close`).
  */
 const APPLICABLE_OUTCOMES: Record<PhaseName, readonly OutcomeKind[]> = {
+  scout: ['success', 'fail-timeout', 'fail-agent-protocol', 'abort-user'],
   implement: [
     'success',
     'fail-test',
@@ -62,18 +63,8 @@ const APPLICABLE_OUTCOMES: Record<PhaseName, readonly OutcomeKind[]> = {
     'budget-exhausted',
     'abort-user',
   ],
-  close: [
-    'success',
-    'fail-github-unreachable',
-    'fail-agent-protocol',
-    'fail-timeout',
-    'abort-user',
-  ],
-  retrospective: [
-    'success',
-    'fail-timeout',
-    'fail-agent-protocol',
-  ],
+  close: ['success', 'fail-github-unreachable', 'fail-agent-protocol', 'fail-timeout', 'abort-user'],
+  retrospective: ['success', 'fail-timeout', 'fail-agent-protocol'],
 } as const;
 
 /** Return the outcomes that may apply to a given phase. */
@@ -83,6 +74,7 @@ export function applicableOutcomes(phase: PhaseName): readonly OutcomeKind[] {
 
 /** All phases that participate in the matrix, in canonical pipeline order. */
 export const ALL_PHASES: readonly PhaseName[] = [
+  'scout',
   'implement',
   'verify',
   'review',
@@ -116,6 +108,31 @@ const k = (phase: PhaseName, outcome: OutcomeKind): PhaseOutcomeKey => `${phase}
  * present here will throw `UnknownOutcomeError` at lookup time.
  */
 const MATRIX = new Map<PhaseOutcomeKey, OutcomeAction>([
+  // ---- scout ----
+  // Scout is advisory: every failure mode routes the executor to the
+  // implementer with a warning rather than aborting. The executor models
+  // this as `skip-to: implement` so the surface stays consistent with the
+  // other `skip-to` entries (revision-budget-exhausted, retrospective
+  // failures).
+  [k('scout', 'success'), { action: 'advance', to: 'implement' }],
+  [
+    k('scout', 'fail-timeout'),
+    {
+      action: 'skip-to',
+      to: 'implement',
+      withWarning: 'scout timed out; implementer will run without scout findings',
+    },
+  ],
+  [
+    k('scout', 'fail-agent-protocol'),
+    {
+      action: 'skip-to',
+      to: 'implement',
+      withWarning: 'scout returned malformed AGENT_RESULT; implementer will run without scout findings',
+    },
+  ],
+  [k('scout', 'abort-user'), { action: 'abort', reason: 'user requested abort' }],
+
   // ---- implement ----
   [k('implement', 'success'), { action: 'advance', to: 'verify' }],
   [k('implement', 'fail-test'), { action: 'retry', maxAttempts: 1 }],
@@ -124,7 +141,10 @@ const MATRIX = new Map<PhaseOutcomeKey, OutcomeAction>([
   [k('implement', 'fail-build'), { action: 'retry', maxAttempts: 1 }],
   [k('implement', 'fail-timeout'), { action: 'abort', reason: 'implementer timed out' }],
   [k('implement', 'fail-agent-protocol'), { action: 'abort', reason: 'implementer returned malformed AGENT_RESULT' }],
-  [k('implement', 'fail-no-code-changes'), { action: 'abort', reason: 'implementer produced no code changes; nothing to verify' }],
+  [
+    k('implement', 'fail-no-code-changes'),
+    { action: 'abort', reason: 'implementer produced no code changes; nothing to verify' },
+  ],
   [k('implement', 'abort-user'), { action: 'abort', reason: 'user requested abort' }],
 
   // ---- verify ----
@@ -145,11 +165,15 @@ const MATRIX = new Map<PhaseOutcomeKey, OutcomeAction>([
   // `src/dag/fingerprint.ts`). The executor emits a more specific
   // notifier/event message at runtime; this matrix entry routes both cases
   // through the same skip-to-close path.
-  [k('review', 'budget-exhausted'), {
-    action: 'skip-to',
-    to: 'close',
-    withWarning: 'revision budget exhausted (or identical failure fingerprint across cycles); closing with reviewer warnings',
-  }],
+  [
+    k('review', 'budget-exhausted'),
+    {
+      action: 'skip-to',
+      to: 'close',
+      withWarning:
+        'revision budget exhausted (or identical failure fingerprint across cycles); closing with reviewer warnings',
+    },
+  ],
   [k('review', 'fail-timeout'), { action: 'abort', reason: 'reviewer timed out' }],
   [k('review', 'fail-agent-protocol'), { action: 'abort', reason: 'reviewer returned malformed AGENT_RESULT' }],
   [k('review', 'abort-user'), { action: 'abort', reason: 'user requested abort' }],
@@ -157,22 +181,34 @@ const MATRIX = new Map<PhaseOutcomeKey, OutcomeAction>([
   // ---- close ----
   [k('close', 'success'), { action: 'advance', to: 'retrospective' }],
   [k('close', 'fail-github-unreachable'), { action: 'retry', maxAttempts: 1 }],
-  [k('close', 'fail-agent-protocol'), { action: 'surface', message: 'closer returned malformed AGENT_RESULT; manual PR may be required' }],
-  [k('close', 'fail-timeout'), { action: 'surface', message: 'closer timed out; PR may be partially created — verify manually' }],
+  [
+    k('close', 'fail-agent-protocol'),
+    { action: 'surface', message: 'closer returned malformed AGENT_RESULT; manual PR may be required' },
+  ],
+  [
+    k('close', 'fail-timeout'),
+    { action: 'surface', message: 'closer timed out; PR may be partially created — verify manually' },
+  ],
   [k('close', 'abort-user'), { action: 'abort', reason: 'user requested abort' }],
 
   // ---- retrospective (never blocks the pipeline) ----
   [k('retrospective', 'success'), { action: 'advance', to: 'complete' }],
-  [k('retrospective', 'fail-timeout'), {
-    action: 'skip-to',
-    to: 'complete',
-    withWarning: 'retrospective timed out; pipeline complete without learnings update',
-  }],
-  [k('retrospective', 'fail-agent-protocol'), {
-    action: 'skip-to',
-    to: 'complete',
-    withWarning: 'retrospective returned malformed AGENT_RESULT; pipeline complete without learnings update',
-  }],
+  [
+    k('retrospective', 'fail-timeout'),
+    {
+      action: 'skip-to',
+      to: 'complete',
+      withWarning: 'retrospective timed out; pipeline complete without learnings update',
+    },
+  ],
+  [
+    k('retrospective', 'fail-agent-protocol'),
+    {
+      action: 'skip-to',
+      to: 'complete',
+      withWarning: 'retrospective returned malformed AGENT_RESULT; pipeline complete without learnings update',
+    },
+  ],
 ]);
 
 /**

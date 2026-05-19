@@ -105,22 +105,30 @@ class MockNotifier {
 }
 
 describe('findReadyNodes', () => {
-  test('returns root nodes (no incoming edges) that are pending', () => {
+  test('returns root nodes (no incoming edges) that are pending — scout in standard profile', () => {
     const graph = buildGraph('standard', 2);
     const ready = findReadyNodes(graph);
     expect(ready).toHaveLength(1);
-    expect(ready[0].id).toBe('implement_0');
+    expect(ready[0].id).toBe('scout_0');
   });
 
   test('returns nothing when root node is already running', () => {
     const graph = buildGraph('standard', 2);
-    graph.nodes.get('implement_0')!.state = 'running';
+    graph.nodes.get('scout_0')!.state = 'running';
     const ready = findReadyNodes(graph);
     expect(ready).toHaveLength(0);
   });
 
+  test('after scout completes, implement_0 becomes ready', () => {
+    const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
+    const ready = findReadyNodes(graph);
+    expect(ready.map((n) => n.id)).toEqual(['implement_0']);
+  });
+
   test('returns only verify_0 when implement_0 is completed (review waits for verify)', () => {
     const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
     graph.nodes.get('implement_0')!.state = 'completed';
     const ready = findReadyNodes(graph);
     const ids = ready.map((n) => n.id).sort();
@@ -129,6 +137,7 @@ describe('findReadyNodes', () => {
 
   test('returns nothing when evaluators complete but predicates not satisfied', () => {
     const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
     graph.nodes.get('implement_0')!.state = 'completed';
     graph.nodes.get('verify_0')!.state = 'completed';
     // review_0 still pending — close predicate needs both

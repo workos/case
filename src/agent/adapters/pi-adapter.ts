@@ -194,6 +194,12 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
       case 'implementer':
       case 'retrospective':
         return [createReadTool(cwd), createWriteTool(cwd), createEditTool(cwd), createBashTool(cwd)];
+      case 'scout':
+        // Read-only exploration: Read + Bash only. Glob/Grep are exposed via
+        // the Bash tool in the pi-coding-agent suite (the agent runs `rg`,
+        // `find`, etc.). Crucially: no Write, no Edit — the scout must not
+        // mutate the working tree.
+        return [createReadTool(cwd), createBashTool(cwd)];
       case 'verifier':
       case 'reviewer':
       case 'closer':

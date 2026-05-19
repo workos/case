@@ -63,7 +63,7 @@ async function setupTempFiles() {
   const agentsDir = join(tempCaseRoot, 'agents');
   await mkdir(agentsDir, { recursive: true });
   await mkdir(join(tempCaseRoot, '.case'), { recursive: true });
-  for (const agent of ['implementer', 'verifier', 'reviewer', 'closer', 'retrospective']) {
+  for (const agent of ['scout', 'implementer', 'verifier', 'reviewer', 'closer', 'retrospective']) {
     await Bun.write(join(agentsDir, `${agent}.md`), `# ${agent}`);
   }
 }
@@ -130,6 +130,30 @@ const failedAgentOutput: AgentResult = {
 /** Build a fake AGENT_RESULT raw string that parseAgentResult can extract */
 function agentRaw(result: AgentResult): string {
   return `\n<<<AGENT_RESULT\n${JSON.stringify(result)}\nAGENT_RESULT>>>\n`;
+}
+
+/**
+ * Scout AGENT_RESULT envelope for happy-path pipeline tests. The scout runs
+ * first in the standard profile, so every test that starts at `active`
+ * status needs a scout mock at the head of its spawn queue. Tests that
+ * resume from a later status (e.g., `verifying`) skip scout.
+ */
+const scoutAgentOutput: AgentResult = {
+  ...completedAgentOutput,
+  summary: 'Scout found 0 relevant files',
+  findings: {
+    relevantFiles: [],
+    patterns: [],
+    constraints: [],
+  } as any,
+};
+
+function scoutSpawn() {
+  return {
+    raw: agentRaw(scoutAgentOutput),
+    result: scoutAgentOutput,
+    durationMs: 50,
+  };
 }
 
 const mockTask: TaskJson = {
@@ -201,6 +225,7 @@ describe('runPipeline', () => {
   it('happy path: all phases complete successfully', async () => {
     // Each spawnAgent call returns a different AGENT_RESULT for each phase
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
@@ -209,8 +234,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // 5 agent spawns: implementer, verifier, reviewer, closer, retrospective
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    // 6 agent spawns: scout, implementer, verifier, reviewer, closer, retrospective
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(6);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('PR created'));
     expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
     expect(mockWriteRunMetrics).toHaveBeenCalled();
@@ -218,6 +243,7 @@ describe('runPipeline', () => {
 
   it('implement failure -> user aborts -> retrospective runs', async () => {
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer fails
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // retry also fails
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
@@ -241,6 +267,7 @@ describe('runPipeline', () => {
 
   it('unattended mode auto-aborts on failure', async () => {
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 });
 
@@ -259,8 +286,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig({ mode: 'unattended' }));
 
-    // Should still run retrospective
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(2); // implementer + retrospective
+    // Should still run retrospective. 3 spawns: scout + implementer + retrospective.
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(3);
   });
 
   it('re-entry from verifying status skips implement phase', async () => {
@@ -297,6 +324,7 @@ describe('runPipeline', () => {
   it('metrics are written at the end', async () => {
     const config = makeConfig({ repoPath: join(tempCaseRoot, 'target-repo') });
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
@@ -323,6 +351,7 @@ describe('runPipeline', () => {
     const verifierClean: AgentResult = { ...completedAgentOutput };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
       .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (finds issue)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
@@ -333,8 +362,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // 7 spawns: impl, verify(fail), impl(revision), verify(pass), review, close, retro
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(7);
+    // 8 spawns: scout, impl, verify(fail), impl(revision), verify(pass), review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1'));
     expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
   });
@@ -349,6 +378,7 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
       .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (cycle 1 trigger)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 1)
@@ -380,6 +410,7 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
       .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail)
@@ -391,7 +422,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    // 9 spawns: scout, impl, verify, review(soft-fail), impl(rev), verify(clean), review(clean), close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(9);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1: reviewer'));
   });
 
@@ -405,6 +437,7 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (has fails but budget=0)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
@@ -413,8 +446,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig({ maxRevisionCycles: 0 }));
 
-    // No revision — straight through: impl, verify, review, close, retro
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    // No revision — straight through: scout, impl, verify, review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(6);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
   });
 
@@ -428,24 +461,25 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
-      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fail)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
+      .mockResolvedValueOnce(scoutSpawn()) // scout (index 0)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer initial (index 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fail) (index 2)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer revision (index 3)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier clean
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
       .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
 
     await runPipeline(makeConfig());
 
-    // Second implementer call (index 2) should have REVISION CONTEXT in prompt
-    const revisionPrompt = mockSpawnAgent.mock.calls[2][0].prompt;
+    // Revision implementer call (index 3 — scout, impl, verify, impl-revision) should have REVISION CONTEXT
+    const revisionPrompt = mockSpawnAgent.mock.calls[3][0].prompt;
     expect(revisionPrompt).toContain('REVISION CONTEXT');
     expect(revisionPrompt).toContain('edge-case-checked');
     expect(revisionPrompt).toContain('Missing null check');
 
-    // First implementer call (index 0) should NOT have revision context
-    const initialPrompt = mockSpawnAgent.mock.calls[0][0].prompt;
+    // Initial implementer call (index 1, after scout) should NOT have revision context
+    const initialPrompt = mockSpawnAgent.mock.calls[1][0].prompt;
     expect(initialPrompt).not.toContain('REVISION CONTEXT');
   });
 
@@ -459,10 +493,11 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
-      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (triggers revision)
-      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer (revision attempt 1 — fails)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (retry within revision — succeeds)
+      .mockResolvedValueOnce(scoutSpawn()) // scout (index 0)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer initial (index 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier triggers revision (index 2)
+      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer revision attempt 1 fails (index 3)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer retry within revision succeeds (index 4)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
@@ -480,13 +515,13 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // 8 spawns: impl, verify(fail), impl(revision-fails), impl(retry-succeeds), verify(clean), review, close, retro
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    // 9 spawns: scout, impl, verify(fail), impl(revision-fails), impl(retry-succeeds), verify(clean), review, close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(9);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1'));
     expect(mockNotifierSend).toHaveBeenCalledWith('Pipeline completed successfully.');
 
     // The retry prompt should contain RETRY CONTEXT (not REVISION CONTEXT)
-    const retryCall = mockSpawnAgent.mock.calls[3]; // 4th spawn = retry within revision
+    const retryCall = mockSpawnAgent.mock.calls[4]; // 5th spawn = retry within revision (index 4)
     expect(retryCall[0].prompt).toContain('RETRY CONTEXT');
   });
 
@@ -507,11 +542,12 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
-      .mockResolvedValueOnce({ raw: agentRaw(verifierFail1), result: verifierFail1, durationMs: 100 }) // verifier (cycle 1)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 1)
-      .mockResolvedValueOnce({ raw: agentRaw(verifierFail2), result: verifierFail2, durationMs: 100 }) // verifier (cycle 2)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision 2)
+      .mockResolvedValueOnce(scoutSpawn()) // scout (index 0)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer initial (index 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierFail1), result: verifierFail1, durationMs: 100 }) // verifier cycle 1 (index 2)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer revision 1 (index 3)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierFail2), result: verifierFail2, durationMs: 100 }) // verifier cycle 2 (index 4)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer revision 2 (index 5)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
@@ -519,8 +555,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // Revision 2 implementer (index 4) should have cycle 2 context, not cycle 1
-    const revision2Prompt = mockSpawnAgent.mock.calls[4][0].prompt;
+    // Revision 2 implementer (index 5 after scout) should have cycle 2 context, not cycle 1
+    const revision2Prompt = mockSpawnAgent.mock.calls[5][0].prompt;
     expect(revision2Prompt).toContain('cycle 2');
     expect(revision2Prompt).toContain('Second issue: no screenshot');
     // Should NOT contain cycle 1's issue (context replaced, not accumulated)
@@ -549,6 +585,7 @@ describe('runPipeline', () => {
 
     // maxRevisionCycles=1: verify uses the one cycle, reviewer can't use any
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (uses cycle 1)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
@@ -560,7 +597,8 @@ describe('runPipeline', () => {
     await runPipeline(makeConfig({ maxRevisionCycles: 1 }));
 
     // Verify used cycle 1. Reviewer finds soft fail but budget exhausted → proceeds to close.
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(7);
+    // 8 spawns: scout, impl, verify, impl(rev), verify(clean), review(soft-fail), close, retro
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision cycle 1: verifier'));
     expect(mockNotifierSend).toHaveBeenCalledWith(expect.stringContaining('Revision budget exhausted'));
   });
@@ -599,6 +637,7 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
       .mockResolvedValueOnce({ raw: agentRaw(reviewerSoftFail), result: reviewerSoftFail, durationMs: 100 }) // reviewer (soft fail)
@@ -610,8 +649,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // Verify the revision loop fired (8 spawns, not 5)
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(8);
+    // Verify the revision loop fired (9 spawns including scout)
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(9);
   });
 
   it('standard profile runs all phases (backward compat)', async () => {
@@ -619,6 +658,7 @@ describe('runPipeline', () => {
     mockStoreRead.mockResolvedValue(standardTask);
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
@@ -627,13 +667,14 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // 5 agents: all phases
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    // 6 agents: scout + all phases
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(6);
   });
 
   it('task without profile field defaults to standard (all phases)', async () => {
     // mockTask has no profile field — should default to standard
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 })
@@ -642,7 +683,7 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(5);
+    expect(mockSpawnAgent).toHaveBeenCalledTimes(6);
   });
 
   it('revision request is persisted to task store', async () => {
@@ -655,6 +696,7 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
+      .mockResolvedValueOnce(scoutSpawn()) // scout
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer
       .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (fail)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (revision)
@@ -686,10 +728,11 @@ describe('runPipeline', () => {
     };
 
     mockSpawnAgent
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (initial)
-      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier (triggers revision)
-      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer (revision — fails)
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer (retry — succeeds)
+      .mockResolvedValueOnce(scoutSpawn()) // scout (index 0)
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer initial (index 1)
+      .mockResolvedValueOnce({ raw: agentRaw(verifierWithFail), result: verifierWithFail, durationMs: 100 }) // verifier triggers revision
+      .mockResolvedValueOnce({ raw: agentRaw(failedAgentOutput), result: failedAgentOutput, durationMs: 100 }) // implementer revision fails
+      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // implementer retry succeeds (index 4)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier (clean)
       .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
       .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
@@ -718,8 +761,8 @@ describe('runPipeline', () => {
 
     await runPipeline(makeConfig());
 
-    // The retry (4th spawn, index 3) should still have REVISION CONTEXT
-    const retryPrompt = mockSpawnAgent.mock.calls[3][0].prompt;
+    // The retry (5th spawn, index 4) should still have REVISION CONTEXT
+    const retryPrompt = mockSpawnAgent.mock.calls[4][0].prompt;
     expect(retryPrompt).toContain('REVISION CONTEXT');
     expect(retryPrompt).toContain('edge-case-checked');
   });

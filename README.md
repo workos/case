@@ -178,7 +178,7 @@ The runtime uses a deterministic TypeScript pipeline executor for phase transiti
 
 Profiles:
 
-- `standard`: implement, verify, review, close, retrospective.
+- `standard`: scout, implement, verify, review, close, retrospective.
 - `tiny`: implement, review, close, retrospective. Use only for docs, typos, and mechanical config changes where independent verification is not useful.
 
 Revision loops are evaluator-driven. A verifier or reviewer rubric failure can send structured feedback back to the implementer. The default revision budget is two cycles.

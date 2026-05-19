@@ -1,4 +1,4 @@
-import type { AgentName, AgentResult, PipelineConfig, RevisionRequest } from './types.js';
+import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, ScoutFindings } from './types.js';
 import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { formatDuration } from './notify.js';
@@ -6,6 +6,7 @@ import { createStructuredLogRenderer } from './render/structured-log.js';
 import { createTuiRenderer, type TuiRenderer } from './render/tui-renderer.js';
 import type { Notifier } from './notify.js';
 import { runImplementPhase } from './phases/implement.js';
+import { runScoutPhase } from './phases/scout.js';
 import { runVerifyPhase } from './phases/verify.js';
 import { runReviewPhase } from './phases/review.js';
 import { runClosePhase } from './phases/close.js';
@@ -158,6 +159,11 @@ async function runPipelineBody(
 
   log.info('pipeline started', { phase: 'init', mode: config.mode, task: task.id, runId });
 
+  // Shared scout findings — populated by the scout dispatch, consumed by
+  // the implementer dispatch. Closed-over so revision cycles also see the
+  // same findings (scout runs once per pipeline).
+  const scoutSlot: { current: ScoutFindings | null } = { current: null };
+
   const ctx: ExecuteGraphContext = {
     graph,
     appender,
@@ -175,6 +181,10 @@ async function runPipelineBody(
         },
         setFailedAgent: (a) => {
           failedAgent = a;
+        },
+        getScoutFindings: () => scoutSlot.current,
+        setScoutFindings: (f) => {
+          scoutSlot.current = f;
         },
       });
     },
@@ -224,6 +234,8 @@ interface PipelineCallbacks {
   outcome: () => 'completed' | 'failed';
   setOutcome: (o: 'completed' | 'failed') => void;
   setFailedAgent: (a: AgentName) => void;
+  getScoutFindings: () => ScoutFindings | null;
+  setScoutFindings: (f: ScoutFindings | null) => void;
 }
 
 /**
@@ -256,11 +268,36 @@ async function dispatchNode(
   callbacks: PipelineCallbacks,
 ): Promise<AgentResult> {
   switch (node.phase) {
+    case 'scout': {
+      const output = await runScoutPhase(config, store);
+      consultMatrix(output.outcome);
+      callbacks.setScoutFindings(output.findings);
+      // Emit a lightweight audit event so cross-run analytics can track
+      // scout coverage without reading the phase_end payload.
+      if (config.eventAppender) {
+        const elapsedMs = output.result.summary.startsWith('[dry-run]')
+          ? 0
+          : Date.now() - Date.parse(node.startedAt ?? new Date().toISOString());
+        await config.eventAppender.append({
+          event: 'scout_completed',
+          hasFindings: output.findings !== null,
+          relevantFileCount: output.findings?.relevantFiles.length ?? 0,
+          patternCount: output.findings?.patterns.length ?? 0,
+          durationMs: Math.max(0, elapsedMs),
+        });
+      }
+      // Scout is non-blocking: always surface a `completed` status so the
+      // executor advances to implement_0 regardless of whether findings
+      // were produced. The typed outcome (consulted above) records the
+      // real success/failure for audit fidelity.
+      return { ...output.result, status: 'completed' };
+    }
+
     case 'implement': {
       if (revision) {
         await store.setPendingRevision(revision);
       }
-      const output = await runImplementPhase(config, store, previousResults, revision);
+      const output = await runImplementPhase(config, store, previousResults, revision, callbacks.getScoutFindings());
       consultMatrix(output.outcome);
       if (output.nextPhase === 'abort') {
         const choice = await handleFailure(notifier, config, 'implementer', output.result, [
@@ -377,6 +414,16 @@ function markCyclesCompleted(
   toCycle: number,
 ): void {
   const phases = PROFILE_PHASES[profile];
+  // Scout runs only at cycle 0 and only once per pipeline. When the pending
+  // revision lives at cycle >= 1, scout has already completed.
+  if (fromCycle === 0 && phases.includes('scout')) {
+    const scoutNode = graph.nodes.get('scout_0');
+    if (scoutNode && scoutNode.state === 'pending') {
+      scoutNode.state = 'completed';
+      scoutNode.startedAt = new Date().toISOString();
+      scoutNode.completedAt = new Date().toISOString();
+    }
+  }
   for (let c = fromCycle; c <= toCycle; c++) {
     for (const phase of ['implement', 'verify', 'review']) {
       if (phase === 'verify' && !phases.includes('verify')) continue;
@@ -403,6 +450,19 @@ function seedGraphFromTaskStatus(
     evaluating: 'review_0',
     closing: 'close',
   };
+
+  // Scout has no dedicated TaskStatus — when we resume past `active`, the
+  // scout phase already ran (or was skipped because the profile didn't
+  // include it). Mark scout_0 completed so its outgoing edge to implement_0
+  // is satisfied during resume.
+  if (status !== 'active' && PROFILE_PHASES[profile].includes('scout')) {
+    const scoutNode = graph.nodes.get('scout_0');
+    if (scoutNode && scoutNode.state === 'pending') {
+      scoutNode.state = 'completed';
+      scoutNode.startedAt = new Date().toISOString();
+      scoutNode.completedAt = new Date().toISOString();
+    }
+  }
 
   for (const phase of phaseOrder) {
     if (phase === status) break;

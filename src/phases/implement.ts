@@ -7,6 +7,7 @@ import type {
   PhaseOutput,
   PipelineConfig,
   RevisionRequest,
+  ScoutFindings,
 } from '../types.js';
 import { TaskStore } from '../state/task-store.js';
 import { spawnAgent } from '../agent/pi-runner.js';
@@ -15,6 +16,7 @@ import { prefetchRepoContext } from '../context/prefetch.js';
 import { analyzeFailure } from '../commands/analyze-failure.js';
 import { readWorkingMemory } from '../memory/working-memory.js';
 import { formatForImplementer, taskSlugFromTaskJsonPath } from '../memory/format.js';
+import { synthesizeForImplementer } from '../scout/findings.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -28,6 +30,7 @@ export async function runImplementPhase(
   store: TaskStore,
   previousResults: Map<AgentName, AgentResult>,
   revision?: RevisionRequest,
+  scoutFindings?: ScoutFindings | null,
 ): Promise<PhaseOutput> {
   log.phase('implement', 'started');
 
@@ -39,7 +42,8 @@ export async function runImplementPhase(
   const task = await store.read();
   const repoContext = await prefetchRepoContext(config, 'implementer');
   const basePrompt = await assemblePrompt('implementer', config, task, repoContext, previousResults, revision);
-  const prompt = prependWorkingMemory(basePrompt, config);
+  const withMemory = prependWorkingMemory(basePrompt, config);
+  const prompt = prependScoutFindings(withMemory, scoutFindings);
 
   const spawn = config.runtime?.spawn.bind(config.runtime) ?? spawnAgent;
   const { result } = await spawn({
@@ -181,6 +185,20 @@ function prependWorkingMemory(basePrompt: string, config: PipelineConfig): strin
   const memory = readWorkingMemory(taskDir);
   if (!memory) return basePrompt;
   return formatForImplementer(memory) + '\n' + basePrompt;
+}
+
+/**
+ * Prepend the synthesized scout-findings block when scout produced findings.
+ * Slots in **after** working memory (so prior-context still leads the prompt
+ * on revision cycles) and **before** the implementer template's numbered
+ * workflow. When `scoutFindings` is `null` or `undefined`, the prompt is
+ * returned unchanged — backwards-compatible with the tiny profile and with
+ * scout failures.
+ */
+function prependScoutFindings(basePrompt: string, scoutFindings?: ScoutFindings | null): string {
+  if (!scoutFindings) return basePrompt;
+  const block = synthesizeForImplementer(scoutFindings);
+  return `${block}\n\n${basePrompt}`;
 }
 
 function dryRunResult(phase: string): PhaseOutput {

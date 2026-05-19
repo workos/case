@@ -7,6 +7,22 @@ export function buildGraph(profile: PipelineProfile, maxRevisionCycles: number):
   const edges: DagEdge[] = [];
   const phases = PROFILE_PHASES[profile];
   const hasVerify = phases.includes('verify');
+  const hasScout = phases.includes('scout');
+
+  // Scout runs once per pipeline (cycle 0 only). Its findings are stable
+  // across revision cycles, so re-running it on every cycle would be wasted
+  // work. The scout node is added before `implement_0` and wires an
+  // unconditional edge into it — scout failure is non-blocking and the
+  // executor routes the implementer through regardless.
+  if (hasScout) {
+    nodes.set(nodeId('scout', 0), {
+      id: nodeId('scout', 0),
+      phase: 'scout',
+      agent: 'scout',
+      cycle: 0,
+      state: 'pending',
+    });
+  }
 
   for (let cycle = 0; cycle <= maxRevisionCycles; cycle++) {
     const implId = nodeId('implement', cycle);
@@ -17,6 +33,14 @@ export function buildGraph(profile: PipelineProfile, maxRevisionCycles: number):
       cycle,
       state: 'pending',
     });
+
+    // Wire scout → implement_0 once the implement_0 node exists.
+    if (hasScout && cycle === 0) {
+      edges.push({
+        from: nodeId('scout', 0),
+        to: implId,
+      });
+    }
 
     if (hasVerify) {
       const verifyId = nodeId('verify', cycle);
