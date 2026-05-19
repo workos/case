@@ -31,7 +31,7 @@ ca 1234
 Case detects the repo, fetches the GitHub issue, creates task files, runs a baseline check, and dispatches the pipeline:
 
 ```text
-implementer -> verifier -> reviewer -> closer -> retrospective
+scout -> implementer -> verifier -> reviewer -> closer -> retrospective
 ```
 
 For unclear work, use the human steering path:
@@ -119,6 +119,7 @@ ca status <task.json> [field value...]
 ca mark-tested
 ca mark-manual-tested
 ca mark-reviewed --critical 0
+ca update-memory --state "..." --approach "..." --file <path>
 ca upload <file>
 ca snapshot <agent-name>
 ca create --repo <name> --title <title> --description <text> --evidence <expectations>
@@ -158,6 +159,7 @@ Package-level config lives under `~/.config/case/`. Per-repo runtime state lives
   <task-slug>/
     events/
     plan.json
+    working-memory.json
 ```
 
 Override the config/cache directory with:
@@ -181,7 +183,7 @@ Profiles:
 - `standard`: scout, implement, verify, review, close, retrospective.
 - `tiny`: implement, review, close, retrospective. Use only for docs, typos, and mechanical config changes where independent verification is not useful.
 
-Revision loops are evaluator-driven. A verifier or reviewer rubric failure can send structured feedback back to the implementer. The default revision budget is two cycles.
+Revision loops are evaluator-driven. A verifier or reviewer rubric failure can send structured feedback back to the implementer. The default revision budget is two cycles. If consecutive cycles produce identical failure fingerprints (SHA-256 of failed categories + error summary), the pipeline aborts early instead of burning the remaining budget.
 
 Every run writes an append-only event log under `<target-repo>/.case/<task-slug>/events/`. `ca watch <task-slug>` renders those events while a run is active.
 
@@ -192,6 +194,7 @@ Every task carries `evidenceExpectations` — the concrete artifacts the verifie
 | Agent         | Responsibility                                                       | Does Not Do                         |
 | ------------- | -------------------------------------------------------------------- | ----------------------------------- |
 | Orchestrator¹ | Parses issues, creates tasks, runs baseline, dispatches the pipeline | Implement code                      |
+| Scout         | Explores the target repo read-only and returns structured findings   | Edit code, write files              |
 | Implementer   | Writes the fix, runs automated tests, commits                        | Manual browser testing, PR creation |
 | Verifier      | Tests the specific user-facing scenario and records evidence         | Edit code                           |
 | Reviewer      | Reviews the diff against golden principles and conventions           | Edit code or create PRs             |
@@ -200,7 +203,7 @@ Every task carries `evidenceExpectations` — the concrete artifacts the verifie
 
 ¹ The orchestrator runs as an LLM agent session via `ca --agent`, or as TypeScript runtime code for direct `ca <issue>` dispatch.
 
-The key boundary is context isolation. Implementer context includes task details, playbooks, repo learnings, and revision feedback. Verifier context is intentionally fresher. Reviewer context is focused on the diff and principles.
+The key boundary is context isolation. Scout context is read-only exploration of the target repo; its structured findings (relevant files, patterns, test baseline) are synthesized by the orchestrator and injected into the implementer's prompt. Implementer context includes task details, playbooks, repo learnings, scout findings, and revision feedback. Verifier context is intentionally fresher. Reviewer context is focused on the diff and principles.
 
 ## Evidence Gates
 
