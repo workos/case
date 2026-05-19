@@ -1,7 +1,7 @@
 /**
  * End-to-end integration tests for `ca onboard --interview`.
  *
- * Phase 3 validates that interview findings produced by Phase 1/2 actually
+ * Validates that interview findings produced by the interviewer agent actually
  * reach the runtime pipeline:
  *
  *   - the synthesized {@link ProjectEntry} carries the interview's evidence

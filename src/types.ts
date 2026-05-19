@@ -487,7 +487,7 @@ export interface ScoutFindings {
   suggestedApproach?: string;
 }
 
-// --- Phase 5: Interview findings (ca onboard --interview) ---
+// --- Interview findings (ca onboard --interview) ---
 
 /**
  * Repo classification used to validate evidence strategy and drive
