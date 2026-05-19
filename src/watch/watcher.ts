@@ -15,6 +15,7 @@ const MILESTONE_EVENTS = new Set([
   'phase_end',
   'revision_requested',
   'revision_budget_exhausted',
+  'fingerprint_match',
   'status_changed',
   'pipeline_start',
   'pipeline_end',

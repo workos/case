@@ -353,6 +353,7 @@ Call \`create_task\`, then \`run_pipeline\` with the created task JSON path. The
 
 ${packageAssetLines.join('\n')}
 - Convention: conventional commits, feature branches, PRs to main.
+- Working memory: agents persist progress to \`.case/<task-slug>/working-memory.json\` via \`ca update-memory\`. The pipeline reads it between phases to inject prior context — you don't need to manage it manually, but you can inspect it if a run is misbehaving.
 
 Use the \`read\` tool for on-disk files when paths are available. Keep responses concise.`;
 }

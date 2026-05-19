@@ -22,9 +22,9 @@ describe('buildGraph', () => {
       expect(graph.nodes.has('review_2')).toBe(true);
     });
 
-    test('total node count matches: 3 per cycle * 3 cycles + close + retrospective', () => {
-      // 3 nodes per cycle (impl, verify, review) * 3 cycles + close + retro = 11
-      expect(graph.nodes.size).toBe(11);
+    test('total node count matches: scout + 3 per cycle * 3 cycles + close + retrospective', () => {
+      // scout_0 + 3 nodes per cycle (impl, verify, review) * 3 cycles + close + retro = 12
+      expect(graph.nodes.size).toBe(12);
     });
 
     test('all nodes start as pending', () => {
@@ -100,8 +100,8 @@ describe('buildGraph', () => {
   describe('zero revision cycles', () => {
     const graph = buildGraph('standard', 0);
 
-    test('has only cycle 0 nodes plus close and retrospective', () => {
-      expect(graph.nodes.size).toBe(5); // impl_0, verify_0, review_0, close, retro
+    test('has only scout + cycle 0 nodes plus close and retrospective', () => {
+      expect(graph.nodes.size).toBe(6); // scout_0, impl_0, verify_0, review_0, close, retro
     });
 
     test('no revision edges exist', () => {

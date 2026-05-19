@@ -32,6 +32,7 @@ Full metadata (commands, remotes, evidence strategy): `~/.config/case/projects.j
 | Architecture patterns | `docs/architecture/`                     |
 | Shared conventions    | `docs/conventions/`                      |
 | Golden principles     | `docs/golden-principles.md`              |
+| Failure matrix        | `docs/failure-matrix.md`                 |
 | Playbooks             | `docs/playbooks/`                        |
 | Agent roles           | `agents/`                                |
 | Entropy management    | `docs/conventions/entropy-management.md` |
@@ -44,7 +45,7 @@ Tasks are markdown files that agents execute. Runtime task files live in the tar
 - **Format spec**: `tasks/README.md`
 - **Templates**: `tasks/templates/`
 
-Pipeline: implementer → verifier → reviewer → closer → (retrospective)
+Pipeline: scout → implementer → verifier → reviewer → closer → (retrospective)
 
 Lifecycle: `.case/tasks/active/` → PR opened/merged status in the task JSON
 

@@ -3,6 +3,7 @@ import type { EventAppender } from '../events/appender.js';
 import type { Notifier } from '../notify.js';
 import type { DagNode, PipelineGraph } from './types.js';
 import { nodeId } from './builder.js';
+import { computeFingerprint, fingerprintsMatch } from './fingerprint.js';
 import { mergeRevisionRequests } from './merge.js';
 import { projectStatusFromGraph } from './status.js';
 
@@ -18,6 +19,13 @@ export interface ExecuteGraphContext {
 export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
   const { graph, appender } = ctx;
   const revisionRequests = new Map<number, RevisionRequest[]>(ctx.initialRevisionRequests ?? []);
+  /**
+   * Per-cycle failure fingerprints. Keyed by the cycle that produced the
+   * fingerprint (0-indexed). Comparing the new cycle's fingerprint to the
+   * previous one's lets the executor abort early when the same failure
+   * signature repeats.
+   */
+  const cycleFingerprints = new Map<number, string>();
 
   while (true) {
     const readyNodes = findReadyNodes(graph);
@@ -98,7 +106,7 @@ export async function executeGraph(ctx: ExecuteGraphContext): Promise<void> {
     }
 
     // After evaluator pair completes at a given cycle, handle revision detection
-    await handleEvaluatorPairCompletion(ctx, revisionRequests);
+    await handleEvaluatorPairCompletion(ctx, revisionRequests, cycleFingerprints);
 
     // If any node failed, skip to retrospective
     const hasFailed = [...graph.nodes.values()].some((n) => n.state === 'failed');
@@ -212,6 +220,7 @@ function getPendingRevisionForNode(
 async function handleEvaluatorPairCompletion(
   ctx: ExecuteGraphContext,
   revisionRequests: Map<number, RevisionRequest[]>,
+  cycleFingerprints: Map<number, string>,
 ): Promise<void> {
   const { graph, appender } = ctx;
 
@@ -242,8 +251,15 @@ async function handleEvaluatorPairCompletion(
 
     if (requests.length > 0) {
       const nextImplNode = graph.nodes.get(nodeId('implement', cycle + 1));
+
+      // Compute the fingerprint for this cycle's failure signature so we can
+      // (a) compare against the previous cycle for early-abort and
+      // (b) attach it to the merged RevisionRequest for downstream consumers.
+      const fingerprint = computeFingerprintFromRequests(requests);
+
       if (!nextImplNode) {
         revisionRequests.set(cycle, []);
+        if (fingerprint) cycleFingerprints.set(cycle, fingerprint);
         const sources = [...new Set(requests.map((r) => r.source))].join(', ');
         await appender.append({
           event: 'revision_budget_exhausted',
@@ -252,22 +268,109 @@ async function handleEvaluatorPairCompletion(
         ctx.notifier.send(
           `Revision budget exhausted after cycle ${cycle}. ${sources} found issues but no revision cycles remain. Proceeding with warnings.`,
         );
-      } else {
-        revisionRequests.set(cycle, requests);
-        const merged = mergeRevisionRequests(requests);
-        const sources = [...new Set(requests.map((r) => r.source))].join(', ');
-        await appender.append({
-          event: 'revision_requested',
-          source: merged.source,
-          cycle: cycle + 1,
-          failedCategories: merged.failedCategories,
-        });
-        ctx.notifier.send(`Revision cycle ${cycle + 1}: ${sources} found fixable issues, re-implementing`);
+        continue;
       }
+
+      // Compare to previous cycle's fingerprint. If they match, the same
+      // failure already came back once — burning another implementer cycle
+      // is statistically unlikely to help, so route through the
+      // budget-exhausted path.
+      const previousCycle = cycle - 1;
+      const previousFingerprint = previousCycle >= 0 ? cycleFingerprints.get(previousCycle) : undefined;
+      if (fingerprint && previousFingerprint && fingerprintsMatch(fingerprint, previousFingerprint)) {
+        cycleFingerprints.set(cycle, fingerprint);
+        revisionRequests.set(cycle, []);
+
+        // Actively skip the next revision cycle's nodes so the DAG's
+        // predicate-driven dispatch doesn't run them anyway. The graph
+        // wires `verify_N → implement_{N+1}` via `revisionRequestedPredicate`
+        // which only inspects rubric verdicts — without this skip step,
+        // implement_{N+1} would fire despite the fingerprint match.
+        await skipRevisionTail(ctx, cycle + 1);
+
+        await appender.append({
+          event: 'fingerprint_match',
+          cycle: cycle + 1,
+          fingerprint,
+          previousCycle,
+        });
+        await appender.append({
+          event: 'revision_budget_exhausted',
+          cycles: cycle + 1,
+        });
+        ctx.notifier.send(
+          `Revision budget exhausted: fingerprint match (cycle ${cycle} matched cycle ${previousCycle}, ${fingerprint}). Aborting revision cycle ${cycle + 1} and proceeding with warnings.`,
+        );
+        continue;
+      }
+
+      if (fingerprint) cycleFingerprints.set(cycle, fingerprint);
+      const merged = mergeRevisionRequests(requests);
+      if (fingerprint) merged.fingerprint = fingerprint;
+      // Replace the stored requests with fingerprint-annotated copies so
+      // downstream readers (`getPendingRevisionForNode`) see the merged value.
+      revisionRequests.set(
+        cycle,
+        requests.map((r) => (fingerprint ? { ...r, fingerprint } : r)),
+      );
+      const sources = [...new Set(requests.map((r) => r.source))].join(', ');
+      await appender.append({
+        event: 'revision_requested',
+        source: merged.source,
+        cycle: cycle + 1,
+        failedCategories: merged.failedCategories,
+      });
+      ctx.notifier.send(`Revision cycle ${cycle + 1}: ${sources} found fixable issues, re-implementing`);
     } else {
       revisionRequests.set(cycle, []);
     }
   }
+}
+
+/**
+ * Mark every revision-cycle node from `startCycle` onward (implement/verify/
+ * review) as `skipped` and emit a corresponding `phase_end` event. Used by the
+ * fingerprint-match early-abort path to prevent the predicate-driven DAG from
+ * dispatching another cycle after we've already decided the failure repeats.
+ *
+ * Idempotent — nodes that are not pending are left alone.
+ */
+async function skipRevisionTail(ctx: ExecuteGraphContext, startCycle: number): Promise<void> {
+  const { graph, appender } = ctx;
+  for (const [, node] of graph.nodes) {
+    if (node.phase !== 'implement' && node.phase !== 'verify' && node.phase !== 'review') continue;
+    if (node.cycle < startCycle) continue;
+    if (node.state !== 'pending') continue;
+    node.state = 'skipped';
+    await appender.append({
+      event: 'phase_end',
+      phase: node.phase,
+      agent: node.agent,
+      outcome: 'skipped',
+      durationMs: 0,
+    });
+  }
+}
+
+/**
+ * Derive a fingerprint from a cycle's revision requests. Returns `undefined`
+ * when there are no failed categories to hash — guards against false matches
+ * on empty inputs (see Failure Modes in spec-phase-2.md).
+ */
+function computeFingerprintFromRequests(requests: RevisionRequest[]): string | undefined {
+  const failedCategories: string[] = [];
+  const summaries: string[] = [];
+  for (const r of requests) {
+    for (const c of r.failedCategories) {
+      failedCategories.push(c.category);
+    }
+    if (r.summary) summaries.push(r.summary);
+  }
+  if (failedCategories.length === 0) return undefined;
+  return computeFingerprint({
+    failedCategories,
+    errorSummary: summaries.join('\n'),
+  });
 }
 
 function extractRevisionFromResult(node: DagNode, cycle: number): RevisionRequest | null {

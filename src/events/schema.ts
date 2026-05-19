@@ -56,6 +56,31 @@ export type PipelineEvent =
       cycles: number;
     })
   | (EventMeta & {
+      event: 'fingerprint_match';
+      /** Cycle whose fingerprint matched the previous cycle (1-indexed — the cycle being aborted). */
+      cycle: number;
+      /** Truncated SHA-256 fingerprint (16 hex chars). */
+      fingerprint: string;
+      /** Previous cycle that produced the same fingerprint. */
+      previousCycle: number;
+    })
+  | (EventMeta & {
+      event: 'scout_completed';
+      /**
+       * Whether the scout returned validated findings (`true`) or a partial /
+       * unparseable result that the implementer will run without (`false`).
+       * The full structured findings live on the scout node's `phase_end`
+       * result; this event is a lightweight audit signal.
+       */
+      hasFindings: boolean;
+      /** Count of files the scout flagged as relevant — 0 when `hasFindings` is false. */
+      relevantFileCount: number;
+      /** Count of patterns the scout flagged for the implementer to follow. */
+      patternCount: number;
+      /** Wall-clock duration of the scout dispatch, in ms. */
+      durationMs: number;
+    })
+  | (EventMeta & {
       event: 'status_changed';
       from: TaskStatus;
       to: TaskStatus;

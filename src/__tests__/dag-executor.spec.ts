@@ -105,22 +105,30 @@ class MockNotifier {
 }
 
 describe('findReadyNodes', () => {
-  test('returns root nodes (no incoming edges) that are pending', () => {
+  test('returns root nodes (no incoming edges) that are pending — scout in standard profile', () => {
     const graph = buildGraph('standard', 2);
     const ready = findReadyNodes(graph);
     expect(ready).toHaveLength(1);
-    expect(ready[0].id).toBe('implement_0');
+    expect(ready[0].id).toBe('scout_0');
   });
 
   test('returns nothing when root node is already running', () => {
     const graph = buildGraph('standard', 2);
-    graph.nodes.get('implement_0')!.state = 'running';
+    graph.nodes.get('scout_0')!.state = 'running';
     const ready = findReadyNodes(graph);
     expect(ready).toHaveLength(0);
   });
 
+  test('after scout completes, implement_0 becomes ready', () => {
+    const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
+    const ready = findReadyNodes(graph);
+    expect(ready.map((n) => n.id)).toEqual(['implement_0']);
+  });
+
   test('returns only verify_0 when implement_0 is completed (review waits for verify)', () => {
     const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
     graph.nodes.get('implement_0')!.state = 'completed';
     const ready = findReadyNodes(graph);
     const ids = ready.map((n) => n.id).sort();
@@ -129,6 +137,7 @@ describe('findReadyNodes', () => {
 
   test('returns nothing when evaluators complete but predicates not satisfied', () => {
     const graph = buildGraph('standard', 2);
+    graph.nodes.get('scout_0')!.state = 'completed';
     graph.nodes.get('implement_0')!.state = 'completed';
     graph.nodes.get('verify_0')!.state = 'completed';
     // review_0 still pending — close predicate needs both
@@ -266,6 +275,95 @@ describe('executeGraph', () => {
     // Downstream nodes should be skipped
     expect(graph.nodes.get('verify_0')!.state).toBe('skipped');
     expect(graph.nodes.get('review_0')!.state).toBe('skipped');
+  });
+
+  test('fingerprint match: identical failures across cycles → abort, emit fingerprint_match', async () => {
+    // Two cycles, both verify_0 and verify_1 return identical failure rubric.
+    const graph = buildGraph('standard', 2);
+    const responses = new Map<string, AgentResult>();
+    responses.set('verify_0', makeRevisionResult('verifier'));
+    responses.set('verify_1', makeRevisionResult('verifier'));
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches.length).toBeGreaterThanOrEqual(1);
+    const match = fpMatches[0];
+    expect(match.cycle).toBe(2);
+    expect(match.previousCycle).toBe(0);
+    expect(typeof match.fingerprint).toBe('string');
+    expect((match.fingerprint as string).length).toBe(16);
+
+    // After cycle-1 fingerprint match, implement_2 must not run.
+    // (Cycles 0 and 1 already completed before the fingerprint comparison
+    // detected the identical failure signature.)
+    expect(graph.nodes.get('implement_2')!.state).not.toBe('completed');
+    expect(graph.nodes.get('verify_2')!.state).not.toBe('completed');
+    expect(graph.nodes.get('close')!.state).toBe('completed');
+    expect(graph.nodes.get('retrospective')!.state).toBe('completed');
+
+    // Budget-exhausted event should also be emitted alongside the match.
+    const budgetEvents = appender.events.filter((e) => e.event === 'revision_budget_exhausted');
+    expect(budgetEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('different failures across cycles → no fingerprint match, normal flow continues', async () => {
+    const graph = buildGraph('standard', 2);
+    const responses = new Map<string, AgentResult>();
+    // Cycle 0: verifier fails on reproduced-scenario
+    responses.set('verify_0', makeRevisionResult('verifier'));
+    // Cycle 1: different failed category — should NOT match
+    responses.set('verify_1', {
+      status: 'completed',
+      summary: 'verifier found different issues',
+      artifacts: {
+        commit: null,
+        filesChanged: ['src/bar.ts'],
+        testsPassed: false,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      rubric: {
+        role: 'verifier',
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'missing edge case' }],
+      },
+      error: null,
+    });
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    // No fingerprint_match event — fingerprints differ.
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
+
+    // Pipeline should proceed through cycle 2's implement (revision dispatched normally).
+    expect(graph.nodes.get('implement_2')!.state).toBe('completed');
+  });
+
+  test('single-cycle pipeline (maxRevisionCycles=0): no fingerprint comparison runs', async () => {
+    const graph = buildGraph('standard', 0);
+    const responses = new Map<string, AgentResult>();
+    // Even if verify fails, there's no next cycle to compare against.
+    responses.set('verify_0', makeRevisionResult('verifier'));
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
+  });
+
+  test('evaluator passes (no revision request) → no fingerprint comparison runs', async () => {
+    const graph = buildGraph('standard', 2);
+    const ctx = makeContext(graph, new Map());
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
   });
 
   test('tiny profile: no verify nodes, review runs directly after implement', async () => {

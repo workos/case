@@ -39,6 +39,11 @@ export function renderWatchEvent(event: PipelineEvent): string {
     case 'revision_budget_exhausted':
       return yellow(`⚠ revision budget exhausted (${event.cycles} cycles)`);
 
+    case 'fingerprint_match':
+      return yellow(
+        `⚠ fingerprint match: aborting revision cycle ${event.cycle} (same failure as cycle ${event.previousCycle}, ${event.fingerprint})`,
+      );
+
     case 'status_changed':
       return dim(`→ ${event.to}`);
 

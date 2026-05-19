@@ -52,6 +52,7 @@ projects.schema.json      # JSON Schema for the project manifest
 docs/
   architecture/           # Canonical patterns per repo type
   conventions/            # Shared rules (commits, testing, PRs)
+  failure-matrix.md       # Phase × outcome → action lookup (synced with code)
   golden-principles.md    # Invariants enforced across all repos
   playbooks/              # Step-by-step guides for recurring operations
 tasks/

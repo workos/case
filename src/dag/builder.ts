@@ -7,6 +7,22 @@ export function buildGraph(profile: PipelineProfile, maxRevisionCycles: number):
   const edges: DagEdge[] = [];
   const phases = PROFILE_PHASES[profile];
   const hasVerify = phases.includes('verify');
+  const hasScout = phases.includes('scout');
+
+  // Scout runs once per pipeline (cycle 0 only). Its findings are stable
+  // across revision cycles, so re-running it on every cycle would be wasted
+  // work. The scout node is added before `implement_0` and wires an
+  // unconditional edge into it — scout failure is non-blocking and the
+  // executor routes the implementer through regardless.
+  if (hasScout) {
+    nodes.set(nodeId('scout', 0), {
+      id: nodeId('scout', 0),
+      phase: 'scout',
+      agent: 'scout',
+      cycle: 0,
+      state: 'pending',
+    });
+  }
 
   for (let cycle = 0; cycle <= maxRevisionCycles; cycle++) {
     const implId = nodeId('implement', cycle);
@@ -17,6 +33,14 @@ export function buildGraph(profile: PipelineProfile, maxRevisionCycles: number):
       cycle,
       state: 'pending',
     });
+
+    // Wire scout → implement_0 once the implement_0 node exists.
+    if (hasScout && cycle === 0) {
+      edges.push({
+        from: nodeId('scout', 0),
+        to: implId,
+      });
+    }
 
     if (hasVerify) {
       const verifyId = nodeId('verify', cycle);
@@ -118,8 +142,11 @@ function verifyPassedPredicate(cycle: number) {
     const verifyNode = graph.nodes.get(nodeId('verify', cycle));
     if (!verifyNode || verifyNode.state !== 'completed') return false;
     if (hasRevisionResult(verifyNode)) {
+      // Allow review to run when there's no next implement (budget
+      // exhausted) or when the next implement has been explicitly skipped
+      // (e.g. fingerprint-match short-circuit in the executor).
       const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
-      return !nextImpl;
+      return !nextImpl || nextImpl.state === 'skipped';
     }
     return true;
   };
@@ -141,10 +168,12 @@ function noRevisionPredicate(cycle: number, hasVerify: boolean) {
       : [graph.nodes.get(nodeId('review', cycle))!];
 
     if (evaluators.some((node) => hasRevisionResult(node))) {
-      // A revision was requested — don't proceed to close.
+      // A revision was requested — don't proceed to close unless either
+      // (a) no next implement node exists (budget exhausted) or
+      // (b) the next implement has been explicitly skipped (e.g. fingerprint
+      // match short-circuit in the executor).
       const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
-      if (nextImpl) return false;
-      // No next implement means budget exhausted — allow proceeding
+      if (nextImpl && nextImpl.state !== 'skipped') return false;
     }
 
     return true;

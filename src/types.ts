@@ -9,7 +9,7 @@ export type TaskStatus =
   | 'pr-opened'
   | 'merged';
 
-export type AgentName = 'orchestrator' | 'implementer' | 'verifier' | 'reviewer' | 'closer';
+export type AgentName = 'orchestrator' | 'implementer' | 'verifier' | 'reviewer' | 'closer' | 'scout';
 
 export interface AgentPhase {
   started: string | null;
@@ -116,11 +116,12 @@ export type PipelineProfile = 'tiny' | 'standard';
 /** Which phases run for each profile. Order matters — pipeline executes in this order. */
 export const PROFILE_PHASES: Record<PipelineProfile, PipelinePhase[]> = {
   tiny: ['implement', 'review', 'close', 'retrospective'],
-  standard: ['implement', 'verify', 'review', 'close', 'retrospective'],
+  standard: ['scout', 'implement', 'verify', 'review', 'close', 'retrospective'],
 };
 
 export type PipelinePhase =
   | 'setup'
+  | 'scout'
   | 'implement'
   | 'verify'
   | 'review'
@@ -130,7 +131,7 @@ export type PipelinePhase =
   | 'abort';
 
 /** Canonical phase execution order (excludes terminal phases). Used for profile-based skip logic. */
-export const PHASE_ORDER: PipelinePhase[] = ['implement', 'verify', 'review', 'close', 'retrospective'];
+export const PHASE_ORDER: PipelinePhase[] = ['scout', 'implement', 'verify', 'review', 'close', 'retrospective'];
 
 export interface PipelineConfig {
   mode: PipelineMode;
@@ -211,6 +212,24 @@ export interface RevisionRequest {
   suggestedFocus: string[];
   /** Which revision cycle this is (1-indexed) */
   cycle: number;
+  /**
+   * Optional failure fingerprint — truncated SHA-256 of
+   * `failedCategories.sort().join(':') + '|' + errorSummary` (see
+   * `src/dag/fingerprint.ts`). Populated by the executor after the evaluator
+   * pair completes so the next cycle can detect identical failures.
+   */
+  fingerprint?: string;
+}
+
+/**
+ * Failure fingerprint used to detect identical failures across revision cycles.
+ * See `src/dag/fingerprint.ts` for the hashing rules.
+ */
+export interface FailureFingerprint {
+  /** Truncated SHA-256 (16 hex chars). */
+  value: string;
+  /** Cycle that produced this fingerprint (0-indexed). */
+  cycle: number;
 }
 
 export interface PhaseOutput {
@@ -218,7 +237,64 @@ export interface PhaseOutput {
   nextPhase: PipelinePhase;
   /** Structured revision request when evaluator found fixable issues */
   revision?: RevisionRequest;
+  /**
+   * Typed phase outcome. Populated by phase implementations so the executor
+   * can consult the unified failure matrix (`src/dag/outcome-table.ts`)
+   * instead of inferring from `nextPhase` / `revision`. The legacy fields
+   * remain populated for backwards compatibility.
+   */
+  outcome?: PhaseOutcome;
 }
+
+/** Phase names that participate in the unified outcome matrix. */
+export type PhaseName = 'scout' | 'implement' | 'verify' | 'review' | 'close' | 'retrospective';
+
+/**
+ * Closed enumeration of outcomes that any phase may surface. The matrix
+ * (`src/dag/outcome-table.ts`) maps every applicable (phase, outcome) pair
+ * to a concrete next-action. No catch-all `'unknown'` variant — new failure
+ * modes must be added here and to the matrix together.
+ */
+export type OutcomeKind =
+  | 'success'
+  | 'fail-test'
+  | 'fail-type-error'
+  | 'fail-lint'
+  | 'fail-build'
+  | 'fail-timeout'
+  | 'fail-agent-protocol'
+  | 'fail-no-code-changes'
+  | 'fail-critical-findings'
+  | 'fail-soft-findings'
+  | 'fail-github-unreachable'
+  | 'fail-evidence-missing'
+  | 'abort-user'
+  | 'budget-exhausted';
+
+/**
+ * Discriminated next-action surfaced by `resolveOutcome`. The executor
+ * pattern-matches on `action` to determine routing without casting.
+ */
+export type OutcomeAction =
+  | { action: 'advance'; to: PhaseName | 'complete' }
+  | { action: 'retry'; maxAttempts: number }
+  | { action: 'revision'; cycle: 'next' }
+  | { action: 'abort'; reason: string }
+  | { action: 'skip-to'; to: PhaseName | 'complete'; withWarning: string }
+  | { action: 'surface'; message: string };
+
+/**
+ * A typed outcome surfaced by a phase, paired with optional human-readable
+ * detail. The matrix key is `${phase}:${outcome}`.
+ */
+export interface PhaseOutcome {
+  phase: PhaseName;
+  outcome: OutcomeKind;
+  details?: string;
+}
+
+/** Composite key shape for the outcome matrix. */
+export type PhaseOutcomeKey = `${PhaseName}:${OutcomeKind}`;
 
 export interface AgentModelConfig {
   provider: string;
@@ -342,6 +418,73 @@ export interface TaskCreateRequest {
   edgeCases?: string;
   /** What evidence proves the fix works — required for all tasks (done contract) */
   evidenceExpectations: string;
+}
+
+// --- Working Memory (Phase 3: Agent Working Memory Protocol) ---
+
+/**
+ * Structured, schema-validated working memory persisted between phases.
+ *
+ * Lives at `<repoPath>/.case/<task-slug>/working-memory.json`. Written by
+ * agents via `ca update-memory`, read by the orchestrator to inject prior
+ * context into each phase's prompt. Versioned for forward-compat.
+ */
+export interface WorkingMemory {
+  /** Schema version — bump on breaking changes. */
+  version: 1;
+  /** ISO-8601 datetime of the last write. */
+  updatedAt: string;
+  /** Short description of what the agent is currently doing or last completed. */
+  currentState: string;
+  /** Current implementation strategy. */
+  approach: string;
+  /** Files modified in this session. Appended on update. */
+  filesChanged: string[];
+  /** Errors encountered and their resolution status. Appended on update. */
+  errorsSeen: WorkingMemoryError[];
+  /** Approaches tried and their outcomes. Appended on update. */
+  approachesTried: WorkingMemoryApproach[];
+  /** Current blocking issues. Appended on update. */
+  blockers: string[];
+}
+
+export interface WorkingMemoryError {
+  error: string;
+  file?: string;
+  resolution: 'fixed' | 'workaround' | 'unresolved';
+}
+
+export interface WorkingMemoryApproach {
+  approach: string;
+  outcome: 'success' | 'partial' | 'failed';
+  reason?: string;
+}
+
+/** Partial update payload — every field is optional. Arrays append, scalars replace. */
+export type WorkingMemoryUpdate = Partial<Omit<WorkingMemory, 'version' | 'updatedAt'>>;
+
+// --- Phase 4: Scout findings ---
+
+/**
+ * Structured findings returned by the scout agent. Synthesized into a markdown
+ * section and injected into the implementer's prompt so it starts with concrete
+ * file paths, patterns to follow, and known constraints instead of having to
+ * rediscover the layout from scratch.
+ *
+ * Optional fields (`testBaseline`, `suggestedApproach`) may be absent on
+ * partial findings; the synthesis function tolerates either case.
+ */
+export interface ScoutFindings {
+  relevantFiles: Array<{ path: string; reason: string }>;
+  patterns: Array<{ name: string; file: string; description: string }>;
+  testBaseline?: {
+    command: string;
+    passing: number;
+    failing: number;
+    relevant: string[];
+  };
+  constraints: string[];
+  suggestedApproach?: string;
 }
 
 // Event system re-exports
