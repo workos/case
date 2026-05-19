@@ -195,8 +195,22 @@ function createProcessTuiSurface(onInterrupt?: () => void): TuiSurface {
 
   const headerText = new HeaderText('', 1, 0);
 
+  // Track header height so the feed can clip itself to the remaining viewport.
+  let headerLineCount = 0;
+
   const feedText = new Text('', 1, 0);
-  const feedBox = new Box(1, 1);
+  // Wrap the feed in a component that clips to (terminalRows - headerRows) so
+  // the header stays pinned at the top of the viewport.
+  class ClippedFeed extends Box {
+    override render(width: number): string[] {
+      const allLines = super.render(width);
+      const termRows = process.stdout.rows ?? 40;
+      const maxFeed = Math.max(1, termRows - headerLineCount);
+      if (allLines.length <= maxFeed) return allLines;
+      return allLines.slice(allLines.length - maxFeed);
+    }
+  }
+  const feedBox = new ClippedFeed(1, 1);
   feedBox.addChild(feedText);
 
   tui.addChild(headerText);
@@ -205,6 +219,7 @@ function createProcessTuiSurface(onInterrupt?: () => void): TuiSurface {
   return {
     setHeader(text) {
       headerText.setText(text);
+      headerLineCount = text.split('\n').length;
       tui.requestRender();
     },
     setFeed(text) {
