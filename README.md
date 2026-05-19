@@ -106,7 +106,9 @@ ca 1234                 # create or resume a GitHub issue run
 ca DX-1234              # create or resume a Linear issue run
 ca --agent              # interactive steering session
 ca --agent 1234         # steering session with issue context
-ca onboard <path>       # add a repo to projects.json
+ca onboard <path>                    # add a repo to projects.json
+ca onboard <path> --interview        # add a repo with an interactive interview
+ca onboard <repo> --re-interview     # re-interview an already-onboarded repo
 ca run --task <file>    # run an existing task JSON
 ca watch <task-slug>    # live-tail the event log
 ```
@@ -259,8 +261,12 @@ Target repos are listed in `~/.config/case/projects.json` (created by `ca init` 
 Add a repo with:
 
 ```bash
-ca onboard <path>
+ca onboard <path>                    # mechanical probe only
+ca onboard <path> --interview        # mechanical probe + interactive interview
+ca onboard <repo> --re-interview     # update an existing entry by re-interviewing
 ```
+
+`--interview` runs the interviewer agent after the mechanical probe to capture evidence strategy rationale, verification notes, conventions, and repo-specific learnings. The interview writes the seed `.case/learnings.md` and `CLAUDE.local.md` alongside the `projects.json` entry. `--re-interview` re-runs the interview for an existing repo and replaces its `projects.json` entry in place.
 
 Then add any needed architecture notes under `docs/architecture/` and verify with:
 

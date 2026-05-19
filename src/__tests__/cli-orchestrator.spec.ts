@@ -222,16 +222,19 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: undefined,
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
+    try {
+      await runCliOrchestrator({
+        argument: undefined,
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
-    process.stdout.write = origWrite;
-
-    expect(writes.some((w) => w.includes('No active task found'))).toBe(true);
+    const strip = (s: string) => s.replace(/\[[0-9;]*m/g, '');
+    expect(writes.some((w) => strip(w).includes('No active task found'))).toBe(true);
     expect(mockRunPipeline).not.toHaveBeenCalled();
   });
 
@@ -254,16 +257,18 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: '1523',
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
+    try {
+      await runCliOrchestrator({
+        argument: '1523',
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
-    process.stdout.write = origWrite;
-
-    const combined = writes.join('');
+    const combined = writes.join('').replace(/\[[0-9;]*m/g, '');
     // Phase header
     expect(combined).toContain('▶ setup (cli)');
     // Setup step (formatSetupStep)
@@ -294,17 +299,20 @@ describe('runCliOrchestrator — re-entry', () => {
       return true;
     }) as typeof process.stdout.write;
 
-    await runCliOrchestrator({
-      argument: '1523',
-      mode: 'attended',
-      dryRun: false,
-      caseRoot: tempDir,
-    });
+    try {
+      await runCliOrchestrator({
+        argument: '1523',
+        mode: 'attended',
+        dryRun: false,
+        caseRoot: tempDir,
+      });
+    } finally {
+      process.stdout.write = origWrite;
+    }
 
-    process.stdout.write = origWrite;
-
-    expect(writes.some((w) => w.includes('PR already exists'))).toBe(true);
-    expect(writes.some((w) => w.includes('https://github.com/workos/cli/pull/42'))).toBe(true);
+    const strip = (s: string) => s.replace(/\[[0-9;]*m/g, '');
+    expect(writes.some((w) => strip(w).includes('PR already exists'))).toBe(true);
+    expect(writes.some((w) => strip(w).includes('https://github.com/workos/cli/pull/42'))).toBe(true);
     expect(mockRunPipeline).not.toHaveBeenCalled();
   });
 });

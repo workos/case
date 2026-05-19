@@ -57,6 +57,14 @@ describe('PiRuntimeAdapter.createTools', () => {
     expect(names.length).toBe(2);
   });
 
+  it('interviewer gets read-only + bash', () => {
+    const tools = adapter.createTools('interviewer', '/repos/cli');
+    const names = tools.map((t: { name: string }) => t.name);
+    expect(names).toContain('read');
+    expect(names).toContain('bash');
+    expect(names.length).toBe(2);
+  });
+
   it('retrospective gets full write access', () => {
     const tools = adapter.createTools('retrospective', '/repos/cli');
     const names = tools.map((t: { name: string }) => t.name);

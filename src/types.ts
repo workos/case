@@ -487,6 +487,62 @@ export interface ScoutFindings {
   suggestedApproach?: string;
 }
 
+// --- Interview findings (ca onboard --interview) ---
+
+/**
+ * Repo classification used to validate evidence strategy and drive
+ * conventions/seed content. The interviewer asks targeted questions to pin
+ * this down; the synthesizer uses it as the input to `validateEvidenceStrategy`.
+ */
+export type RepoType = 'sdk' | 'app' | 'library' | 'cli' | 'monorepo';
+
+/**
+ * Structured output emitted by the interviewer agent inside an `AGENT_RESULT`
+ * block. Captures everything `ca onboard --interview` needs to:
+ *
+ *   1. Override the evidence-strategy heuristic with a human-confirmed choice.
+ *   2. Populate `verificationNotes` / `credentials` in the projects.json entry.
+ *   3. Seed `<repo>/.case/learnings.md` with initial topic/content pairs.
+ *   4. Seed `<repo>/CLAUDE.local.md` with repo-specific conventions.
+ *
+ * Optional fields default to a no-op during synthesis. The schema mirrors
+ * `ScoutFindings` — hand-rolled validator, additive top-level keys, graceful
+ * degradation when the agent returns a partially-formed payload.
+ */
+export interface InterviewFindings {
+  /** Evidence strategy chosen by the human via the interview (overrides heuristic). */
+  evidenceStrategy: EvidenceStrategy;
+  /** Why this strategy fits this repo — captured for debugging wrong choices. */
+  evidenceRationale: string;
+  /** Verification context the verifier needs (env vars, auth flows, gotchas). */
+  verificationNotes: string;
+  /** Optional path to a credentials file the verifier should reference. */
+  credentials?: string;
+  /** Short human-curated description of the repo (overrides package.json description). */
+  description: string;
+
+  /**
+   * Per-command overrides that win over auto-detected values from probeRepo().
+   * Only present keys override; absent keys keep the detected command.
+   */
+  commandOverrides: Record<string, string>;
+
+  /** Seed entries for `<repo>/.case/learnings.md`. */
+  learnings: Array<{ topic: string; content: string }>;
+
+  /** Convention rules for `<repo>/CLAUDE.local.md`. */
+  conventions: Array<{ rule: string; reason: string }>;
+
+  /** Repo classification — drives evidence-strategy validation. */
+  repoType: RepoType;
+  /** Whether the repo ships with an example app the verifier could exercise. */
+  hasExampleApp: boolean;
+  /** Detected test framework (e.g., 'vitest', 'jest', 'bun:test'). */
+  testFramework: string;
+  /** Detected CI provider (e.g., 'github-actions', 'circleci', 'none'). */
+  ciProvider: string;
+}
+
 // Event system re-exports
 export type { PipelineEvent } from './events/schema.js';
 export type { PipelineState } from './events/types.js';
