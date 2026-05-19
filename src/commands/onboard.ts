@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve, relative, basename, dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { loadProjectsManifest, type LoadedProjectsManifest } from '../config.js';
-import { resolveDataDir, resolvePackageRoot } from '../paths.js';
+import { isEmbeddedPackageRoot, resolveDataDir, resolvePackageRoot } from '../paths.js';
 import { runCommandLine } from '../util/run-command.js';
 import type { EvidenceStrategy, ProjectEntry } from '../types.js';
 
@@ -112,7 +112,7 @@ async function loadOrCreateManifest(caseRoot: string): Promise<LoadedProjectsMan
     await mkdir(dirname(path), { recursive: true });
     await Bun.write(path, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2) + '\n');
     process.stdout.write(`Created ${path}\n`);
-    return { repos: [], path, repoBasePath: dataDir };
+    return { repos: [], path, repoBasePath: isEmbeddedPackageRoot(caseRoot) ? dataDir : caseRoot };
   }
 }
 
