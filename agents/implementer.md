@@ -45,7 +45,7 @@ Read the output to understand: current branch, last commits, task status, which 
 4. Read the playbook referenced in the task file
 5. Use the Project Commands section in this prompt for available commands (test, typecheck, lint, build, format). If it is absent, inspect `package.json` and `CLAUDE.md`.
 6. Read the target repo's `.case/learnings.md` for tactical knowledge from previous tasks in this repo, if it exists
-7. Check for working memory — if `{task-stem}.working.md` exists alongside the task file, read it. This contains state from previous runs: what was tried, what failed, blockers, files changed so far. Use this to avoid repeating failed approaches.
+7. Check for working memory — the orchestrator already injects structured working memory as a `## Prior Context` block at the top of this prompt when one exists. Review it carefully: it lists what previous runs tried, what failed, blockers, and files changed so far. **Do not repeat approaches marked `[failed]`**. If a `{task-stem}.working.md` file also exists alongside the task file, read it as well — it's the legacy free-form variant kept for back-compat.
 8. If the task JSON has a `checkCommand`, run it now and record the output as your baseline:
    ```bash
    BASELINE=$(eval "$(jq -r '.checkCommand' <task.json>)" 2>/dev/null)
@@ -230,34 +230,34 @@ Fix any errors before proceeding. Warnings should be addressed if feasible but d
 
 ### 4b. Update Working Memory
 
-**Always do this, even on failure.** Write (or update) `{task-stem}.working.md` alongside the task file in `.case/tasks/active/`:
+**Always do this, even on failure.** Persist structured progress via the `ca update-memory` CLI. It writes `.case/<task-slug>/working-memory.json`, which the orchestrator reads before dispatching the next phase (or the next implementer cycle).
 
-```markdown
-# Working Memory — {task-id}
+Record at least the current state and the approach you used. If you tried multiple approaches, record each with its outcome. If you hit errors, record their resolution status. Examples:
 
-Updated: {ISO timestamp}
+```bash
+# Mark a partial state after WIP commit
+ca update-memory \
+  --state "Implemented retry logic; tests still failing" \
+  --approach "Exponential backoff with jitter" \
+  --file src/retry.ts --file src/__tests__/retry.spec.ts
 
-## Current State
+# Record a failed approach so the next cycle doesn't repeat it
+ca update-memory \
+  --tried "Linear retry with fixed delay" --tried-outcome failed --tried-reason "Exceeded rate limit on burst"
 
-- Phase: implementing
-- Status: {completed | failed | partial}
-- Last commit: {hash or "none"}
+# Record an unresolved error
+ca update-memory \
+  --error "TypeError: Cannot read property 'foo' of undefined" \
+  --error-file src/retry.ts \
+  --error-status unresolved
 
-## What Was Tried
-
-- {approach 1}: {outcome — kept/reverted/partial}
-- {approach 2}: {outcome}
-
-## Blockers
-
-- {any unresolved issues, or "none"}
-
-## Files Changed
-
-- {list of files modified in this session}
+# Note a blocker
+ca update-memory --blocker "Need test credentials with retry-after header"
 ```
 
-This survives across sessions. If the implementer is re-spawned (retry or resume), the next run reads this in Setup step 7 to avoid repeating failed approaches.
+Each call merges into the existing memory: array fields (files, errors, attempts, blockers) are appended and de-duplicated; scalar fields (state, approach) are replaced. The schema is validated before writing — invalid `--*-status` / `--*-outcome` values exit non-zero with an error.
+
+This survives across sessions. If the implementer is re-spawned (retry or resume), the next run inherits this context automatically via the `## Prior Context` block at the top of its prompt.
 
 ### 5. Output
 

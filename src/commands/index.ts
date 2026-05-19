@@ -18,6 +18,7 @@ import * as status from './status.js';
 import * as markTested from './mark-tested.js';
 import * as markManualTested from './mark-manual-tested.js';
 import * as markReviewed from './mark-reviewed.js';
+import * as updateMemory from './update-memory.js';
 import * as upload from './upload.js';
 import * as snapshot from './snapshot.js';
 import * as init from './init.js';
@@ -50,6 +51,7 @@ export const commandMap: Record<string, Command> = {
     group: 'agent',
   },
   'mark-reviewed': { handler: markReviewed.handler, description: markReviewed.description, group: 'agent' },
+  'update-memory': { handler: updateMemory.handler, description: updateMemory.description, group: 'agent' },
   upload: { handler: upload.handler, description: upload.description, group: 'agent' },
   snapshot: { handler: snapshot.handler, description: snapshot.description, group: 'agent' },
   create: { handler: create.handler, description: create.description, group: 'internal' },

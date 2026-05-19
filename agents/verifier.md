@@ -31,6 +31,8 @@ Read the output to understand: current branch, last commits, task status, which 
 
 ### 1. Assess
 
+> **Prior context:** if the implementer ran before you, the orchestrator prepends a `## Prior Context` block to this prompt that summarizes their approach, the files they changed, and any errors they hit. Use it to scope your verification — focus on the listed files and the implementer's stated approach rather than re-deriving everything from `git diff`. If the block is absent, this is a cold start.
+
 1. Update task JSON:
    ```bash
    ca status <task.json> status verifying
