@@ -120,7 +120,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
       agentDir: factoryOpts.agentDir,
       settingsManager: sm,
       appendSystemPrompt: [systemPrompt],
-      noExtensions: true,
+      extensionsOverride: (base) => ({ ...base, errors: [] }),
     });
     await rl.reload();
 
@@ -277,9 +277,5 @@ function buildBriefing(options: InterviewSessionOptions): string {
   lines.push('');
   lines.push('Run the interview workflow as described in your system prompt.');
   lines.push('Stay within the 5-minute budget and emit the AGENT_RESULT block when done.');
-  lines.push('');
-  lines.push('IMPORTANT: Ask the human questions as plain text in your response. The human');
-  lines.push('will type their answer in the editor. Do NOT use any AskUserQuestion or');
-  lines.push('similar tool — just write the question as text and end your turn.');
   return lines.join('\n');
 }
