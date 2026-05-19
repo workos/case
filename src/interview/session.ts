@@ -1,20 +1,19 @@
 /**
  * Interactive interviewer session for `ca onboard --interview`.
  *
- * Uses pi-coding-agent's session API directly (no InteractiveMode TUI) to run
- * a multi-turn conversation loop. The agent explores the target repo, asks the
- * human targeted questions via stdin, and emits an `AGENT_RESULT` block. This
- * module:
+ * Runs the interviewer agent inside pi-coding-agent's InteractiveMode TUI so
+ * the human gets a full interactive editor for free-form answers. The agent
+ * explores the target repo read-only, asks questions in the conversation, and
+ * emits an `AGENT_RESULT` block. This module:
  *
  *   1. Builds the briefing message from the mechanical probe results (and,
  *      for `--re-interview`, the existing `ProjectEntry`).
  *   2. Wires up `createAgentSessionRuntime` with the interviewer's read-only
  *      tool set (`Read` + `Bash`).
- *   3. Runs a multi-turn loop: send prompt → read agent response → if the
- *      response contains `AGENT_RESULT>>>`, stop. Otherwise, print the
- *      agent's question and read the human's answer from stdin.
- *   4. Parses the `AGENT_RESULT` block and validates findings via
- *      {@link parseInterviewFindings}.
+ *   3. Subscribes to session events to capture the agent's text output.
+ *   4. Launches `InteractiveMode.run()` (fire-and-forget — it never returns).
+ *   5. When `AGENT_RESULT>>>` is detected in the stream, tears down the TUI,
+ *      parses findings, and returns them to the caller.
  *
  * Returns the validated {@link InterviewFindings} on success or `null` if the
  * runtime fails, the human aborts, or the agent emits an unparseable block.
@@ -28,6 +27,7 @@ import {
   createReadTool,
   DefaultResourceLoader,
   getAgentDir,
+  InteractiveMode,
   ModelRegistry,
   SessionManager,
   SettingsManager,
@@ -37,7 +37,6 @@ import type {
   CreateAgentSessionRuntimeResult,
   ToolDefinition,
 } from '@mariozechner/pi-coding-agent';
-import { createInterface } from 'node:readline';
 import { basename } from 'node:path';
 import { getModelForAgent } from '../agent/config.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
@@ -68,68 +67,26 @@ export interface InterviewSessionOptions {
   existingEntry?: ProjectEntry;
 }
 
-const MAX_TURNS = 20;
 const AGENT_RESULT_END = 'AGENT_RESULT>>>';
 
 /**
- * Extract text content from the last assistant message in the session state.
- */
-function getLastAssistantText(session: { state: { messages: unknown[] } }): string {
-  const messages = session.state.messages;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i] as { role?: string; content?: Array<{ type?: string; text?: string }> };
-    if (msg.role !== 'assistant') continue;
-    if (!Array.isArray(msg.content)) continue;
-    const parts: string[] = [];
-    for (const block of msg.content) {
-      if (block.type === 'text' && typeof block.text === 'string') {
-        parts.push(block.text);
-      }
-    }
-    return parts.join('');
-  }
-  return '';
-}
-
-/**
- * Persistent readline wrapper. A single interface is kept alive across all
- * questions — creating/destroying per-question kills stdin on the second call
- * because `rl.close()` pauses the underlying stream.
- */
-class InterviewReadline {
-  private rl: ReturnType<typeof createInterface>;
-  private closed = false;
-
-  constructor() {
-    this.rl = createInterface({ input: process.stdin, output: process.stderr });
-    this.rl.on('close', () => {
-      this.closed = true;
-    });
-  }
-
-  ask(prompt: string): Promise<string | null> {
-    if (this.closed) return Promise.resolve(null);
-    return new Promise((resolve) => {
-      this.rl.question(prompt, (answer) => resolve(answer));
-    });
-  }
-
-  close(): void {
-    if (!this.closed) this.rl.close();
-  }
-}
-
-/**
- * Run the interviewer in a multi-turn session and return validated findings.
+ * Run the interviewer in a TUI session and return validated findings.
+ *
+ * Uses InteractiveMode for the full TUI experience (editor, markdown
+ * rendering, tool output). Subscribes to session events to capture the
+ * agent's text stream. When `AGENT_RESULT>>>` is detected, the TUI is
+ * torn down and findings are returned to the caller.
  *
  * Returns `null` when the runtime fails to start, the agent returns no
- * parseable result, or the findings fail validation. The caller is
- * responsible for surfacing this as a graceful degradation to mechanical-only.
+ * parseable result, or the findings fail validation.
  */
 export async function startInterviewSession(options: InterviewSessionOptions): Promise<InterviewFindings | null> {
   if (!process.env.CASE_DEBUG) {
     process.env.CASE_QUIET = '1';
   }
+
+  // Suppress pi's version check and subscription warning.
+  process.env.PI_SKIP_VERSION_CHECK = '1';
 
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
@@ -144,9 +101,10 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   const systemPrompt = await loadSystemPrompt(options.caseRoot, 'interviewer');
   const briefing = buildBriefing(options);
 
-  printBanner(options, briefing);
-
   const sessionManager = SessionManager.create(options.repoPath);
+
+  // Accumulates all assistant text across turns for AGENT_RESULT detection.
+  let responseText = '';
 
   const runtimeFactory = async (factoryOpts: {
     cwd: string;
@@ -155,6 +113,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   }): Promise<CreateAgentSessionRuntimeResult> => {
     const sm = SettingsManager.create(factoryOpts.cwd, factoryOpts.agentDir);
     sm.setQuietStartup(true);
+    sm.setWarnings({ ...sm.getWarnings(), anthropicExtraUsage: false });
 
     const rl = new DefaultResourceLoader({
       cwd: factoryOpts.cwd,
@@ -197,84 +156,71 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
     return null;
   }
 
-  // Bind extensions so tools work, but skip TUI.
+  // Subscribe to the session to capture text deltas. This fires for every
+  // turn — including follow-up answers the human types in the TUI editor.
   const session = runtime.session;
-  await session.bindExtensions({
-    commandContextActions: {
-      waitForIdle: () => session.agent.waitForIdle(),
-      newSession: async (opts?: unknown) => runtime.newSession(opts as any),
-      fork: async (entryId: string, forkOpts?: unknown) => {
-        const result = await runtime.fork(entryId, forkOpts as any);
-        return { cancelled: result.cancelled };
-      },
-      navigateTree: async (targetId: string, navOpts?: { summarize?: boolean; customInstructions?: string; replaceInstructions?: boolean; label?: string }) => {
-        const result = await session.navigateTree(targetId, navOpts);
-        return { cancelled: result.cancelled };
-      },
-      switchSession: async (sessionPath: string, switchOpts?: unknown) => {
-        return runtime.switchSession(sessionPath, switchOpts as any);
-      },
-      reload: async () => {
-        await session.reload();
-      },
-    },
-    onError: (err: { extensionPath: string; error: string }) => {
-      if (process.env.CASE_DEBUG) {
-        process.stderr.write(`Extension error (${err.extensionPath}): ${err.error}\n`);
-      }
-    },
+  let onResultDetected: (() => void) | null = null;
+  const resultPromise = new Promise<string>((resolve) => {
+    onResultDetected = () => resolve(responseText);
   });
 
-  let allResponseText = '';
-  const rl = new InterviewReadline();
-
-  try {
-    // First turn: send the briefing. The agent explores the repo and may ask
-    // its first question, or emit the AGENT_RESULT right away.
-    process.stderr.write('\nStarting interview...\n\n');
-    await session.prompt(briefing);
-
-    let lastText = getLastAssistantText(session as any);
-    allResponseText += lastText;
-
-    for (let turn = 0; turn < MAX_TURNS; turn++) {
-      if (allResponseText.includes(AGENT_RESULT_END)) break;
-
-      // The agent asked a question. Print it and get the human's answer.
-      process.stderr.write(`\n${lastText}\n`);
-      const answer = await rl.ask('\n> ');
-      if (answer === null) {
-        process.stderr.write('\nInterview aborted by user.\n');
-        rl.close();
-        await runtime.dispose();
-        return null;
+  session.subscribe((event: unknown) => {
+    const e = event as {
+      type?: string;
+      assistantMessageEvent?: { type?: string; delta?: string };
+    };
+    if (
+      e.type === 'message_update' &&
+      e.assistantMessageEvent?.type === 'text_delta' &&
+      typeof e.assistantMessageEvent.delta === 'string'
+    ) {
+      responseText += e.assistantMessageEvent.delta;
+      if (responseText.includes(AGENT_RESULT_END) && onResultDetected) {
+        // Give the TUI a moment to finish rendering the final response
+        // before we tear it down.
+        const cb = onResultDetected;
+        onResultDetected = null;
+        setTimeout(cb, 500);
       }
-
-      await session.prompt(answer);
-      lastText = getLastAssistantText(session as any);
-      allResponseText += lastText;
     }
-  } catch (err) {
-    process.stderr.write(
-      `\nInterview session error: ${(err as Error).message}\n` + `Falling back to mechanical-only onboarding.\n`,
-    );
-    rl.close();
-    await runtime.dispose();
+  });
+
+  // Launch the TUI. InteractiveMode.run() never returns (it has a while(true)
+  // loop), so we fire-and-forget and wait on resultPromise instead.
+  const interactive = new InteractiveMode(runtime, {
+    modelFallbackMessage: runtime.modelFallbackMessage,
+    initialMessage: briefing,
+  });
+  const runPromise = interactive.run().catch(() => {
+    // Expected: stop() tears down the TUI, which may cause getUserInput() to
+    // throw. We don't care — we already have our findings.
+  });
+
+  // Block until AGENT_RESULT>>> is detected or the user quits (Ctrl-C).
+  // If the user quits, runPromise settles (via shutdown/process.exit) before
+  // resultPromise, so we race them.
+  const exitSentinel = runPromise.then(() => '__EXIT__' as const);
+  const winner = await Promise.race([resultPromise, exitSentinel]);
+
+  if (winner === '__EXIT__') {
+    // User quit the TUI (Ctrl-C / Ctrl-D). No findings.
     return null;
   }
 
-  rl.close();
+  // Tear down the TUI and clean up.
+  interactive.stop();
   await runtime.dispose();
 
-  if (!allResponseText.includes(AGENT_RESULT_END)) {
+  const captured = winner;
+  if (!captured.includes(AGENT_RESULT_END)) {
     process.stderr.write(
-      `\nInterview did not produce an AGENT_RESULT block after ${MAX_TURNS} turns.\n` +
+      `\nInterview did not produce an AGENT_RESULT block.\n` +
         `Falling back to mechanical-only onboarding.\n`,
     );
     return null;
   }
 
-  const result = parseAgentResult(allResponseText);
+  const result = parseAgentResult(captured);
   if (result.status !== 'completed') {
     process.stderr.write(
       `\nInterview did not complete successfully${result.error ? `: ${result.error}` : ''}.\n` +
@@ -291,7 +237,6 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
     return null;
   }
 
-  process.stderr.write('\nInterview complete.\n');
   return findings;
 }
 
@@ -332,18 +277,8 @@ function buildBriefing(options: InterviewSessionOptions): string {
   lines.push('Run the interview workflow as described in your system prompt.');
   lines.push('Stay within the 5-minute budget and emit the AGENT_RESULT block when done.');
   lines.push('');
-  lines.push('IMPORTANT: When you need to ask the human a question, end your response with');
-  lines.push('the question. The human will reply in the next message. Do NOT use any tool');
-  lines.push('to ask questions — just write them as plain text in your response.');
+  lines.push('IMPORTANT: Ask the human questions as plain text in your response. The human');
+  lines.push('will type their answer in the editor. Do NOT use any AskUserQuestion or');
+  lines.push('similar tool — just write the question as text and end your turn.');
   return lines.join('\n');
-}
-
-/** Minimal banner printed before the session starts. */
-function printBanner(options: InterviewSessionOptions, briefing: string): void {
-  const home = process.env.HOME ?? '';
-  const safeBriefing = home ? briefing.replaceAll(home, '~') : briefing;
-  const sep = '─'.repeat(52);
-  process.stderr.write(
-    ['', `case · onboard interview — ${basename(options.repoPath)}`, sep, safeBriefing, sep, ''].join('\n') + '\n',
-  );
 }

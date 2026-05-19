@@ -82,7 +82,7 @@ Capture a one-sentence `evidenceRationale` explaining why the strategy you picke
 
 ### 5. Ask the human
 
-Ask **one question per response turn**. End your message with the question — the harness will read the human's answer from stdin and pass it back as the next user message. Do NOT use any tool to ask questions; just write them as plain text. **Do not invent answers** — if the human declines to answer, leave the field empty and the synthesizer will fall back to mechanical detection.
+Ask questions as **plain text in your response** — the human types answers in the TUI editor. **Never use AskUserQuestion or any tool to ask questions.** You may ask multiple questions in a single turn if they're related; the human can answer them all at once. **Do not invent answers** — if the human declines to answer, leave the field empty and the synthesizer will fall back to mechanical detection.
 
 After you have asked all necessary questions and received answers, proceed immediately to Step 6 and then emit the `AGENT_RESULT` block. Do not ask for confirmation to proceed.
 
