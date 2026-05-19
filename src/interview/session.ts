@@ -120,6 +120,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
       agentDir: factoryOpts.agentDir,
       settingsManager: sm,
       appendSystemPrompt: [systemPrompt],
+      noExtensions: true,
     });
     await rl.reload();
 
