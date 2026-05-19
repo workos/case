@@ -225,6 +225,34 @@ describe('onboard interview integration — re-interview updates existing entry'
     expect(parsed.repos[0].verificationNotes).toBe('new notes from re-interview');
     expect(parsed.repos[0].description).toBe('new description');
   });
+
+  it('preserves the existing entry name when directory basename differs', async () => {
+    const manifestPath = join(tempDir, 'projects.json');
+    const original: ProjectEntry = {
+      name: 'cli',
+      evidenceStrategy: 'test-output',
+      path: './cli/main',
+      remote: 'git@github.com:workos/cli.git',
+      description: 'WorkOS CLI',
+      language: 'go',
+      packageManager: 'go',
+      commands: { test: 'go test ./...' },
+    };
+
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [original] }, null, 2));
+
+    const findings = makeFindings({ description: 'updated CLI description' });
+    const detected = makeDetected({ name: 'main', path: './cli/main' });
+    const entry = synthesizeProjectEntry(findings, detected);
+    entry.name = original.name;
+
+    writeProjectsEntry(manifestPath, entry, original.name);
+
+    const parsed = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    expect(parsed.repos).toHaveLength(1);
+    expect(parsed.repos[0].name).toBe('cli');
+    expect(parsed.repos[0].description).toBe('updated CLI description');
+  });
 });
 
 describe('onboard interview integration — verificationNotes reaches verifier prompt', () => {

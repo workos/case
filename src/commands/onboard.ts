@@ -200,6 +200,7 @@ async function runReInterview(repoName: string, caseRoot: string): Promise<numbe
   }
 
   const entry = synthesizeProjectEntry(findings, detected);
+  entry.name = existing.name;
 
   try {
     writeProjectsEntry(manifest.path, entry, existing.name);
