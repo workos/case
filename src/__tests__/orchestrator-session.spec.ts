@@ -66,7 +66,7 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
       return mockResourceLoaderReload(this.options);
     }
   },
-  SettingsManager: { create: () => ({ setQuietStartup: () => {} }) },
+  SettingsManager: { create: () => ({ setQuietStartup: () => {}, setWarnings: () => {}, getWarnings: () => ({}) }) },
   SessionManager: { create: () => ({}) },
   AuthStorage: { create: () => ({}) },
   ModelRegistry: {
@@ -77,6 +77,10 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
     }),
   },
   getAgentDir: () => '/tmp/pi-agent',
+  createReadTool: () => ({ name: 'read' }),
+  createWriteTool: () => ({ name: 'write' }),
+  createEditTool: () => ({ name: 'edit' }),
+  createBashTool: () => ({ name: 'bash' }),
 }));
 
 const { startOrchestratorSession } = await import('../agent/orchestrator-session.js');

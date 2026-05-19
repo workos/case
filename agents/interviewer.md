@@ -82,7 +82,9 @@ Capture a one-sentence `evidenceRationale` explaining why the strategy you picke
 
 ### 5. Ask the human
 
-Print questions to the conversation one at a time, wait for the human's response (the interactive harness reads stdin and passes the answer back to you), and apply skip rules below. **Do not invent answers** — if the human declines to answer, leave the field empty and the synthesizer will fall back to mechanical detection.
+Ask **one question per response turn**. End your message with the question — the harness will read the human's answer from stdin and pass it back as the next user message. Do NOT use any tool to ask questions; just write them as plain text. **Do not invent answers** — if the human declines to answer, leave the field empty and the synthesizer will fall back to mechanical detection.
+
+After you have asked all necessary questions and received answers, proceed immediately to Step 6 and then emit the `AGENT_RESULT` block. Do not ask for confirmation to proceed.
 
 Question bank (in order):
 

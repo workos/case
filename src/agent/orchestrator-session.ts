@@ -35,6 +35,9 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     process.env.CASE_QUIET = '1';
   }
 
+  // Suppress pi's "Update Available" banner — case manages its own versioning.
+  process.env.PI_SKIP_VERSION_CHECK = '1';
+
   const cwd = process.cwd();
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
@@ -54,6 +57,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
 
   const settingsManager = SettingsManager.create(cwd, agentDir);
   settingsManager.setQuietStartup(true);
+  settingsManager.setWarnings({ ...settingsManager.getWarnings(), anthropicExtraUsage: false });
   const sessionManager = SessionManager.create(cwd);
 
   const caseRoot = options.caseRoot;
@@ -66,6 +70,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
   }): Promise<CreateAgentSessionRuntimeResult> => {
     const sm = SettingsManager.create(factoryOpts.cwd, factoryOpts.agentDir);
     sm.setQuietStartup(true);
+    sm.setWarnings({ ...sm.getWarnings(), anthropicExtraUsage: false });
 
     const rl = new DefaultResourceLoader({
       cwd: factoryOpts.cwd,
