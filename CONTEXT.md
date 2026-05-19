@@ -8,7 +8,7 @@ Canonical vocabulary for the case pipeline. Every term used in code, specs, and 
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | **task**                  | A unit of agent work dispatched by the pipeline. Has a `taskId`, status, and associated event log.                                                         | `job`, `run` (too generic)                                              |
 | **phase**                 | A named pipeline stage that produces one `AgentResult`. One of: implement, verify, review, close, retrospective.                                           | `step` (too generic), `stage` (ambiguous with CI)                       |
-| **node**                  | A DAG vertex representing one phase execution at a specific revision cycle. E.g., `implement_0`, `verify_1`. Introduced in Phase 3.                        | `vertex` (too academic)                                                 |
+| **node**                  | A pipeline graph vertex representing one phase execution at a specific revision cycle. E.g., `implement_0`, `verify_1`. Introduced in Phase 3.              | `vertex` (too academic)                                                 |
 | **status**                | The lifecycle position of a task, derived from pipeline state. One of: active, implementing, verifying, reviewing, evaluating, closing, pr-opened, merged. | `state` (reserved for `PipelineState`, the full reconstructible object) |
 | **state**                 | The full reconstructible pipeline state object (`PipelineState`), produced by `reduceEvents()`.                                                            | `snapshot` (used in mill for a different concept)                       |
 | **event**                 | An immutable past-tense fact appended to the event log. Events are the source of truth.                                                                    | `action`, `command` (those are imperative; events are facts)            |
@@ -39,7 +39,7 @@ Names considered and explicitly rejected, with rationale. Prevents re-litigating
 | `run`                  | Alternative for "task"       | Too generic — conflicts with "pipeline run" (a run executes a task)                         |
 | `step`                 | Alternative for "phase"      | Too generic — could mean anything sequential                                                |
 | `stage`                | Alternative for "phase"      | Ambiguous with CI stages (GitHub Actions, GitLab CI)                                        |
-| `vertex`               | Alternative for "node"       | Too academic — DAG is already abstract enough                                               |
+| `vertex`               | Alternative for "node"       | Too academic — the graph abstraction is already sufficient                                   |
 | `state` (for status)   | Alternative for "status"     | Reserved for `PipelineState` — the full reconstructible object, not a scalar position       |
 | `snapshot`             | Alternative for "state"      | Used in mill for a different concept (point-in-time capture)                                |
 | `action` / `command`   | Alternative for "event"      | Those are imperative; events are past-tense facts                                           |

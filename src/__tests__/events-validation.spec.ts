@@ -83,7 +83,7 @@ describe('validateTransition', () => {
       ).not.toThrow();
     });
 
-    test('allows concurrent phase_start when another phase is running (DAG executor)', () => {
+    test('allows concurrent phase_start when another phase is running (pipeline executor)', () => {
       expect(() =>
         validateTransition(
           makeEvent({ event: 'phase_start', phase: 'verify', agent: 'verifier' }),

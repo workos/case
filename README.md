@@ -174,7 +174,7 @@ For portable binary installs, keep `projects.json` in `~/.config/case/` via `ca 
 
 ## Pipeline
 
-The runtime uses a deterministic TypeScript DAG executor for phase transitions. The LLMs do the work inside each phase; TypeScript decides which phase runs next.
+The runtime uses a deterministic TypeScript pipeline executor for phase transitions. The LLMs do the work inside each phase; TypeScript decides which phase runs next.
 
 Profiles:
 

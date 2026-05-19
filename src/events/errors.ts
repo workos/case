@@ -24,7 +24,7 @@ export function validateTransition(event: PipelineEvent, state: PipelineState | 
 
     case 'phase_start': {
       assertRunning(event, state);
-      // Allow concurrent phases (e.g., verify + review in DAG executor)
+      // Allow concurrent phases (e.g., verify + review run in parallel)
       return;
     }
 

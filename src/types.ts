@@ -1,4 +1,4 @@
-/** Status lifecycle — derived from DAG node state via projectStatusFromGraph() */
+/** Status lifecycle — derived from pipeline graph node state via projectStatusFromGraph() */
 export type TaskStatus =
   | 'active'
   | 'implementing'

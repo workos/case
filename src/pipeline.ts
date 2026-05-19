@@ -155,7 +155,7 @@ async function runPipelineBody(
   let outcome: 'completed' | 'failed' = 'completed';
   let failedAgent: AgentName | undefined;
 
-  log.info('pipeline started', { phase: 'dag', mode: config.mode, task: task.id, runId });
+  log.info('pipeline started', { phase: 'init', mode: config.mode, task: task.id, runId });
 
   const ctx: ExecuteGraphContext = {
     graph,

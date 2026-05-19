@@ -135,14 +135,14 @@ describe('EventAppender', () => {
     expect(events[1].runId).toBe('run-3');
   });
 
-  test('allows concurrent phase starts (DAG executor)', async () => {
+  test('allows concurrent phase starts (pipeline executor)', async () => {
     const store = new MockTaskStore(taskJsonPath) as any;
     const appender = new EventAppender(tmpDir, 'task-1', 'run-4', store);
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
 
-    // DAG executor may start multiple phases concurrently
+    // Pipeline executor may start multiple phases concurrently
     await expect(
       appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' }),
     ).resolves.toBeUndefined();
