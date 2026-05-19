@@ -268,6 +268,95 @@ describe('executeGraph', () => {
     expect(graph.nodes.get('review_0')!.state).toBe('skipped');
   });
 
+  test('fingerprint match: identical failures across cycles → abort, emit fingerprint_match', async () => {
+    // Two cycles, both verify_0 and verify_1 return identical failure rubric.
+    const graph = buildGraph('standard', 2);
+    const responses = new Map<string, AgentResult>();
+    responses.set('verify_0', makeRevisionResult('verifier'));
+    responses.set('verify_1', makeRevisionResult('verifier'));
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches.length).toBeGreaterThanOrEqual(1);
+    const match = fpMatches[0];
+    expect(match.cycle).toBe(2);
+    expect(match.previousCycle).toBe(0);
+    expect(typeof match.fingerprint).toBe('string');
+    expect((match.fingerprint as string).length).toBe(16);
+
+    // After cycle-1 fingerprint match, implement_2 must not run.
+    // (Cycles 0 and 1 already completed before the fingerprint comparison
+    // detected the identical failure signature.)
+    expect(graph.nodes.get('implement_2')!.state).not.toBe('completed');
+    expect(graph.nodes.get('verify_2')!.state).not.toBe('completed');
+    expect(graph.nodes.get('close')!.state).toBe('completed');
+    expect(graph.nodes.get('retrospective')!.state).toBe('completed');
+
+    // Budget-exhausted event should also be emitted alongside the match.
+    const budgetEvents = appender.events.filter((e) => e.event === 'revision_budget_exhausted');
+    expect(budgetEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('different failures across cycles → no fingerprint match, normal flow continues', async () => {
+    const graph = buildGraph('standard', 2);
+    const responses = new Map<string, AgentResult>();
+    // Cycle 0: verifier fails on reproduced-scenario
+    responses.set('verify_0', makeRevisionResult('verifier'));
+    // Cycle 1: different failed category — should NOT match
+    responses.set('verify_1', {
+      status: 'completed',
+      summary: 'verifier found different issues',
+      artifacts: {
+        commit: null,
+        filesChanged: ['src/bar.ts'],
+        testsPassed: false,
+        screenshotUrls: [],
+        evidenceMarkers: [],
+        prUrl: null,
+        prNumber: null,
+      },
+      rubric: {
+        role: 'verifier',
+        categories: [{ category: 'edge-case-checked', verdict: 'fail', detail: 'missing edge case' }],
+      },
+      error: null,
+    });
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    // No fingerprint_match event — fingerprints differ.
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
+
+    // Pipeline should proceed through cycle 2's implement (revision dispatched normally).
+    expect(graph.nodes.get('implement_2')!.state).toBe('completed');
+  });
+
+  test('single-cycle pipeline (maxRevisionCycles=0): no fingerprint comparison runs', async () => {
+    const graph = buildGraph('standard', 0);
+    const responses = new Map<string, AgentResult>();
+    // Even if verify fails, there's no next cycle to compare against.
+    responses.set('verify_0', makeRevisionResult('verifier'));
+
+    const ctx = makeContext(graph, responses);
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
+  });
+
+  test('evaluator passes (no revision request) → no fingerprint comparison runs', async () => {
+    const graph = buildGraph('standard', 2);
+    const ctx = makeContext(graph, new Map());
+    await executeGraph(ctx);
+
+    const fpMatches = appender.events.filter((e) => e.event === 'fingerprint_match');
+    expect(fpMatches).toHaveLength(0);
+  });
+
   test('tiny profile: no verify nodes, review runs directly after implement', async () => {
     const graph = buildGraph('tiny', 1);
     const dispatchOrder: string[] = [];

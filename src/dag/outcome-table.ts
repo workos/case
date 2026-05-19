@@ -140,10 +140,15 @@ const MATRIX = new Map<PhaseOutcomeKey, OutcomeAction>([
   [k('review', 'success'), { action: 'advance', to: 'close' }],
   [k('review', 'fail-critical-findings'), { action: 'abort', reason: 'reviewer flagged critical findings' }],
   [k('review', 'fail-soft-findings'), { action: 'revision', cycle: 'next' }],
+  // `budget-exhausted` covers both true cycle-budget exhaustion *and* the
+  // failure-fingerprint match short-circuit added in Phase 2 (see
+  // `src/dag/fingerprint.ts`). The executor emits a more specific
+  // notifier/event message at runtime; this matrix entry routes both cases
+  // through the same skip-to-close path.
   [k('review', 'budget-exhausted'), {
     action: 'skip-to',
     to: 'close',
-    withWarning: 'revision budget exhausted; closing with reviewer warnings',
+    withWarning: 'revision budget exhausted (or identical failure fingerprint across cycles); closing with reviewer warnings',
   }],
   [k('review', 'fail-timeout'), { action: 'abort', reason: 'reviewer timed out' }],
   [k('review', 'fail-agent-protocol'), { action: 'abort', reason: 'reviewer returned malformed AGENT_RESULT' }],

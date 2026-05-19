@@ -211,6 +211,24 @@ export interface RevisionRequest {
   suggestedFocus: string[];
   /** Which revision cycle this is (1-indexed) */
   cycle: number;
+  /**
+   * Optional failure fingerprint — truncated SHA-256 of
+   * `failedCategories.sort().join(':') + '|' + errorSummary` (see
+   * `src/dag/fingerprint.ts`). Populated by the executor after the evaluator
+   * pair completes so the next cycle can detect identical failures.
+   */
+  fingerprint?: string;
+}
+
+/**
+ * Failure fingerprint used to detect identical failures across revision cycles.
+ * See `src/dag/fingerprint.ts` for the hashing rules.
+ */
+export interface FailureFingerprint {
+  /** Truncated SHA-256 (16 hex chars). */
+  value: string;
+  /** Cycle that produced this fingerprint (0-indexed). */
+  cycle: number;
 }
 
 export interface PhaseOutput {
@@ -400,6 +418,7 @@ export interface TaskCreateRequest {
   /** What evidence proves the fix works — required for all tasks (done contract) */
   evidenceExpectations: string;
 }
+
 
 // Event system re-exports
 export type { PipelineEvent } from './events/schema.js';

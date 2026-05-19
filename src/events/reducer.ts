@@ -100,6 +100,13 @@ export function applyEvent(state: PipelineState | null, event: PipelineEvent): P
       return updated;
     }
 
+    case 'fingerprint_match': {
+      const s = ensureState(state, event);
+      const updated = cloneState(s);
+      updated.lastSequence = event.sequence;
+      return updated;
+    }
+
     case 'status_changed': {
       const s = ensureState(state, event);
       const updated = cloneState(s);

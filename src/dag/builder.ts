@@ -118,8 +118,11 @@ function verifyPassedPredicate(cycle: number) {
     const verifyNode = graph.nodes.get(nodeId('verify', cycle));
     if (!verifyNode || verifyNode.state !== 'completed') return false;
     if (hasRevisionResult(verifyNode)) {
+      // Allow review to run when there's no next implement (budget
+      // exhausted) or when the next implement has been explicitly skipped
+      // (e.g. fingerprint-match short-circuit in the executor).
       const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
-      return !nextImpl;
+      return !nextImpl || nextImpl.state === 'skipped';
     }
     return true;
   };
@@ -141,10 +144,12 @@ function noRevisionPredicate(cycle: number, hasVerify: boolean) {
       : [graph.nodes.get(nodeId('review', cycle))!];
 
     if (evaluators.some((node) => hasRevisionResult(node))) {
-      // A revision was requested — don't proceed to close.
+      // A revision was requested — don't proceed to close unless either
+      // (a) no next implement node exists (budget exhausted) or
+      // (b) the next implement has been explicitly skipped (e.g. fingerprint
+      // match short-circuit in the executor).
       const nextImpl = graph.nodes.get(nodeId('implement', cycle + 1));
-      if (nextImpl) return false;
-      // No next implement means budget exhausted — allow proceeding
+      if (nextImpl && nextImpl.state !== 'skipped') return false;
     }
 
     return true;

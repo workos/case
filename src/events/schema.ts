@@ -56,6 +56,15 @@ export type PipelineEvent =
       cycles: number;
     })
   | (EventMeta & {
+      event: 'fingerprint_match';
+      /** Cycle whose fingerprint matched the previous cycle (1-indexed — the cycle being aborted). */
+      cycle: number;
+      /** Truncated SHA-256 fingerprint (16 hex chars). */
+      fingerprint: string;
+      /** Previous cycle that produced the same fingerprint. */
+      previousCycle: number;
+    })
+  | (EventMeta & {
       event: 'status_changed';
       from: TaskStatus;
       to: TaskStatus;
