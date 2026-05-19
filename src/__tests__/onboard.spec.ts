@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 function captureStream(stream: NodeJS.WriteStream): { lines: string[]; restore: () => void } {
   const lines: string[] = [];
