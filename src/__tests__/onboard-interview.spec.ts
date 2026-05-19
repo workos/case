@@ -2,11 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  writeClaudeLocal,
-  writeLearnings,
-  writeProjectsEntry,
-} from '../interview/writers.js';
+import { writeClaudeLocal, writeLearnings, writeProjectsEntry } from '../interview/writers.js';
 import type { InterviewFindings, ProjectEntry } from '../types.js';
 
 function captureStream(stream: NodeJS.WriteStream): { lines: string[]; restore: () => void } {
@@ -35,9 +31,7 @@ function makeFindings(overrides: Partial<InterviewFindings> = {}): InterviewFind
       { topic: 'Architecture', content: 'Cookie-based session.' },
       { topic: 'Testing', content: 'Vitest mocks under src/__mocks__/.' },
     ],
-    conventions: [
-      { rule: 'Always run typecheck', reason: 'CI rejects type errors.' },
-    ],
+    conventions: [{ rule: 'Always run typecheck', reason: 'CI rejects type errors.' }],
     repoType: 'sdk',
     hasExampleApp: false,
     testFramework: 'vitest',
@@ -65,7 +59,10 @@ let tempDir: string;
 let stdout: ReturnType<typeof captureStream>;
 
 beforeEach(async () => {
-  tempDir = join(process.env.TMPDIR ?? '/tmp', `case-onboard-interview-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  tempDir = join(
+    process.env.TMPDIR ?? '/tmp',
+    `case-onboard-interview-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   await mkdir(tempDir, { recursive: true });
   stdout = captureStream(process.stdout);
 });
@@ -78,10 +75,7 @@ afterEach(async () => {
 describe('writeProjectsEntry', () => {
   it('appends a new entry when name is not in projects.json', async () => {
     const manifestPath = join(tempDir, 'projects.json');
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2),
-    );
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2));
 
     writeProjectsEntry(manifestPath, makeEntry());
 
@@ -127,10 +121,7 @@ describe('writeProjectsEntry', () => {
   it('replaces an existing entry when existingName is provided', async () => {
     const manifestPath = join(tempDir, 'projects.json');
     const original = makeEntry({ evidenceStrategy: 'ui-screenshot', description: 'old desc' });
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ $schema: './projects.schema.json', repos: [original] }, null, 2),
-    );
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [original] }, null, 2));
 
     const updated = makeEntry({ evidenceStrategy: 'test-output', description: 'new desc' });
     writeProjectsEntry(manifestPath, updated, original.name);
@@ -143,10 +134,7 @@ describe('writeProjectsEntry', () => {
 
   it('throws when existingName does not match any repo', async () => {
     const manifestPath = join(tempDir, 'projects.json');
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2),
-    );
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2));
 
     expect(() => writeProjectsEntry(manifestPath, makeEntry(), 'no-such-repo')).toThrow(/no such repo/);
   });
@@ -169,10 +157,7 @@ describe('writeProjectsEntry', () => {
 
   it('writes a single trailing newline', async () => {
     const manifestPath = join(tempDir, 'projects.json');
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2),
-    );
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2));
 
     writeProjectsEntry(manifestPath, makeEntry());
 
@@ -310,10 +295,7 @@ describe('onboard CLI flag parsing', () => {
 describe('synthesis + writer integration', () => {
   it('writes a complete projects.json entry from interview findings', async () => {
     const manifestPath = join(tempDir, 'projects.json');
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2),
-    );
+    await writeFile(manifestPath, JSON.stringify({ $schema: './projects.schema.json', repos: [] }, null, 2));
 
     const { synthesizeProjectEntry } = await import('../interview/findings.js');
     const detected = {

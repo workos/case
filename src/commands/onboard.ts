@@ -90,15 +90,17 @@ function printUsage(): void {
   process.stderr.write('\nProbes the repo for package manager, language, scripts, and git remote.\n');
   process.stderr.write('Adds an entry to projects.json with the detected settings.\n');
   process.stderr.write('\nFlags:\n');
-  process.stderr.write('  --interview      Run the interactive interview after mechanical probe.\n');
-  process.stderr.write('  --re-interview   Re-run the interview for an already-onboarded repo (argument is repo name).\n');
+  process.stderr.write('  --interview      Run the interviewer agent after the mechanical probe to capture\n');
+  process.stderr.write('                   evidence strategy rationale, verification notes, conventions, and\n');
+  process.stderr.write('                   repo learnings. Writes .case/learnings.md and CLAUDE.local.md in\n');
+  process.stderr.write('                   addition to the projects.json entry.\n');
+  process.stderr.write('  --re-interview   Re-run the interview for an already-onboarded repo. The argument\n');
+  process.stderr.write('                   is a repo name from projects.json. The existing entry is replaced\n');
+  process.stderr.write('                   in place and learnings/CLAUDE.local.md are refreshed.\n');
+  process.stderr.write('  -h, --help       Show this help message.\n');
 }
 
-async function runOnboard(
-  repoPath: string,
-  caseRoot: string,
-  options: { interview: boolean },
-): Promise<number> {
+async function runOnboard(repoPath: string, caseRoot: string, options: { interview: boolean }): Promise<number> {
   const absPath = resolve(repoPath);
   if (!existsSync(absPath)) {
     process.stderr.write(`Error: path not found: ${absPath}\n`);
@@ -158,19 +160,14 @@ async function runOnboard(
 async function runReInterview(repoName: string, caseRoot: string): Promise<number> {
   const manifest = await loadProjectsManifest(caseRoot).catch(() => null);
   if (!manifest) {
-    process.stderr.write(
-      `Error: projects.json not found. Run 'ca init' or 'ca onboard <path>' first.\n`,
-    );
+    process.stderr.write(`Error: projects.json not found. Run 'ca init' or 'ca onboard <path>' first.\n`);
     return 1;
   }
 
   const existing = manifest.repos.find((r) => r.name === repoName);
   if (!existing) {
     const available = manifest.repos.map((r) => r.name).join(', ') || '(none)';
-    process.stderr.write(
-      `Error: repo "${repoName}" not found in projects.json.\n` +
-        `Available repos: ${available}\n`,
-    );
+    process.stderr.write(`Error: repo "${repoName}" not found in projects.json.\n` + `Available repos: ${available}\n`);
     return 1;
   }
 

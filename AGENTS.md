@@ -47,6 +47,8 @@ Tasks are markdown files that agents execute. Runtime task files live in the tar
 
 Pipeline: scout → implementer → verifier → reviewer → closer → (retrospective)
 
+Onboarding agent (out of the pipeline): `interviewer` — invoked by `ca onboard --interview` to capture evidence strategy rationale, verification notes, and repo learnings.
+
 Lifecycle: `.case/tasks/active/` → PR opened/merged status in the task JSON
 
 ## Working in a Target Repo

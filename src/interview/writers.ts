@@ -37,11 +37,7 @@ interface ProjectsManifestFile {
  * the writer throws so the caller can surface a clean error instead of
  * silently overwriting corrupt data.
  */
-export function writeProjectsEntry(
-  manifestPath: string,
-  entry: ProjectEntry,
-  existingName?: string,
-): void {
+export function writeProjectsEntry(manifestPath: string, entry: ProjectEntry, existingName?: string): void {
   if (!existsSync(manifestPath)) {
     throw new Error(`projects.json not found at ${manifestPath}`);
   }
@@ -77,9 +73,7 @@ export function writeProjectsEntry(
   writeFileSync(manifestPath, JSON.stringify(parsed, null, 2) + '\n');
 
   const action = existingName !== undefined ? 'Updated' : 'Wrote';
-  process.stdout.write(
-    `  ${action} projects.json (${entry.name}, evidenceStrategy: ${entry.evidenceStrategy})\n`,
-  );
+  process.stdout.write(`  ${action} projects.json (${entry.name}, evidenceStrategy: ${entry.evidenceStrategy})\n`);
 }
 
 /**
@@ -102,20 +96,15 @@ export function writeLearnings(repoPath: string, findings: InterviewFindings): v
 
   if (existsSync(target)) {
     const existing = readFileSync(target, 'utf-8');
-    const separator =
-      existing.endsWith('\n\n') || existing.endsWith('\n') ? '' : '\n';
+    const separator = existing.endsWith('\n\n') || existing.endsWith('\n') ? '' : '\n';
     const appended = `${existing}${separator}\n---\n\n${body}`;
     writeFileSync(target, appended);
-    process.stdout.write(
-      `  Appended .case/learnings.md (${findings.learnings.length} new entries)\n`,
-    );
+    process.stdout.write(`  Appended .case/learnings.md (${findings.learnings.length} new entries)\n`);
     return;
   }
 
   writeFileSync(target, body);
-  process.stdout.write(
-    `  Wrote .case/learnings.md (${findings.learnings.length} entries)\n`,
-  );
+  process.stdout.write(`  Wrote .case/learnings.md (${findings.learnings.length} entries)\n`);
 }
 
 /**
@@ -136,7 +125,5 @@ export function writeClaudeLocal(repoPath: string, findings: InterviewFindings):
   const target = resolveRepoClaudeLocal(repoPath);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, body);
-  process.stdout.write(
-    `  Wrote CLAUDE.local.md (${findings.conventions.length} conventions)\n`,
-  );
+  process.stdout.write(`  Wrote CLAUDE.local.md (${findings.conventions.length} conventions)\n`);
 }

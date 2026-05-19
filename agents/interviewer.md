@@ -68,11 +68,11 @@ When ambiguous, ask the human before guessing.
 
 This is the most important field. The verifier uses it to decide how to prove the change works.
 
-| Strategy | Use when | Verifier produces |
-| --- | --- | --- |
-| `test-output` | SDKs, libraries, CLIs without a runnable UI | A test runner summary (pass/fail counts, hash of output) |
-| `scenario-script` | CLIs and SDKs with a meaningful scripted scenario | Captured stdout/stderr of the scenario run |
-| `ui-screenshot` | Apps with a UI surface (the verifier launches it and screenshots) | Playwright screenshots of the running app |
+| Strategy          | Use when                                                          | Verifier produces                                        |
+| ----------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| `test-output`     | SDKs, libraries, CLIs without a runnable UI                       | A test runner summary (pass/fail counts, hash of output) |
+| `scenario-script` | CLIs and SDKs with a meaningful scripted scenario                 | Captured stdout/stderr of the scenario run               |
+| `ui-screenshot`   | Apps with a UI surface (the verifier launches it and screenshots) | Playwright screenshots of the running app                |
 
 **Hard rule**: `ui-screenshot` is only correct when `repoType === 'app'` _or_ the repo ships a runnable example app (`hasExampleApp === true`) **and** the verifier can launch it without external services it cannot access.
 

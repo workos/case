@@ -75,9 +75,7 @@ export interface InterviewSessionOptions {
  * parseable result, or the findings fail validation. The caller is
  * responsible for surfacing this as a graceful degradation to mechanical-only.
  */
-export async function startInterviewSession(
-  options: InterviewSessionOptions,
-): Promise<InterviewFindings | null> {
+export async function startInterviewSession(options: InterviewSessionOptions): Promise<InterviewFindings | null> {
   // Suppress structured JSON logs in interactive mode — the TUI provides its own feedback.
   if (!process.env.CASE_DEBUG) {
     process.env.CASE_QUIET = '1';
@@ -128,10 +126,7 @@ export async function startInterviewSession(
       resourceLoader: rl,
       sessionManager: factoryOpts.sessionManager,
       // Read-only tools only — interviewer must never mutate the repo.
-      customTools: [
-        createReadTool(factoryOpts.cwd),
-        createBashTool(factoryOpts.cwd),
-      ] as unknown as ToolDefinition[],
+      customTools: [createReadTool(factoryOpts.cwd), createBashTool(factoryOpts.cwd)] as unknown as ToolDefinition[],
     });
 
     // Subscribe to the underlying agent so we capture text deltas for AGENT_RESULT parsing.
@@ -184,8 +179,7 @@ export async function startInterviewSession(
     await interactive.run();
   } catch (err) {
     process.stderr.write(
-      `\nInterview session aborted: ${(err as Error).message}\n` +
-        `Falling back to mechanical-only onboarding.\n`,
+      `\nInterview session aborted: ${(err as Error).message}\n` + `Falling back to mechanical-only onboarding.\n`,
     );
     return null;
   }
@@ -202,8 +196,7 @@ export async function startInterviewSession(
   const findings = parseInterviewFindings(result.findings);
   if (!findings) {
     process.stderr.write(
-      `\nInterview findings could not be validated.\n` +
-        `Falling back to mechanical-only onboarding.\n`,
+      `\nInterview findings could not be validated.\n` + `Falling back to mechanical-only onboarding.\n`,
     );
     return null;
   }
@@ -256,13 +249,6 @@ function printBanner(options: InterviewSessionOptions, briefing: string): void {
   const safeBriefing = home ? briefing.replaceAll(home, '~') : briefing;
   const sep = '─'.repeat(52);
   process.stderr.write(
-    [
-      '',
-      `case · onboard interview — ${basename(options.repoPath)}`,
-      sep,
-      safeBriefing,
-      sep,
-      '',
-    ].join('\n') + '\n',
+    ['', `case · onboard interview — ${basename(options.repoPath)}`, sep, safeBriefing, sep, ''].join('\n') + '\n',
   );
 }

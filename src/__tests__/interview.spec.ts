@@ -22,9 +22,7 @@ function makeFindings(overrides: Partial<InterviewFindings> = {}): InterviewFind
       { topic: 'Architecture', content: 'Cookie-based session encrypted with iron-session.' },
       { topic: 'Testing', content: 'Mocks live in `src/__mocks__/`; never call the real WorkOS API.' },
     ],
-    conventions: [
-      { rule: 'Always run typecheck before commit', reason: 'CI rejects type errors.' },
-    ],
+    conventions: [{ rule: 'Always run typecheck before commit', reason: 'CI rejects type errors.' }],
     repoType: 'sdk',
     hasExampleApp: false,
     testFramework: 'vitest',
@@ -33,9 +31,7 @@ function makeFindings(overrides: Partial<InterviewFindings> = {}): InterviewFind
   };
 }
 
-function makeDetected(
-  overrides: Partial<DetectedRepoForSynthesis> = {},
-): DetectedRepoForSynthesis {
+function makeDetected(overrides: Partial<DetectedRepoForSynthesis> = {}): DetectedRepoForSynthesis {
   return {
     name: 'authkit-nextjs',
     path: './authkit-nextjs',
@@ -156,16 +152,12 @@ describe('validateEvidenceStrategy', () => {
   });
 
   it('warns when ui-screenshot is chosen for a library', () => {
-    const result = validateEvidenceStrategy(
-      makeFindings({ repoType: 'library', evidenceStrategy: 'ui-screenshot' }),
-    );
+    const result = validateEvidenceStrategy(makeFindings({ repoType: 'library', evidenceStrategy: 'ui-screenshot' }));
     expect(result.warnings.some((w) => w.toLowerCase().includes('library'))).toBe(true);
   });
 
   it('warns when ui-screenshot is chosen for a cli', () => {
-    const result = validateEvidenceStrategy(
-      makeFindings({ repoType: 'cli', evidenceStrategy: 'ui-screenshot' }),
-    );
+    const result = validateEvidenceStrategy(makeFindings({ repoType: 'cli', evidenceStrategy: 'ui-screenshot' }));
     expect(result.warnings.some((w) => w.toLowerCase().includes('cli'))).toBe(true);
   });
 

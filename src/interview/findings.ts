@@ -21,12 +21,7 @@
  * Synthesis is pure — callers should validate first via
  * {@link parseInterviewFindings} or {@link validateInterviewFindings}.
  */
-import type {
-  EvidenceStrategy,
-  InterviewFindings,
-  ProjectEntry,
-  RepoType,
-} from '../types.js';
+import type { EvidenceStrategy, InterviewFindings, ProjectEntry, RepoType } from '../types.js';
 
 export type { InterviewFindings, RepoType } from '../types.js';
 
@@ -37,11 +32,7 @@ export class InterviewFindingsValidationError extends Error {
   }
 }
 
-const VALID_EVIDENCE_STRATEGIES: readonly EvidenceStrategy[] = [
-  'ui-screenshot',
-  'scenario-script',
-  'test-output',
-];
+const VALID_EVIDENCE_STRATEGIES: readonly EvidenceStrategy[] = ['ui-screenshot', 'scenario-script', 'test-output'];
 
 const VALID_REPO_TYPES: readonly RepoType[] = ['sdk', 'app', 'library', 'cli', 'monorepo'];
 
@@ -117,9 +108,7 @@ export function validateInterviewFindings(value: unknown): InterviewFindings {
 
   if (v.credentials !== undefined) {
     if (typeof v.credentials !== 'string') {
-      throw new InterviewFindingsValidationError(
-        `credentials: expected string, got ${describe(v.credentials)}`,
-      );
+      throw new InterviewFindingsValidationError(`credentials: expected string, got ${describe(v.credentials)}`);
     }
     out.credentials = v.credentials;
   }
@@ -177,9 +166,7 @@ export function validateEvidenceStrategy(findings: InterviewFindings): EvidenceS
       );
     }
     if (!findings.hasExampleApp && (findings.repoType === 'sdk' || findings.repoType === 'library')) {
-      warnings.push(
-        'no example app detected — ui-screenshot evidence requires a runnable UI surface.',
-      );
+      warnings.push('no example app detected — ui-screenshot evidence requires a runnable UI surface.');
     }
   }
 
@@ -217,10 +204,7 @@ export interface DetectedRepoForSynthesis {
  *   - `name`, `path`, `remote`, `language`, `packageManager` come from
  *     mechanical detection — the human is not asked about these.
  */
-export function synthesizeProjectEntry(
-  findings: InterviewFindings,
-  detected: DetectedRepoForSynthesis,
-): ProjectEntry {
+export function synthesizeProjectEntry(findings: InterviewFindings, detected: DetectedRepoForSynthesis): ProjectEntry {
   const commands: Record<string, string> = { ...detected.commands };
   for (const [key, value] of Object.entries(findings.commandOverrides)) {
     // Only override with non-empty strings. The agent may emit empty values
