@@ -12,6 +12,7 @@ import {
 import type { ExtensionAPI, ToolDefinition, CreateAgentSessionRuntimeResult } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
 import { basename } from 'node:path';
+import { mkdirSync, symlinkSync, existsSync } from 'node:fs';
 import { getModelForAgent } from './config.js';
 import { detectRepo } from '../entry/repo-detector.js';
 import { detectArgumentType, fetchIssue } from '../entry/issue-fetcher.js';
@@ -35,8 +36,19 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     process.env.CASE_QUIET = '1';
   }
 
-  // Suppress pi's "Update Available" banner — case manages its own versioning.
+  // Run pi fully isolated — no global settings, extensions, packages,
+  // statusline, or theme from the user's ~/.pi/agent config.
+  const realAgentDir = getAgentDir();
+  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-orchestrator-pi-${process.pid}`;
+  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
   process.env.PI_SKIP_VERSION_CHECK = '1';
+
+  mkdirSync(isolatedAgentDir, { recursive: true });
+  const realAuth = `${realAgentDir}/auth.json`;
+  const isolatedAuth = `${isolatedAgentDir}/auth.json`;
+  if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
+    symlinkSync(realAuth, isolatedAuth);
+  }
 
   const cwd = process.cwd();
   const agentDir = getAgentDir();
@@ -57,7 +69,6 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
 
   const settingsManager = SettingsManager.create(cwd, agentDir);
   settingsManager.setQuietStartup(true);
-  settingsManager.setWarnings({ ...settingsManager.getWarnings(), anthropicExtraUsage: false });
   const sessionManager = SessionManager.create(cwd);
 
   const caseRoot = options.caseRoot;
@@ -70,7 +81,6 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
   }): Promise<CreateAgentSessionRuntimeResult> => {
     const sm = SettingsManager.create(factoryOpts.cwd, factoryOpts.agentDir);
     sm.setQuietStartup(true);
-    sm.setWarnings({ ...sm.getWarnings(), anthropicExtraUsage: false });
 
     const rl = new DefaultResourceLoader({
       cwd: factoryOpts.cwd,
