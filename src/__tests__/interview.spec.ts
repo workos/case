@@ -187,11 +187,18 @@ describe('synthesizeProjectEntry', () => {
     expect(entry.commands.setup).toBe('pnpm install');
   });
 
-  it('keeps detected command when override value is empty', () => {
+  it('removes detected command when override value is empty', () => {
+    const findings = makeFindings({ commandOverrides: { test: '' } });
+    const detected = makeDetected();
+    const entry = synthesizeProjectEntry(findings, detected);
+    expect(entry.commands.test).toBeUndefined();
+  });
+
+  it('removes detected command when override value is whitespace-only', () => {
     const findings = makeFindings({ commandOverrides: { test: '   ' } });
     const detected = makeDetected();
     const entry = synthesizeProjectEntry(findings, detected);
-    expect(entry.commands.test).toBe('pnpm test');
+    expect(entry.commands.test).toBeUndefined();
   });
 
   it('adds new commands from overrides not present in detection', () => {
