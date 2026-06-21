@@ -1,4 +1,5 @@
 import { StateGraph, START, END } from '@langchain/langgraph';
+import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import type { AgentName, AgentResult, PipelinePhase, PipelineProfile, RevisionRequest, TaskStatus } from '../types.js';
 import { PROFILE_PHASES } from '../types.js';
 import type { Notifier } from '../notify.js';
@@ -28,6 +29,14 @@ export interface LangGraphEngineArgs {
   onPhaseFailed: (agent: AgentName) => void;
   /** Seed from a td-persisted pending revision (resume-at-implement). */
   initialPendingRevision?: RevisionRequest | null;
+  /**
+   * Engine-state checkpointer (RFC §5 decision 1). When present, the graph is
+   * compiled with it and the run resumes from a prior interrupted checkpoint.
+   * Absent → 1.1 behavior (fresh in-memory run, no crash resume).
+   */
+  checkpointer?: BaseCheckpointSaver;
+  /** Stable per-task thread key for the checkpointer. Required with `checkpointer`. */
+  threadId?: string;
 }
 
 /** Maps a running phase to the TaskStatus the td mirror should show. */
@@ -295,16 +304,46 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
   g.addEdge('close', 'retrospective');
   g.addEdge('retrospective', END);
 
-  const compiled = g.compile();
+  const { checkpointer, threadId } = args;
+  const compiled = checkpointer ? g.compile({ checkpointer }) : g.compile();
 
   const seed = args.initialPendingRevision;
   const initial: Partial<CaseGraphStateType> = seed
     ? { pendingRevision: seed, cycle: seed.cycle ?? 1, revisionCycles: seed.cycle ?? 1 }
     : {};
 
-  log.info('langgraph engine started', { profile: args.profile, maxRevisionCycles, seeded: Boolean(seed) });
-
   // recursionLimit as a runaway backstop only (RFC §5 decision 4); the explicit
   // revision-budget cap is the real guard.
-  await compiled.invoke(initial, { recursionLimit: (maxRevisionCycles + 2) * 8 });
+  const runConfig: Record<string, unknown> = { recursionLimit: (maxRevisionCycles + 2) * 8 };
+  if (checkpointer && threadId) runConfig.configurable = { thread_id: threadId };
+
+  // Resume decision. `deleteThread` runs only on normal completion, so any
+  // checkpoint that still has pending next-nodes is a genuinely interrupted run
+  // (crash/abort) — this mirrors the legacy `outcome === 'running'` resume gate.
+  // Resuming runs invoke with `null` (continue from saved state); the td-seeded
+  // `initial` applies to fresh runs only.
+  let resuming = false;
+  if (checkpointer && threadId) {
+    const snapshot = await compiled.getState(runConfig);
+    resuming = snapshot.next.length > 0;
+    if (!resuming && snapshot.config.configurable?.checkpoint_id) {
+      // Stale terminal checkpoint (e.g. a crash during a prior cleanup): clear it
+      // so this run starts genuinely fresh rather than re-applying a done state.
+      await checkpointer.deleteThread(threadId);
+    }
+  }
+
+  log.info('langgraph engine started', {
+    profile: args.profile,
+    maxRevisionCycles,
+    seeded: Boolean(seed),
+    resuming,
+  });
+  if (resuming) notifier.send('Resuming interrupted run from checkpoint.');
+
+  await compiled.invoke(resuming ? null : initial, runConfig);
+
+  // Reached END normally — drop the thread so a future run of this task starts
+  // fresh. Only an escaping error/abort leaves a resumable checkpoint behind.
+  if (checkpointer && threadId) await checkpointer.deleteThread(threadId);
 }

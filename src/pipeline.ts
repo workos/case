@@ -16,6 +16,7 @@ import { buildGraph } from './dag/builder.js';
 import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
 import { dispatchNode, type DispatchNodeRef } from './pipeline-dispatch.js';
 import { executeLangGraph } from './langgraph/engine.js';
+import { createSqliteCheckpointer } from './langgraph/checkpointer.js';
 import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
 import { restoreGraphState } from './dag/restore.js';
 import type { PipelineGraph } from './dag/types.js';
@@ -131,10 +132,14 @@ async function runPipelineBody(
     });
 
   if (process.env.CASE_ENGINE === 'langgraph') {
-    // Phase 1.1: LangGraph owns orchestration. Fresh runs only — event-log
-    // crash-resume stays legacy until the 1.2 SQLite checkpointer lands. A
-    // td-persisted pendingRevision still seeds a resume-at-implement.
+    // Phase 1.2: LangGraph owns orchestration AND crash/abort resume via the
+    // SQLite checkpointer (sibling DB in <repo>/.todos/, RFC §6). The thread is
+    // keyed by task id, so an interrupted run of the same task resumes from its
+    // last superstep; the engine drops the thread on normal completion. td still
+    // seeds the first run's pending revision (resume-at-implement) for a fresh
+    // start — the checkpoint is authoritative once a run has begun.
     await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+    const checkpointer = createSqliteCheckpointer(config.repoPath);
     await executeLangGraph({
       profile,
       maxRevisionCycles,
@@ -146,6 +151,8 @@ async function runPipelineBody(
         failedAgent = agent;
       },
       initialPendingRevision: task.pendingRevision ?? null,
+      checkpointer,
+      threadId: task.id,
     });
   } else {
     const graph = buildGraph(profile, maxRevisionCycles);

@@ -1,6 +1,6 @@
 # Migration: Custom DAG + Event-Sourcing → LangGraph + Langfuse
 
-**Status:** In progress — Phase 1.1 complete (see §0).
+**Status:** In progress — Phase 1.2 complete (see §0).
 **Author:** Case maintainers
 **Scope:** Replace Case's hand-rolled orchestration engine and granular event log with LangGraph (graph execution + checkpointing) and Langfuse (observability dispatch), without losing any existing feature.
 
@@ -33,14 +33,51 @@ LangGraph (`@langchain/langgraph` 1.4.4 + peer `@langchain/core` 1.2.0, Bun-veri
 
 **Test-runner fix (`src/dev/run-tests.ts`) — required, not optional.** Bun's `mock.module()` is process-global and persists across files; `bun test ./src/__tests__/` loaded all specs into one process, so top-level mocks leaked (`pipeline-tool.spec`'s `pipeline.js` mock broke `pipeline.spec`/parity; `pipeline.spec`'s `task-store` mock broke `task-scanner`/`createTask`/`update-memory`). This was **pre-existing** (38 failures on clean HEAD). Fixed by running each unit spec in its own process (concurrency 8). Every spec passes in isolation; the suite is green. **Next session: keep specs isolated — do not collapse back to a single `bun test <dir>` invocation.**
 
-### ⏭ Next: Phase 1.2 — checkpointer + resume parity
+### ✅ Phase 1.2 — Checkpointer + resume parity (additive, flag-gated) — **DONE**
 
-- Add the LangGraph SQLite checkpointer; resolve the **§6 co-location verify** (live alongside td's SQLite in `<repo>/.todos/`, or sibling `case-checkpoints.db`).
-- Wire checkpointed resume on the `langgraph` path; remove the 1.1 "fresh-runs-only" limitation.
-- New oracle test: **checkpointer resume parity** — kill mid-`implement_1`, assert restored node set + `pendingRevision` match `reduceEvents` on the same crash point (replaces `events-reducer.spec` after the 1.3 cutover, not before).
-- Snapshot target is `src/langgraph/state.ts`'s channels (already isolated to orchestration state for this purpose).
+The LangGraph path now owns crash/abort resume via a SQLite checkpointer; the 1.1 "fresh-runs-only" limitation is gone. Legacy event-replay resume is untouched (still the default-engine path). `events-reducer.spec` is **retained** as the resume-correctness oracle until the 1.3 cutover.
 
-**Not yet started:** Phase 1.3 (breaking cutover + legacy delete), all of Phase 2 (Langfuse). The `podman-compose.yaml` Langfuse stack is present but unused until Phase 2.
+**Landed:**
+
+- **`src/langgraph/checkpointer.ts` (NEW).** `BunSqliteSaver extends BaseCheckpointSaver`, a faithful port of the upstream `@langchain/langgraph-checkpoint-sqlite` schema + serde contract onto **`bun:sqlite`**. `getTuple`/`list`/`put`/`putWrites`/`deleteThread` + default serde. `createSqliteCheckpointer(repoPath)` opens the DB at the **§6-decided** location.
+- **`src/langgraph/engine.ts`.** `executeLangGraph` accepts `checkpointer` + `threadId`; compiles the graph with the checkpointer when present. Resume decision: `getState().next.length > 0` ⟹ a prior run was interrupted mid-superstep → `invoke(null)` (continue from saved state); otherwise `invoke(initial)` (td-seeded fresh run). `deleteThread` runs on **normal completion only**, so only a true crash/abort leaves a resumable checkpoint — this mirrors the legacy `outcome === 'running'` resume gate exactly. A stale terminal checkpoint (crash during a prior cleanup) is cleared before a fresh run.
+- **`src/pipeline.ts`.** The `langgraph` branch constructs the checkpointer (`createSqliteCheckpointer(config.repoPath)`), passes `threadId: task.id`. td still seeds the first run's `pendingRevision`; the checkpoint is authoritative once a run has begun.
+- **`src/__tests__/checkpointer.spec.ts` (NEW).** SQL-layer correctness: roundtrip, latest-wins ordering + parent linkage, pending writes, list ordering/limit, `deleteThread`, and **persistence across a reopen on the same file** (new `Database` instance = new-process resume). 6/6 green.
+- **`src/__tests__/checkpointer-resume.spec.ts` (NEW).** The Phase 1.2 oracle: kill mid-`implement_1` (the implementer throws on the revision cycle, escaping `invoke` — `runPhase` wraps dispatch in `try/finally`, no catch). A second `executeLangGraph` over the same `MemorySaver` + thread resumes, re-enters at `implement` (not `scout`), carries the restored revision, and that restored `(revisionCycles, pendingRevision)` **matches `reduceEvents` on the pre-crash event stream**. Plus: a clean run drops its thread. 2/2 green.
+
+**Validation:** typecheck ✅ · `oxlint` 0 errors ✅ · AST self-lint ✅ · `oxfmt` (my files) ✅ · checkpointer 6/6 ✅ · resume-parity 2/2 ✅ · parity 6/6 unchanged ✅ · `pipeline.spec` unchanged ✅ · full suite green ✅. No manifest/lockfile churn (`@langchain/langgraph-checkpoint` was already a dep; the transient `better-sqlite3` add/trust was fully backed out, incl. `trustedDependencies`).
+
+**Change set:** `src/langgraph/checkpointer.ts` (NEW), `src/__tests__/checkpointer.spec.ts` (NEW), `src/__tests__/checkpointer-resume.spec.ts` (NEW), `src/langgraph/engine.ts` (edited), `src/pipeline.ts` (edited). Branch `docs/migrate-langgraph-langfuse-rfc` — **not yet committed** at handoff.
+
+**Deviations / decisions made during implementation:**
+
+1. **§6 co-location — RESOLVED to a sibling DB, not co-located.** td owns `<repo>/.todos/issues.db` and runs 29 versioned schema migrations with **no namespace isolation** (a future td migration could drop foreign tables). The checkpointer therefore lives in a **sibling** `<repo>/.todos/case-checkpoints.db` — the §6 fallback — keeping the two schemas independently owned and recoverable.
+2. **Official SQLite checkpointer is unusable under Bun → custom `bun:sqlite` saver.** `@langchain/langgraph-checkpoint-sqlite@1.0.3` depends on `better-sqlite3`, whose native binding fails to load under Bun (`ERR_DLOPEN_FAILED`, oven-sh/bun#4290 — Bun itself recommends `bun:sqlite`). Ported the schema/serde contract by hand. Scope is **current format only (v4)**: the legacy `pending_sends` + `migratePendingSends` path (for v<4 checkpoints) and `list()` metadata filtering are omitted — the engine never persists v<4 nor lists by filter. Neither package nor `better-sqlite3` ships in `package.json`.
+3. **`thread_id = task.id`; thread dropped on normal completion.** A stable per-task key lets an interrupted run of the same task resume; `deleteThread` on reaching `END` means a completed/failed run leaves nothing resumable (only crashes/aborts do). This reproduces the legacy "resume iff `outcome === 'running'`" semantics without a separate gate.
+4. **Resume seed precedence.** The td-persisted `pendingRevision` seeds **fresh** runs only (`invoke(initial)`); on resume the checkpoint is authoritative and `invoke(null)` continues from it.
+5. **No "dual-write" — parity proven by an in-process oracle instead.** §4 step 1.2 anticipated running both resume mechanisms side-by-side. What landed: each engine uses its own resume (legacy path = event replay; langgraph path = checkpointer); they are not both exercised in a single run. The §4 "assert restored graph state matches `reduceEvents` on the same crash point" guarantee is delivered by `checkpointer-resume.spec` — it crashes the LangGraph run mid-`implement_1` and asserts the checkpointer-restored `(revisionCycles, pendingRevision)` equals `reduceEvents` over the pre-crash event stream. Functionally the §4 acceptance; mechanically a test, not a runtime dual-write.
+
+### ⏭ Next: Phase 1.3 — ⚠ BREAKING: resume cutover + default flip
+
+> Self-contained handoff for a fresh session. The LangGraph engine is feature-complete (orchestration + checkpointed resume); 1.3 is **deletion + default flip + relocating two projection side-effects**, guarded by the now-green parity suite.
+
+**Starting state.** `src/pipeline.ts` `runPipelineBody` branches on `process.env.CASE_ENGINE === 'langgraph'` (langgraph branch first; legacy DAG in the `else`). The langgraph branch already wires the checkpointer + `threadId`. Legacy is still the default (flag unset → `else`).
+
+**Do, in order (each its own commit; the flip is the single ⚠ BREAKING commit):**
+
+1. **Flip default + delete legacy engine.** Make LangGraph unconditional; delete the `else` branch in `runPipelineBody` and the legacy resume block (`readdirFs` → `loadEventsFromFile` → `reduceEvents` → `restoreGraphState` → `appender.restoreState`, ~`src/pipeline.ts:153-198`), plus `src/dag/builder.ts`, `src/dag/executor.ts`, `src/dag/restore.ts`, and the legacy seed helpers (`markCyclesCompleted`/`seedGraphFromTaskStatus`/`seedPendingRevision`, ~`src/pipeline.ts:253-348`). Drop the `CASE_ENGINE` env read. Resume is checkpointer-only after this.
+   - **KEEP (MOVE-verbatim, §9):** `src/dag/fingerprint.ts`, `src/dag/outcome-table.ts`, `src/dag/merge.ts` — still referenced by the engine/dispatch. Verify importers before deleting anything under `src/dag/`.
+2. **Relocate td-mirror + marker writes to node-direct.** Today `EventAppender` derives td status (`projectTaskJson`) and markers (`projectMarkers`) as a side-effect of `append()` (`src/events/appender.ts:72,76-84`). Move these to fire on **node completion** inside the engine (same synchronous point), then remove the derived writes from the appender. The raw JSONL appender **stays** (write-only observability sink until 2.2). Disk markers stay the gate truth (§1 constraint 4).
+3. **Test triage (§9).** DIE now: `dag-builder.spec`, `dag-builder-scout.spec`, `dag-executor.spec`. PORT: `events-projections.spec` (`projectMarkers`/`projectTaskJson` → assert node-direct), `dag-status.spec` (→ LangGraph channels), `pipeline.spec` resume parts (→ checkpointer; split, don't blanket-delete). **Retire `events-reducer.spec` only after this cutover is green** — its oracle role is now held by `checkpointer-resume.spec`. NET-NEW: LangGraph graph-construction + conditional-edge routing test (routing still keys off `outcome-table`).
+
+*Acceptance (§4 1.3):* resume works with the replay path gone; td status + labels and marker files still update each phase; `runs.jsonl`/metrics unchanged; full suite green.
+
+**Gotchas for the next session:**
+- Keep unit specs **process-isolated** (`src/dev/run-tests.ts`, concurrency 8) — Bun `mock.module()` leaks across files. Do not collapse to a single `bun test <dir>`.
+- `better-sqlite3` does **not** load under Bun — never reach for the official sqlite checkpointer; the engine's checkpointer is the hand-rolled `BunSqliteSaver`.
+- Deviation 4 (1.1): skipped-phase `phase_end` events still aren't emitted. If `projectMetrics.skippedPhases` fidelity is wanted, emit them when marker/td writes go node-direct here.
+
+**Not yet started:** Phase 1.3 (this), all of Phase 2 (Langfuse). The `podman-compose.yaml` Langfuse stack is present but unused until Phase 2.
 
 ---
 
@@ -241,7 +278,7 @@ Delete `src/events/{schema,appender,reducer}.ts` and the now-orphaned `projectTa
 
 ## 6. Open Verifies (must confirm during Phase 1)
 
-- **Checkpointer / td SQLite co-location.** Now load-bearing (§5 decision 1 commits to the checkpointer). Confirm the LangGraph SQLite checkpointer can live in `<repo>/.todos/` alongside td's schema (separate tables, no migration conflict), or fall back to a sibling DB file (`<repo>/.todos/case-checkpoints.db`) if td guards its schema. Resolve in step 1.2.
+- **Checkpointer / td SQLite co-location. — RESOLVED (1.2): sibling DB.** td owns `<repo>/.todos/issues.db` and runs 29 versioned migrations with no namespace isolation, so co-locating checkpoint tables there risks a future td migration dropping them. The checkpointer lives in the sibling `<repo>/.todos/case-checkpoints.db` instead (the fallback this bullet anticipated). See §0 Phase 1.2 deviation 1.
 - **Outcome-matrix → conditional-edge re-expression.** Confirm every `(phase, outcome) → action` row maps to a deterministic edge function with no loss (esp. `abort`, `request-revision`, fingerprint short-circuit).
 - **pi LLM-call seam.** Confirmed available: `turn_end` carries `message.usage` with tokens **and** pre-computed `cost` (`pi-ai types.d.ts:144-157`); subscriber already exists at `pi-adapter.ts:68`. No pi patching required.
 
