@@ -4,7 +4,9 @@ import type { AgentName, AgentResult, PipelinePhase, PipelineProfile, RevisionRe
 import { PROFILE_PHASES } from '../types.js';
 import type { Notifier } from '../notify.js';
 import type { EventAppender } from '../events/appender.js';
+import type { TaskStore } from '../state/task-store.js';
 import type { DispatchNodeRef } from '../pipeline-dispatch.js';
+import { projectNodeState } from './projection.js';
 import { computeFingerprint, fingerprintsMatch } from '../dag/fingerprint.js';
 import { mergeRevisionRequests } from '../dag/merge.js';
 import { createLogger } from '../util/logger.js';
@@ -18,8 +20,12 @@ export interface LangGraphEngineArgs {
   profile: PipelineProfile;
   maxRevisionCycles: number;
   appender: EventAppender;
+  /** Task-grain store — receives the node-direct td mirror (RFC §1.3 step 2). */
+  store: TaskStore;
+  /** Repo data dir; marker files are written under `<caseRoot>/.case/<task>/`. */
+  caseRoot: string;
   notifier: Notifier;
-  /** Bound per-phase dispatcher (same closure the legacy executor uses). */
+  /** Bound per-phase dispatcher (the engine-agnostic seam in pipeline-dispatch). */
   dispatch: DispatchFn;
   /**
    * Mark the run failed on the shared pipeline closure (sets outcome +
@@ -39,8 +45,14 @@ export interface LangGraphEngineArgs {
   threadId?: string;
 }
 
-/** Maps a running phase to the TaskStatus the td mirror should show. */
-function phaseStatus(phase: PipelinePhase, state: CaseGraphStateType): TaskStatus | null {
+/**
+ * Maps a running phase to the TaskStatus the td mirror should show. Exported for
+ * the status-projection spec (ported from the legacy `projectStatusFromGraph`):
+ * the LangGraph path emits status per-phase rather than scanning a node graph,
+ * so the legacy concurrent `evaluating` status is intentionally absent (RFC §0
+ * 1.1 deviation 3).
+ */
+export function phaseStatus(phase: PipelinePhase, state: CaseGraphStateType): TaskStatus | null {
   switch (phase) {
     case 'implement':
       return 'implementing';
@@ -83,7 +95,7 @@ function fingerprintFor(request: RevisionRequest): string | undefined {
  * stay correct.
  */
 export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void> {
-  const { appender, notifier, dispatch, onPhaseFailed, maxRevisionCycles } = args;
+  const { appender, store, caseRoot, notifier, dispatch, onPhaseFailed, maxRevisionCycles } = args;
   const phases = PROFILE_PHASES[args.profile];
   const hasScout = phases.includes('scout');
   const hasVerify = phases.includes('verify');
@@ -108,6 +120,9 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
     await appender.append({ event: 'phase_start', phase, agent });
     notifier.phaseStart(phase, agent);
     await emitStatus(phase, state);
+    // Node-direct td mirror at phase start: surfaces the running phase + its new
+    // status to td/humans before the (possibly long) dispatch (RFC §1.3 step 2).
+    await projectNodeState(appender.getState(), store, caseRoot);
 
     notifier.startHeartbeat();
     let result: AgentResult;
@@ -120,6 +135,10 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
     const elapsed = Date.now() - Date.parse(startedAt);
     const outcome = result.status === 'completed' ? 'completed' : 'failed';
     await appender.append({ event: 'phase_end', phase, agent, outcome, durationMs: elapsed, result });
+    // Node-direct td mirror + evidence markers on completion: agent status flips
+    // to completed/failed and a passed verify/review drops its tested/reviewed
+    // marker file in the same tick.
+    await projectNodeState(appender.getState(), store, caseRoot);
     notifier.phaseEnd(phase, agent, elapsed, outcome);
     if (outcome === 'failed' && agent !== 'retrospective') onPhaseFailed(agent);
     return result;

@@ -1,10 +1,13 @@
 import { describe, test, expect, afterAll, beforeEach } from 'bun:test';
-import { readFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { EventAppender } from '../events/appender.js';
 import { LifecycleValidationError } from '../events/errors.js';
 import type { PlanArtifact } from '../events/plan.js';
-import type { TaskJson } from '../types.js';
+
+// Phase 1.3: the appender is now a write-only JSONL sink + state container.
+// td-mirror / marker projection moved to node-direct writes — see
+// node-projection.spec for that coverage.
 
 const PLAN: PlanArtifact = {
   runId: 'run-1',
@@ -17,59 +20,9 @@ const PLAN: PlanArtifact = {
 };
 
 const tmpDir = resolve(process.env.TMPDIR ?? '/tmp', `case-appender-test-${Date.now()}`);
-let taskJsonPath: string;
-let writtenProjections: Array<Partial<TaskJson>>;
-
-class MockTaskStore {
-  taskJsonPath: string;
-
-  constructor(path: string) {
-    this.taskJsonPath = path;
-  }
-
-  async read(): Promise<TaskJson> {
-    const raw = await readFile(this.taskJsonPath, 'utf-8');
-    return JSON.parse(raw);
-  }
-
-  async writeFromProjection(projected: Partial<TaskJson>): Promise<void> {
-    writtenProjections.push(projected);
-    const task = await this.read();
-    Object.assign(task, projected);
-    await writeFile(this.taskJsonPath, JSON.stringify(task, null, 2) + '\n');
-  }
-
-  async readStatus() {
-    return (await this.read()).status;
-  }
-  async setStatus() {}
-  async setAgentPhase() {}
-  async setField() {}
-  async setPendingRevision() {}
-}
 
 beforeEach(async () => {
-  writtenProjections = [];
   await mkdir(tmpDir, { recursive: true });
-  taskJsonPath = resolve(tmpDir, '.task.json');
-  await writeFile(
-    taskJsonPath,
-    JSON.stringify(
-      {
-        id: 'task-1',
-        status: 'active',
-        created: '2026-01-01T00:00:00Z',
-        repo: 'test-repo',
-        agents: {},
-        tested: false,
-        manualTested: false,
-        prUrl: null,
-        prNumber: null,
-      },
-      null,
-      2,
-    ) + '\n',
-  );
 });
 
 afterAll(async () => {
@@ -78,8 +31,7 @@ afterAll(async () => {
 
 describe('EventAppender', () => {
   test('appends valid event sequence to NDJSON file', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-1', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-1');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
@@ -102,8 +54,7 @@ describe('EventAppender', () => {
   });
 
   test('assigns monotonically increasing sequence numbers', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-2', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-2');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
@@ -119,8 +70,7 @@ describe('EventAppender', () => {
   });
 
   test('assigns consistent runId across all events', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-3', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-3');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
@@ -136,8 +86,7 @@ describe('EventAppender', () => {
   });
 
   test('allows concurrent phase starts (pipeline executor)', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-4', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-4');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
@@ -149,8 +98,7 @@ describe('EventAppender', () => {
   });
 
   test('rejects events after pipeline end', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-4b', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-4b');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
     await appender.append({ event: 'pipeline_end', outcome: 'completed', durationMs: 100 });
@@ -161,8 +109,7 @@ describe('EventAppender', () => {
   });
 
   test('updates in-memory state after each append', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-5', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-5');
 
     await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
 
@@ -174,117 +121,9 @@ describe('EventAppender', () => {
     expect(appender.getState().currentPhase).toBe('implement_0');
   });
 
-  test('calls writeFromProjection on TaskStore after each event', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-6', store);
-
-    await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
-    await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-
-    expect(writtenProjections.length).toBeGreaterThanOrEqual(2);
-  });
-
   test('throws when getState called before any events', () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-7', store);
+    const appender = new EventAppender(tmpDir, 'task-1', 'run-7');
 
     expect(() => appender.getState()).toThrow('No events appended yet');
-  });
-
-  test('writes tested marker file on verify phase_end completed', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-marker-1', store);
-
-    await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
-    await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-    await appender.append({
-      event: 'phase_end',
-      phase: 'implement',
-      agent: 'implementer',
-      outcome: 'completed',
-      durationMs: 100,
-    });
-    await appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' });
-    await appender.append({
-      event: 'phase_end',
-      phase: 'verify',
-      agent: 'verifier',
-      outcome: 'completed',
-      durationMs: 100,
-    });
-
-    const { existsSync } = await import('node:fs');
-    const markerPath = resolve(tmpDir, '.case/task-1/tested');
-    expect(existsSync(markerPath)).toBe(true);
-
-    expect(appender.getState().markers.has('tested')).toBe(true);
-
-    const lastProjection = writtenProjections[writtenProjections.length - 1];
-    expect(lastProjection.tested).toBe(true);
-  });
-
-  test('writes reviewed marker file on review phase_end completed', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-marker-2', store);
-
-    await appender.append({ event: 'pipeline_start', taskId: 'task-1', profile: 'standard', plan: PLAN });
-    await appender.append({ event: 'phase_start', phase: 'implement', agent: 'implementer' });
-    await appender.append({
-      event: 'phase_end',
-      phase: 'implement',
-      agent: 'implementer',
-      outcome: 'completed',
-      durationMs: 100,
-    });
-    await appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' });
-    await appender.append({
-      event: 'phase_end',
-      phase: 'verify',
-      agent: 'verifier',
-      outcome: 'completed',
-      durationMs: 100,
-    });
-    await appender.append({ event: 'phase_start', phase: 'review', agent: 'reviewer' });
-    await appender.append({
-      event: 'phase_end',
-      phase: 'review',
-      agent: 'reviewer',
-      outcome: 'completed',
-      durationMs: 100,
-    });
-
-    const { existsSync } = await import('node:fs');
-    expect(existsSync(resolve(tmpDir, '.case/task-1/reviewed'))).toBe(true);
-    expect(appender.getState().markers.has('reviewed')).toBe(true);
-  });
-
-  test('restoreState allows resuming from existing state', async () => {
-    const store = new MockTaskStore(taskJsonPath) as any;
-    const appender = new EventAppender(tmpDir, 'task-1', 'run-8', store);
-
-    const existingState = {
-      runId: 'run-8',
-      taskId: 'task-1',
-      profile: 'standard' as const,
-      plan: PLAN,
-      status: 'implementing' as const,
-      phases: new Map([
-        ['implement_0', { phase: 'implement' as const, agent: 'implementer' as const, status: 'completed' as const }],
-      ]),
-      currentPhase: null,
-      runningPhases: new Set<string>(),
-      revisionCycles: 0,
-      pendingRevision: null,
-      markers: new Set<string>(),
-      outcome: 'running' as const,
-      startedAt: '2026-01-01T00:00:00Z',
-      lastSequence: 5,
-    };
-
-    appender.restoreState(existingState);
-
-    await appender.append({ event: 'phase_start', phase: 'verify', agent: 'verifier' });
-    const state = appender.getState();
-    expect(state.currentPhase).toBe('verify_0');
   });
 });

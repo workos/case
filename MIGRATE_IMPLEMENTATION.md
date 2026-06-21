@@ -1,6 +1,6 @@
 # Migration: Custom DAG + Event-Sourcing → LangGraph + Langfuse
 
-**Status:** In progress — Phase 1.2 complete (see §0).
+**Status:** In progress — Phase 1.3 complete; **Phase 1 done** (see §0). Next: Phase 2.1 (Langfuse).
 **Author:** Case maintainers
 **Scope:** Replace Case's hand-rolled orchestration engine and granular event log with LangGraph (graph execution + checkpointing) and Langfuse (observability dispatch), without losing any existing feature.
 
@@ -57,27 +57,54 @@ The LangGraph path now owns crash/abort resume via a SQLite checkpointer; the 1.
 4. **Resume seed precedence.** The td-persisted `pendingRevision` seeds **fresh** runs only (`invoke(initial)`); on resume the checkpoint is authoritative and `invoke(null)` continues from it.
 5. **No "dual-write" — parity proven by an in-process oracle instead.** §4 step 1.2 anticipated running both resume mechanisms side-by-side. What landed: each engine uses its own resume (legacy path = event replay; langgraph path = checkpointer); they are not both exercised in a single run. The §4 "assert restored graph state matches `reduceEvents` on the same crash point" guarantee is delivered by `checkpointer-resume.spec` — it crashes the LangGraph run mid-`implement_1` and asserts the checkpointer-restored `(revisionCycles, pendingRevision)` equals `reduceEvents` over the pre-crash event stream. Functionally the §4 acceptance; mechanically a test, not a runtime dual-write.
 
-### ⏭ Next: Phase 1.3 — ⚠ BREAKING: resume cutover + default flip
+### ✅ Phase 1.3 — ⚠ BREAKING: resume cutover + default flip — **DONE**
 
-> Self-contained handoff for a fresh session. The LangGraph engine is feature-complete (orchestration + checkpointed resume); 1.3 is **deletion + default flip + relocating two projection side-effects**, guarded by the now-green parity suite.
+LangGraph is now **unconditional**. The legacy DAG executor/builder, the event-replay resume path, and the `CASE_ENGINE` flag are gone; resume is checkpointer-only; the td mirror + evidence markers are written **node-direct** by the engine. The granular `run-*.jsonl` is still **written** (write-only observability sink until 2.2). Full suite green.
 
-**Starting state.** `src/pipeline.ts` `runPipelineBody` branches on `process.env.CASE_ENGINE === 'langgraph'` (langgraph branch first; legacy DAG in the `else`). The langgraph branch already wires the checkpointer + `threadId`. Legacy is still the default (flag unset → `else`).
+**Landed (two commits' worth; the flip is the single ⚠ BREAKING change):**
 
-**Do, in order (each its own commit; the flip is the single ⚠ BREAKING commit):**
+- **`src/pipeline.ts`.** `runPipelineBody` no longer branches on `CASE_ENGINE` — the LangGraph path is the only path. Deleted: the `else` block, the legacy resume block (`readdirFs`→`loadEventsFromFile`→`reduceEvents`→`restoreGraphState`→`appender.restoreState`), and the three seed helpers (`markCyclesCompleted`/`seedGraphFromTaskStatus`/`seedPendingRevision`). A td-persisted `pendingRevision` now seeds **`appender.getState().revisionCycles`** directly (ported from the legacy lines 197-199) so metrics + the retrospective snapshot see the pre-crash cycles even though no new `revision_requested` fires on a resumed run. The engine receives `store` + `caseRoot` for the node-direct writes.
+- **Deleted modules:** `src/dag/{builder,executor,restore,status,types}.ts`. **KEPT (MOVE-verbatim, §9):** `src/dag/{fingerprint,merge,outcome-table}.ts` — still imported by the engine/dispatch. `src/dag/` now holds only those three.
+- **`src/langgraph/projection.ts` (NEW).** `projectNodeState(state, store, caseRoot)` — the td-mirror + marker writer lifted verbatim out of `EventAppender.runProjections`. The engine calls it twice per phase in `runPhase`: once after `phase_start`+`emitStatus` (surfaces the running phase/status to td before the long dispatch) and once after `phase_end` (flips agent status to completed/failed and drops the `tested`/`reviewed` marker file in the same tick). Read source is still `PipelineState` via `appender.getState()` (the appender keeps maintaining it until 2.2); only the call site moved off the event hop.
+- **`src/events/appender.ts`.** Now a **write-only JSONL sink + state container**: `runProjections` and the `projectTaskJson`/`projectMarkers` imports are gone, the `taskStore` ctor param is gone, and `restoreState` (dead with replay resume) was removed. `append()` = validate → write line → `applyEvent`. `getState()` still backs metrics + retrospective.
+- **`src/langgraph/engine.ts`.** `LangGraphEngineArgs` gains `store` + `caseRoot`; `phaseStatus` is now **exported** (ported status-projection oracle).
 
-1. **Flip default + delete legacy engine.** Make LangGraph unconditional; delete the `else` branch in `runPipelineBody` and the legacy resume block (`readdirFs` → `loadEventsFromFile` → `reduceEvents` → `restoreGraphState` → `appender.restoreState`, ~`src/pipeline.ts:153-198`), plus `src/dag/builder.ts`, `src/dag/executor.ts`, `src/dag/restore.ts`, and the legacy seed helpers (`markCyclesCompleted`/`seedGraphFromTaskStatus`/`seedPendingRevision`, ~`src/pipeline.ts:253-348`). Drop the `CASE_ENGINE` env read. Resume is checkpointer-only after this.
-   - **KEEP (MOVE-verbatim, §9):** `src/dag/fingerprint.ts`, `src/dag/outcome-table.ts`, `src/dag/merge.ts` — still referenced by the engine/dispatch. Verify importers before deleting anything under `src/dag/`.
-2. **Relocate td-mirror + marker writes to node-direct.** Today `EventAppender` derives td status (`projectTaskJson`) and markers (`projectMarkers`) as a side-effect of `append()` (`src/events/appender.ts:72,76-84`). Move these to fire on **node completion** inside the engine (same synchronous point), then remove the derived writes from the appender. The raw JSONL appender **stays** (write-only observability sink until 2.2). Disk markers stay the gate truth (§1 constraint 4).
-3. **Test triage (§9).** DIE now: `dag-builder.spec`, `dag-builder-scout.spec`, `dag-executor.spec`. PORT: `events-projections.spec` (`projectMarkers`/`projectTaskJson` → assert node-direct), `dag-status.spec` (→ LangGraph channels), `pipeline.spec` resume parts (→ checkpointer; split, don't blanket-delete). **Retire `events-reducer.spec` only after this cutover is green** — its oracle role is now held by `checkpointer-resume.spec`. NET-NEW: LangGraph graph-construction + conditional-edge routing test (routing still keys off `outcome-table`).
+**Test triage (§9):**
 
-*Acceptance (§4 1.3):* resume works with the replay path gone; td status + labels and marker files still update each phase; `runs.jsonl`/metrics unchanged; full suite green.
+- **DIE (deleted):** `dag-builder.spec`, `dag-builder-scout.spec`, `dag-executor.spec`.
+- **PORT:** `dag-status.spec` → **`phase-status.spec`** (asserts the engine's exported `phaseStatus` phase→status map; the legacy concurrent `evaluating` + graph-derived `merged` are intentionally absent — 1.1 deviation 3). `events-projections.spec` **kept as-is** (the projection functions are pure and unchanged until 2.2); the node-direct *write* behavior is the new `node-projection.spec`. `pipeline.spec` resume parts: the pendingRevision-seed resume tests **pass unchanged** (engine seeds from `initialPendingRevision`); the legacy **status-only** re-entry test was **deleted** (see deviation 1).
+- **Converted:** `langgraph-parity.spec` → single-engine **routing oracle** (the legacy arm it compared against is gone; the 6 pinned `(phase, outcome)` sequences now stand alone as the conditional-edge contract — this is the §9 NET-NEW routing test).
+- **Trimmed:** `events-appender.spec` lost its 3 projection/marker tests (moved to `node-projection.spec`) and the `restoreState` test; the append/sequence/runId/state coverage stays.
+- **NET-NEW:** `node-projection.spec` (td write + marker-file drop + re-projection + dedupe — the evidence-gate coverage §9 requires node-direct).
+- **Retained:** `events-reducer.spec` — `reducer.ts` is alive until 2.2 (the appender's `applyEvent` + the `checkpointer-resume.spec` oracle both depend on it). Retire with the rest at 2.2.
+- **Fixed:** `checkpointer-resume.spec` now passes the engine a no-op `store` + `caseRoot` and a valid-enough stub state (empty phases/markers → no marker files, one no-op td write).
+
+**Validation:** typecheck ✅ · `oxlint` 0 errors (1 pre-existing warning in `interview/session.ts`) ✅ · AST self-lint ✅ · `oxfmt` ✅ · full suite **47 unit specs + 9 standalone, 0 fail** (`src/dev/run-tests.ts`, process-isolated) ✅. Branch `docs/migrate-langgraph-langfuse-rfc` — **not yet committed** at handoff (consistent with 1.1/1.2).
+
+**Deviations / decisions made during implementation:**
+
+1. **Legacy status-only resume dropped (by design).** `seedGraphFromTaskStatus` let a run resume mid-pipeline from a coarse td status with **no checkpoint** (e.g. td says `verifying` → skip to verify). Checkpointer-only resume removes this: with no checkpoint, a run starts fresh from scout. This is intentional per §5 decision 1 (td is a human mirror, **not** a resume source) — a genuinely interrupted run *has* a checkpoint and resumes correctly (`checkpointer-resume.spec`). The `pipeline.spec` test `re-entry from verifying status skips implement phase` was deleted; td-persisted **pendingRevision** seeding survives.
+2. **Two projections per phase, not per event.** `projectNodeState` fires at `phase_start` (running mirror) and `phase_end` (completed + markers), vs the appender's old fire-on-every-`append`. This preserves the live "running" td status while dropping the event-hop coupling. `pendingRevision` in td is now written at the next implement's `phase_start` (state carries it from the `revision_requested` reducer) plus dispatch's direct `store.setPendingRevision` calls — net final td state unchanged.
+3. **TS narrowing workaround.** With the legacy in-scope failed-node loop gone, TS control-flow analysis narrows `outcome` to its `'completed'` initializer (it can't see the dispatch/`onPhaseFailed` closures mutate it). The final `if` reads `(outcome as string) === 'failed'` to keep the runtime failure branch.
+4. **Carried open item (1.1 deviation 4):** skipped-phase `phase_end` events are **still not emitted**. `projectMetrics.skippedPhases` fidelity is therefore unchanged by this phase. If wanted, emit them from the engine when a profile bypasses a node — deferred (no current consumer).
+
+### ⏭ Next: Phase 2.1 — Add Langfuse dispatch at the subscriber seam
+
+> Self-contained handoff. Phase 1 is done: LangGraph + checkpointer own orchestration/resume; the event log is a **write-only** sink; td/markers are node-direct. Phase 2 swaps observability to Langfuse. 2.1 is **additive, fire-and-forget, reversible** — no orchestration change, no cutover.
+
+**Do (RFC §4 2.1):** In `src/agent/adapters/pi-adapter.ts:68` (the existing `agent.subscribe(event)` seam — the single observability seam, §3), map pi events to Langfuse: `agent_start/end` → span (phase); `turn_start/turn_end` → **generation** (`message.usage` = tokens **and** pre-computed `cost`, confirmed at `pi-ai types.d.ts:144-157`); `tool_execution_start/end` → nested span; domain events → `event()`; verifier/reviewer rubrics → `score()`. Keep `onToolActivity`/`onAgentHeartbeat` feeding the TUI untouched (§1 constraint 3 — Langfuse can't drive a live local UI). **Langfuse failure must not affect the run** (§1 constraint 1, §7): wrap dispatch so a dropped/slow/unreachable Langfuse is a no-op for orchestration. Observability is **dual** (JSONL + Langfuse) after this — the log is deleted only in 2.2.
+
+**Deployment:** self-hosted via `podman-compose.yaml` (present, currently unused). Dispatch target is configurable — `LANGFUSE_HOST`/`LANGFUSE_BASE_URL` + public/secret keys, default to the compose service (§ Deployment).
+
+*Acceptance (§4 2.1):* a run produces a complete Langfuse trace with per-call token + cost; with Langfuse unreachable, the run still completes and the TUI feed is intact. **NET-NEW test:** assert *run completes + TUI feed intact with Langfuse unreachable* (§9, §7 risk row).
 
 **Gotchas for the next session:**
-- Keep unit specs **process-isolated** (`src/dev/run-tests.ts`, concurrency 8) — Bun `mock.module()` leaks across files. Do not collapse to a single `bun test <dir>`.
-- `better-sqlite3` does **not** load under Bun — never reach for the official sqlite checkpointer; the engine's checkpointer is the hand-rolled `BunSqliteSaver`.
-- Deviation 4 (1.1): skipped-phase `phase_end` events still aren't emitted. If `projectMetrics.skippedPhases` fidelity is wanted, emit them when marker/td writes go node-direct here.
+- **Run tests with `bun run test` (= `bun src/dev/run-tests.ts`, process-isolated, concurrency 8). This is the green, authoritative command.** A naive `bun test src/__tests__/` loads all specs into **one** process and Bun's process-global `mock.module()` leaks across files → **43 false failures** (was 38 pre-1.3; grew because 1.3 added `node-projection.spec` + converted `langgraph-parity.spec` + trimmed `events-appender.spec`, all of which register top-level mocks). Every spec passes in isolation; the isolated runner is **0 fail / 47 specs**. The 43 are leak victims (`createTask`, pipeline phase cases, …), not real regressions. *(If naive-`bun test` parity is ever wanted, add `mock.restore()` in an `afterAll` to the specs that `mock.module(...)` at top level — deferred; not blocking.)*
+- `better-sqlite3` does **not** load under Bun — the engine's checkpointer is the hand-rolled `BunSqliteSaver`.
+- The control path must **never read back from Langfuse** (§1 constraint 1, §7): the retrospective reads local `runs.jsonl` only.
+- **Uncommitted:** all of Phase 1 (1.1 → 1.3) is on branch `docs/migrate-langgraph-langfuse-rfc`, **not yet committed**. 1.3 is staged as two logical commits (1: ⚠ BREAKING flip+delete+test-triage · 2: node-direct projections + `node-projection.spec`). Commit before starting 2.1 for a clean bisect.
 
-**Not yet started:** Phase 1.3 (this), all of Phase 2 (Langfuse). The `podman-compose.yaml` Langfuse stack is present but unused until Phase 2.
+**Not yet started:** Phase 2.1 (this) + Phase 2.2 (⚠ BREAKING: delete `src/events/{schema,appender,reducer}.ts` + `projectTaskJson`/`projectMarkers`/`projectMetrics`, re-point `ca watch` at the in-process callback stream per §5 decision 3, retire the DIE-at-2.2 event specs). The `podman-compose.yaml` Langfuse stack is present but unused until Phase 2.
 
 ---
 

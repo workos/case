@@ -52,12 +52,24 @@ const verifierFail: AgentResult = {
 function recordingAppender(events: PipelineEvent[]) {
   let seq = 1;
   return {
-    getState: () => ({ status: 'active' }),
+    // Minimal-but-valid PipelineState shape for the node-direct projection
+    // (empty phases/markers → no marker files, a single no-op td write).
+    getState: () => ({
+      status: 'active',
+      taskId: 'task-1',
+      profile: 'standard',
+      phases: new Map(),
+      markers: new Set<string>(),
+      pendingRevision: null,
+    }),
     append: async (e: Record<string, unknown>) => {
       events.push({ ...e, ts: new Date(0).toISOString(), sequence: seq++ } as unknown as PipelineEvent);
     },
   };
 }
+
+/** Node-direct projection sink — the engine writes the td mirror here. */
+const noopStore = { writeFromProjection: async () => {} };
 
 const noopNotifier = {
   send() {},
@@ -76,6 +88,8 @@ function baseArgs(appender: unknown, dispatch: DispatchFn, checkpointer: MemoryS
     profile: 'standard' as const,
     maxRevisionCycles: 2,
     appender: appender as never,
+    store: noopStore as never,
+    caseRoot: '/tmp/case-resume-spec-unused',
     notifier: noopNotifier as never,
     dispatch,
     onPhaseFailed: () => {},

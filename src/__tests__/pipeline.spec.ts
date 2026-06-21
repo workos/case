@@ -290,28 +290,12 @@ describe('runPipeline', () => {
     expect(mockSpawnAgent).toHaveBeenCalledTimes(3);
   });
 
-  it('re-entry from verifying status skips implement phase', async () => {
-    const verifyingTask = {
-      ...mockTask,
-      status: 'verifying' as const,
-      agents: { verifier: { started: null, completed: null, status: 'running' as const } },
-    };
-    mockStoreRead.mockResolvedValue(verifyingTask);
-
-    mockSpawnAgent
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // verifier
-      .mockResolvedValueOnce({ raw: agentRaw(completedAgentOutput), result: completedAgentOutput, durationMs: 100 }) // reviewer
-      .mockResolvedValueOnce({ raw: agentRaw(prAgentOutput), result: prAgentOutput, durationMs: 100 }) // closer
-      .mockResolvedValueOnce({ raw: '', result: completedAgentOutput, durationMs: 100 }); // retrospective
-
-    await runPipeline(makeConfig());
-
-    // 4 agents: verifier, reviewer, closer, retrospective (no implementer)
-    expect(mockSpawnAgent).toHaveBeenCalledTimes(4);
-    // First spawn should be verifier, not implementer — check the prompt contains verifier template
-    const firstPrompt = mockSpawnAgent.mock.calls[0][0].prompt;
-    expect(firstPrompt).toContain('# verifier');
-  });
+  // NOTE: legacy "re-entry from <status> skips earlier phases" resume (the
+  // `seedGraphFromTaskStatus` path) was removed in Phase 1.3. Resume is now
+  // checkpointer-only — a coarse td status with no checkpoint restarts fresh
+  // (RFC §5 decision 1: td is a human mirror, not a resume source). Genuine
+  // crash/abort resume is covered by checkpointer-resume.spec. A td-persisted
+  // pendingRevision still seeds resume-at-implement (tests below).
 
   it('dry-run mode passes all phases without spawning agents', async () => {
     await runPipeline(makeConfig({ dryRun: true }));

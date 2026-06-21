@@ -13,11 +13,13 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * Phase 1.1 acceptance: a run through the LangGraph engine (`CASE_ENGINE=langgraph`)
- * produces the *same phase outcomes* as the legacy DAG executor, over an identical
- * mock runtime. Each case runs both engines against the same queued spawn results
- * and asserts the `notifier.phaseEnd(phase, …, outcome)` sequence matches — and
- * matches an explicit expected sequence (so the parity is pinned, not just mutual).
+ * LangGraph conditional-edge routing oracle (NET-NEW for Phase 1.3, §9). Each
+ * case drives the engine over a fixed queue of mock spawn results and pins the
+ * resulting `notifier.phaseEnd(phase, …, outcome)` sequence — covering the
+ * scout→implement→verify→review→close→retrospective flow plus the revision loop,
+ * budget cap, and fingerprint short-circuit. Originally the 1.1 cross-engine
+ * parity suite; the legacy executor it compared against was deleted in 1.3, so
+ * the pinned expected sequences now stand alone as the routing contract.
  */
 
 // --- Pipeline-specific mocks (mirror pipeline.spec) ---
@@ -161,43 +163,28 @@ const scoutResult: AgentResult = {
 
 type SpawnSpec = ReturnType<typeof spawn>;
 
-/** Run one pipeline through the chosen engine and return the phaseEnd sequence. */
-async function runEngine(
-  engine: 'legacy' | 'langgraph',
-  specs: SpawnSpec[],
-  overrides: Partial<PipelineConfig> = {},
-): Promise<string[]> {
+/** Run one pipeline through the engine and return the phaseEnd sequence. */
+async function runEngine(specs: SpawnSpec[], overrides: Partial<PipelineConfig> = {}): Promise<string[]> {
   mockSpawnAgent.mockReset();
   for (const s of specs) mockSpawnAgent.mockResolvedValueOnce(s);
 
   const seq: string[] = [];
   const notifier = capturingNotifier(seq);
-
-  const prev = process.env.CASE_ENGINE;
-  if (engine === 'langgraph') process.env.CASE_ENGINE = 'langgraph';
-  else delete process.env.CASE_ENGINE;
-  try {
-    await runPipeline(makeConfig({ notifier: notifier as never, ...overrides }));
-  } finally {
-    if (prev === undefined) delete process.env.CASE_ENGINE;
-    else process.env.CASE_ENGINE = prev;
-  }
+  await runPipeline(makeConfig({ notifier: notifier as never, ...overrides }));
   return seq;
 }
 
-/** Run a case through both engines, assert they match each other and `expected`. */
-async function assertParity(
+/** Run a case and assert its (phase, outcome) sequence matches `expected`. */
+async function assertSequence(
   specs: SpawnSpec[],
   expected: string[],
   overrides: Partial<PipelineConfig> = {},
 ): Promise<void> {
-  const legacy = await runEngine('legacy', specs, overrides);
-  const langgraph = await runEngine('langgraph', specs, overrides);
-  expect(legacy).toEqual(expected);
-  expect(langgraph).toEqual(expected);
+  const seq = await runEngine(specs, overrides);
+  expect(seq).toEqual(expected);
 }
 
-describe('LangGraph ↔ legacy executor parity', () => {
+describe('LangGraph engine routing (phase-outcome sequences)', () => {
   beforeEach(async () => {
     mockSpawnAgent.mockReset();
     mockRunCommand.mockReset();
@@ -234,7 +221,7 @@ describe('LangGraph ↔ legacy executor parity', () => {
   });
 
   it('standard profile happy path', async () => {
-    await assertParity(
+    await assertSequence(
       [spawn(scoutResult), spawn(completed), spawn(completed), spawn(completed), spawn(prResult), spawn(completed)],
       [
         'scout:completed',
@@ -249,14 +236,14 @@ describe('LangGraph ↔ legacy executor parity', () => {
 
   it('tiny profile skips scout + verify', async () => {
     mockStoreRead.mockResolvedValue({ ...mockTask, profile: 'tiny' as const });
-    await assertParity(
+    await assertSequence(
       [spawn(completed), spawn(completed), spawn(prResult), spawn(completed)],
       ['implement:completed', 'review:completed', 'close:completed', 'retrospective:completed'],
     );
   });
 
   it('verifier revision cycle (verify fails once, then clean)', async () => {
-    await assertParity(
+    await assertSequence(
       [
         spawn(scoutResult), // scout
         spawn(completed), // implement c0
@@ -281,7 +268,7 @@ describe('LangGraph ↔ legacy executor parity', () => {
   });
 
   it('reviewer soft-fail revision cycle', async () => {
-    await assertParity(
+    await assertSequence(
       [
         spawn(scoutResult), // scout
         spawn(completed), // implement c0
@@ -308,7 +295,7 @@ describe('LangGraph ↔ legacy executor parity', () => {
   });
 
   it('revision budget exhausted (maxRevisionCycles=1)', async () => {
-    await assertParity(
+    await assertSequence(
       [
         spawn(scoutResult), // scout
         spawn(completed), // implement c0
@@ -334,7 +321,7 @@ describe('LangGraph ↔ legacy executor parity', () => {
   });
 
   it('fingerprint short-circuit (identical failure two cycles running)', async () => {
-    await assertParity(
+    await assertSequence(
       [
         spawn(scoutResult), // scout
         spawn(completed), // implement c0
