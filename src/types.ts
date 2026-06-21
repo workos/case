@@ -19,6 +19,8 @@ export interface AgentPhase {
 
 export interface TaskJson {
   id: string;
+  /** td issue handle (e.g. `td-a1b2c3`) — the address for `td` CLI mutations. */
+  tdId?: string;
   status: TaskStatus;
   created: string;
   repo: string;
@@ -135,8 +137,10 @@ export const PHASE_ORDER: PipelinePhase[] = ['scout', 'implement', 'verify', 're
 
 export interface PipelineConfig {
   mode: PipelineMode;
-  taskJsonPath: string;
-  taskMdPath: string;
+  /** Canonical Case task id (`<repo>-<ts>-<slug>`) — names `.case/<taskId>/` runtime state. */
+  taskId: string;
+  /** td issue handle backing this task in the repo's `.todos/` store. */
+  tdId: string;
   repoPath: string;
   repoName: string;
   /** Project metadata from projects.json, when the config was built from the manifest. */

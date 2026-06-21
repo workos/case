@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { createTask } from '../entry/task-factory.js';
+import { decodeState, extractSpec, tdCurrent, tdShow } from '../state/td-client.js';
 import type { TaskCreateRequest } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -18,7 +19,7 @@ describe('createTask', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('creates task.json and task.md files', async () => {
+  it('creates a focused td issue with the embedded task state', async () => {
     const request: TaskCreateRequest = {
       repo: 'cli',
       title: 'Fix broken test',
@@ -30,23 +31,28 @@ describe('createTask', () => {
     const result = await createTask(tempDir, request, { repoPath: tempDir });
 
     expect(result.taskId).toContain('cli-');
-    expect(result.taskJsonPath).toContain('.task.json');
-    expect(result.taskMdPath).toContain('.md');
-    expect(result.taskJsonPath).toContain(join('.case', 'tasks', 'active'));
+    expect(result.tdId).toMatch(/^td-/);
 
-    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
-    expect(taskJson.id).toBe(result.taskId);
-    expect(taskJson.repo).toBe('cli');
-    expect(taskJson.status).toBe('active');
-    expect(taskJson.tested).toBe(false);
+    const issue = await tdShow(tempDir, result.tdId);
+    expect(issue).not.toBeNull();
 
-    const taskMd = await Bun.file(result.taskMdPath).text();
-    expect(taskMd).toContain('Fix broken test');
-    expect(taskMd).toContain('The login test');
-    expect(taskMd).toContain('Repo:** cli');
-    expect(taskMd).toContain('## Evidence Expectations');
-    expect(taskMd).toContain('flaky login test passes 10 consecutive runs');
-    expect((await Bun.file(join(tempDir, '.case', 'active')).text()).trim()).toBe(result.taskId);
+    const taskJson = decodeState(issue!.description);
+    expect(taskJson).not.toBeNull();
+    expect(taskJson!.id).toBe(result.taskId);
+    expect(taskJson!.repo).toBe('cli');
+    expect(taskJson!.status).toBe('active');
+    expect(taskJson!.tested).toBe(false);
+    expect(taskJson!.tdId).toBe(result.tdId);
+
+    const spec = extractSpec(issue!.description);
+    expect(spec).toContain('Fix broken test');
+    expect(spec).toContain('The login test');
+    expect(spec).toContain('Repo:** cli');
+    expect(spec).toContain('## Evidence Expectations');
+    expect(spec).toContain('flaky login test passes 10 consecutive runs');
+
+    // The created task is focused (replaces the old .case/active marker).
+    expect(await tdCurrent(tempDir)).toBe(result.tdId);
   });
 
   it('includes issue and trigger info', async () => {
@@ -62,20 +68,22 @@ describe('createTask', () => {
     };
 
     const result = await createTask(tempDir, request, { repoPath: tempDir });
-    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
+    const issue = await tdShow(tempDir, result.tdId);
+    const taskJson = decodeState(issue!.description);
 
-    expect(taskJson.issueType).toBe('github');
-    expect(taskJson.issue).toBe('https://github.com/workos/authkit-ssr/issues/42');
-    expect(taskJson.mode).toBe('unattended');
+    expect(taskJson!.issueType).toBe('github');
+    expect(taskJson!.issue).toBe('https://github.com/workos/authkit-ssr/issues/42');
+    expect(taskJson!.mode).toBe('unattended');
 
-    const taskMd = await Bun.file(result.taskMdPath).text();
-    expect(taskMd).toContain('webhook');
+    const spec = extractSpec(issue!.description);
+    expect(spec).toContain('webhook');
+    expect(spec).toContain('https://github.com/workos/authkit-ssr/issues/42');
   });
 
   it('includes check fields when provided', async () => {
     const request: TaskCreateRequest = {
       repo: 'cli',
-      title: 'Fix test',
+      title: 'Fix the broken unit test',
       description: 'Test is broken.',
       trigger: { type: 'manual', description: 'test' },
       checkCommand: 'vitest run --reporter=json',
@@ -85,10 +93,11 @@ describe('createTask', () => {
     };
 
     const result = await createTask(tempDir, request, { repoPath: tempDir });
-    const taskJson = JSON.parse(await Bun.file(result.taskJsonPath).text());
+    const issue = await tdShow(tempDir, result.tdId);
+    const taskJson = decodeState(issue!.description);
 
-    expect(taskJson.checkCommand).toBe('vitest run --reporter=json');
-    expect(taskJson.checkBaseline).toBe(10);
-    expect(taskJson.checkTarget).toBe(12);
+    expect(taskJson!.checkCommand).toBe('vitest run --reporter=json');
+    expect(taskJson!.checkBaseline).toBe(10);
+    expect(taskJson!.checkTarget).toBe(12);
   });
 });

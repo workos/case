@@ -109,7 +109,7 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
   };
 
   const taskResult = await createTask(caseRoot, request, { issueContext, branch: branchName, repoPath: detected.path });
-  setupStep(notifier, 'Task', taskResult.taskId);
+  setupStep(notifier, 'Task', `${taskResult.taskId} (${taskResult.tdId})`);
 
   // --- Step 3: Run baseline ---
   const baseline = await runBootstrap(detected.name, caseRoot);
@@ -128,7 +128,8 @@ export async function runCliOrchestrator(options: CliOrchestratorOptions): Promi
 
   // --- Step 4: Dispatch to pipeline ---
   const config = await buildPipelineConfig({
-    taskJsonPath: taskResult.taskJsonPath,
+    tdId: taskResult.tdId,
+    repoPath: detected.path,
     mode,
     dryRun,
   });
@@ -149,7 +150,7 @@ async function resumeTask(
   setupStartedAt: number,
   renderer?: 'structured' | 'tui',
 ): Promise<void> {
-  const { taskJson, taskJsonPath, entryPhase } = match;
+  const { taskJson, tdId, entryPhase } = match;
 
   // Guard: task already has a PR open
   if (taskJson.status === 'pr-opened' || taskJson.status === 'merged') {
@@ -168,9 +169,10 @@ async function resumeTask(
     setupStep(notifier, 'Branch', taskJson.branch);
   }
 
-  // Build config from existing task JSON and dispatch
+  // Build config from the existing td task and dispatch
   const config = await buildPipelineConfig({
-    taskJsonPath,
+    tdId,
+    repoPath,
     mode,
     dryRun,
   });

@@ -24,8 +24,8 @@ describe('createPipelineTool', () => {
 
     mockBuildPipelineConfig.mockResolvedValue({
       mode: 'attended',
-      taskJsonPath: '/repos/cli/.case/tasks/active/cli-1.task.json',
-      taskMdPath: '/repos/cli/.case/tasks/active/cli-1.md',
+      taskId: 'cli-1',
+      tdId: 'td-test1',
       repoPath: '/repos/cli',
       repoName: 'cli',
       packageRoot: '/case',
@@ -44,10 +44,11 @@ describe('createPipelineTool', () => {
   });
 
   it('calls buildPipelineConfig with correct params', async () => {
-    await tool.execute('call-1', { taskJsonPath: '/tasks/test.task.json' }, undefined, undefined, {} as any);
+    await tool.execute('call-1', { tdId: 'td-test1', repoPath: '/some/repo' }, undefined, undefined, {} as any);
 
     expect(mockBuildPipelineConfig).toHaveBeenCalledWith({
-      taskJsonPath: '/tasks/test.task.json',
+      tdId: 'td-test1',
+      repoPath: '/some/repo',
       mode: 'attended',
       dryRun: false,
     });
@@ -56,21 +57,22 @@ describe('createPipelineTool', () => {
   it('passes mode and dryRun when provided', async () => {
     await tool.execute(
       'call-2',
-      { taskJsonPath: '/tasks/test.task.json', mode: 'unattended', dryRun: true },
+      { tdId: 'td-test1', repoPath: '/some/repo', mode: 'unattended', dryRun: true },
       undefined,
       undefined,
       {} as any,
     );
 
     expect(mockBuildPipelineConfig).toHaveBeenCalledWith({
-      taskJsonPath: '/tasks/test.task.json',
+      tdId: 'td-test1',
+      repoPath: '/some/repo',
       mode: 'unattended',
       dryRun: true,
     });
   });
 
   it('calls runPipeline with the built config', async () => {
-    await tool.execute('call-3', { taskJsonPath: '/tasks/test.task.json' }, undefined, undefined, {} as any);
+    await tool.execute('call-3', { tdId: 'td-test1', repoPath: '/some/repo' }, undefined, undefined, {} as any);
 
     expect(mockRunPipeline).toHaveBeenCalledTimes(1);
     const config = mockRunPipeline.mock.calls[0][0];
@@ -80,14 +82,14 @@ describe('createPipelineTool', () => {
   it('returns success content on completion', async () => {
     const result = await tool.execute(
       'call-4',
-      { taskJsonPath: '/tasks/test.task.json' },
+      { tdId: 'td-test1', repoPath: '/some/repo' },
       undefined,
       undefined,
       {} as any,
     );
 
     expect(result.content[0]).toEqual({ type: 'text', text: 'Pipeline completed successfully.' });
-    expect(result.details).toEqual({ taskJsonPath: '/tasks/test.task.json' });
+    expect(result.details).toEqual({ tdId: 'td-test1' });
   });
 
   it('streams progress via onUpdate when heartbeat fires', async () => {
@@ -102,12 +104,12 @@ describe('createPipelineTool', () => {
       }
     });
 
-    await tool.execute('call-5', { taskJsonPath: '/tasks/test.task.json' }, undefined, onUpdate, {} as any);
+    await tool.execute('call-5', { tdId: 'td-test1', repoPath: '/some/repo' }, undefined, onUpdate, {} as any);
 
     expect(onUpdate).toHaveBeenCalledTimes(2);
     expect(updates[0]).toEqual({
       content: [{ type: 'text', text: '... still running (5s)\n' }],
-      details: { taskJsonPath: '/tasks/test.task.json' },
+      details: { tdId: 'td-test1' },
     });
   });
 
@@ -115,7 +117,7 @@ describe('createPipelineTool', () => {
     mockRunPipeline.mockRejectedValue(new Error('Pipeline exploded'));
 
     await expect(
-      tool.execute('call-6', { taskJsonPath: '/tasks/test.task.json' }, undefined, undefined, {} as any),
+      tool.execute('call-6', { tdId: 'td-test1', repoPath: '/some/repo' }, undefined, undefined, {} as any),
     ).rejects.toThrow('Pipeline exploded');
   });
 });

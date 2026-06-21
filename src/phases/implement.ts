@@ -15,7 +15,7 @@ import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import { analyzeFailure } from '../commands/analyze-failure.js';
 import { readWorkingMemory } from '../memory/working-memory.js';
-import { formatForImplementer, taskSlugFromTaskJsonPath } from '../memory/format.js';
+import { formatForImplementer } from '../memory/format.js';
 import { synthesizeForImplementer } from '../scout/findings.js';
 import { createLogger } from '../util/logger.js';
 
@@ -118,7 +118,8 @@ async function attemptRetry(
 ): Promise<PhaseOutput | null> {
   let analysis: FailureAnalysis;
   try {
-    analysis = await analyzeFailure(config.taskJsonPath, 'implementer', originalResult.error ?? 'unknown error');
+    const workingMemoryFile = resolve(config.repoPath, '.case', config.taskId, 'working.md');
+    analysis = await analyzeFailure(workingMemoryFile, 'implementer', originalResult.error ?? 'unknown error');
   } catch (err: unknown) {
     log.error('failure analysis failed', { error: (err as Error).message });
     return null;
@@ -180,8 +181,7 @@ async function attemptRetry(
  * still covers the no-memory case until agents adopt `ca update-memory`.
  */
 function prependWorkingMemory(basePrompt: string, config: PipelineConfig): string {
-  const slug = taskSlugFromTaskJsonPath(config.taskJsonPath);
-  const taskDir = resolve(config.repoPath, '.case', slug);
+  const taskDir = resolve(config.repoPath, '.case', config.taskId);
   const memory = readWorkingMemory(taskDir);
   if (!memory) return basePrompt;
   return formatForImplementer(memory) + '\n' + basePrompt;

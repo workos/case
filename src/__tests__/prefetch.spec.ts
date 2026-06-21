@@ -14,8 +14,8 @@ let packageRoot: string;
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(repoDir, '.case/tasks/active/cli-1.task.json'),
-    taskMdPath: join(repoDir, '.case/tasks/active/cli-1.md'),
+    taskId: 'cli-1',
+    tdId: 'cli-1',
     repoPath: repoDir,
     repoName: 'cli',
     packageRoot,

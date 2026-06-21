@@ -6,7 +6,7 @@ import { assemblePrompt } from '../context/assembler.js';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import { buildRevisionRequest } from './revision.js';
 import { readWorkingMemory } from '../memory/working-memory.js';
-import { formatForVerifier, taskSlugFromTaskJsonPath } from '../memory/format.js';
+import { formatForVerifier } from '../memory/format.js';
 import { createLogger } from '../util/logger.js';
 
 const log = createLogger();
@@ -116,8 +116,7 @@ function classifyVerifierFailure(fails: Array<{ category: string; detail: string
  * start returns the base prompt unchanged.
  */
 function prependWorkingMemory(basePrompt: string, config: PipelineConfig): string {
-  const slug = taskSlugFromTaskJsonPath(config.taskJsonPath);
-  const taskDir = resolve(config.repoPath, '.case', slug);
+  const taskDir = resolve(config.repoPath, '.case', config.taskId);
   const memory = readWorkingMemory(taskDir);
   if (!memory) return basePrompt;
   return formatForVerifier(memory) + '\n' + basePrompt;

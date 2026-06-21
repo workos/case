@@ -29,8 +29,8 @@ import type { PipelineGraph } from './dag/types.js';
 const log = createLogger();
 
 export async function runPipeline(config: PipelineConfig): Promise<void> {
-  // Task JSON lives in the target repo's ignored .case directory.
-  const store = new TaskStore(config.taskJsonPath, config.packageRoot);
+  // Task state is backed by the repo's `td` store (see td-client.ts).
+  const store = new TaskStore(config.repoPath, config.tdId);
   // Renderer selection: TUI wins when explicitly requested (even over a
   // pre-built notifier from cli-orchestrator's setup phase). Otherwise an
   // explicit notifier takes priority, falling back to structured log.

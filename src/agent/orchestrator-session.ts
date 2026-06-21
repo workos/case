@@ -148,7 +148,7 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
       if (match) {
         lines.push(`\nExisting task found: ${match.taskJson.id} (status: ${match.taskJson.status})`);
         lines.push(`Entry phase: ${match.entryPhase}`);
-        lines.push(`Task JSON: ${match.taskJsonPath}`);
+        lines.push(`td issue: ${match.tdId}`);
         if (match.taskJson.prUrl) lines.push(`PR: ${match.taskJson.prUrl}`);
         lines.push(`\nTask is resumable from the ${match.entryPhase} phase.`);
       } else {

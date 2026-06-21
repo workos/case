@@ -1,23 +1,22 @@
-import { join, resolve } from 'node:path';
-import { readdir, stat } from 'node:fs/promises';
 import { determineEntryPhase } from '../state/transitions.js';
-import { resolveRepoActiveMarker, resolveRepoActiveTaskDir, resolveRepoTaskJson, resolveTaskDir } from '../paths.js';
-import type { TaskJson, PipelinePhase } from '../types.js';
-
-const STALE_MARKER_MS = 24 * 60 * 60 * 1000; // 24 hours
+import { loadProjectsManifest, resolveRepoPath } from '../config.js';
+import { decodeState, tdCurrent, tdList, tdShow } from '../state/td-client.js';
+import type { PipelinePhase, TaskJson } from '../types.js';
 
 export interface TaskMatch {
   taskJson: TaskJson;
-  taskJsonPath: string;
-  taskMdPath: string;
+  /** td issue handle backing the matched task. */
+  tdId: string;
   entryPhase: PipelinePhase;
 }
 
 /**
- * Scan active task JSON files for a task matching the given issue.
- * Returns the match with its resolved entry phase, or null if not found.
+ * Find an active task for the given issue by querying the repo's `td` store.
  *
- * Scans repo-local `.case/tasks/active` first, then legacy global/in-repo locations.
+ * Tasks are tagged with `repo:<name>` and `issue:<n>` labels at creation, so a
+ * label-filtered `td list` narrows the candidates; the embedded case-state then
+ * confirms the issue type. Returns the match with its resolved entry phase, or
+ * null when no live task tracks the issue.
  */
 export async function findTaskByIssue(
   caseRoot: string,
@@ -26,118 +25,45 @@ export async function findTaskByIssue(
   issueNumber: string,
   repoPath?: string,
 ): Promise<TaskMatch | null> {
-  for (const activeDir of activeDirCandidates(caseRoot, repoPath)) {
-    let entries: string[];
-    try {
-      entries = await readdir(activeDir);
-    } catch {
-      continue;
-    }
+  const resolvedRepoPath = repoPath ?? (await resolveTargetRepoPath(caseRoot, repoName));
 
-    for (const file of entries.filter((f) => f.endsWith('.task.json'))) {
-      const taskJsonPath = resolve(activeDir, file);
-      try {
-        const raw = await Bun.file(taskJsonPath).text();
-        const task = JSON.parse(raw) as TaskJson;
-
-        if (task.repo === repoName && task.issueType === issueType && task.issue === issueNumber) {
-          const entryPhase = determineEntryPhase(task);
-          const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
-          return { taskJson: task, taskJsonPath, taskMdPath, entryPhase };
-        }
-      } catch {
-        // Skip unparseable files
-        continue;
-      }
+  const candidates = await tdList(resolvedRepoPath, [`repo:${repoName}`, `issue:${issueNumber}`]);
+  for (const issue of candidates) {
+    const task = decodeState(issue.description);
+    if (!task) continue;
+    if (task.repo === repoName && task.issueType === issueType && task.issue === issueNumber) {
+      return toMatch(task, issue.id);
     }
   }
-
   return null;
 }
 
-/** Candidate active-tasks dirs in resolution order. */
-function activeDirCandidates(caseRoot: string, repoPath?: string): string[] {
-  const list: string[] = [];
-  if (repoPath) {
-    list.push(resolveRepoActiveTaskDir(repoPath));
-  }
-  try {
-    list.push(join(resolveTaskDir(), 'active'));
-  } catch {
-    // resolveDataDir() may throw if HOME/XDG/CASE_DATA_DIR unset
-  }
-  list.push(resolve(caseRoot, 'tasks/active'));
-  return list;
-}
-
 /**
- * Scan for a task via the `.case/active` marker in the given repo directory.
- * Reads the task ID from the marker file, then loads the task JSON directly.
- *
- * Handles stale markers (>24h) and missing task files by cleaning up.
+ * Resolve the repo's currently focused task (the `td` replacement for the old
+ * `.case/active` marker). Returns null when nothing is focused or the focused
+ * issue has no case-state payload.
  */
 export async function findTaskByMarker(caseRoot: string, repoPath: string): Promise<TaskMatch | null> {
-  const markerPath = resolveRepoActiveMarker(repoPath);
+  void caseRoot;
+  const tdId = await tdCurrent(repoPath);
+  if (!tdId) return null;
 
-  // Check marker exists and staleness in one stat call
-  let markerStat;
-  try {
-    markerStat = await stat(markerPath);
-  } catch {
-    return null; // Marker doesn't exist
-  }
+  const issue = await tdShow(repoPath, tdId);
+  if (!issue) return null;
 
-  const ageMs = Date.now() - markerStat.mtimeMs;
-  if (ageMs > STALE_MARKER_MS) {
-    await cleanupActiveMarker(markerPath);
-    process.stdout.write('Stale .case/active marker (>24h) cleaned up.\n');
-    return null;
-  }
+  const task = decodeState(issue.description);
+  if (!task) return null;
 
-  // Read task ID from marker
-  const taskId = (await Bun.file(markerPath).text()).trim();
-  if (!taskId) {
-    await cleanupActiveMarker(markerPath);
-    return null;
-  }
-
-  // Load the task JSON — try repo-local state first, then legacy dataDir/in-repo paths.
-  let taskJsonPath: string | null = null;
-  for (const candidate of [
-    resolveRepoTaskJson(repoPath, taskId),
-    ...activeDirCandidates(caseRoot).map((activeDir) => resolve(activeDir, `${taskId}.task.json`)),
-  ]) {
-    if (await Bun.file(candidate).exists()) {
-      taskJsonPath = candidate;
-      break;
-    }
-  }
-
-  if (!taskJsonPath) {
-    await cleanupActiveMarker(markerPath);
-    process.stdout.write('Stale marker cleaned. No active task.\n');
-    return null;
-  }
-
-  try {
-    const raw = await Bun.file(taskJsonPath).text();
-    const task = JSON.parse(raw) as TaskJson;
-    const entryPhase = determineEntryPhase(task);
-    const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
-
-    return { taskJson: task, taskJsonPath, taskMdPath, entryPhase };
-  } catch {
-    await cleanupActiveMarker(markerPath);
-    return null;
-  }
+  return toMatch(task, issue.id);
 }
 
-/** Remove only the active marker; repo-local learnings and task history are kept. */
-async function cleanupActiveMarker(markerPath: string): Promise<void> {
-  try {
-    const { rm } = await import('node:fs/promises');
-    await rm(markerPath, { force: true });
-  } catch {
-    // Already removed or inaccessible
-  }
+function toMatch(task: TaskJson, tdId: string): TaskMatch {
+  return { taskJson: { ...task, tdId }, tdId, entryPhase: determineEntryPhase(task) };
+}
+
+async function resolveTargetRepoPath(caseRoot: string, repoName: string): Promise<string> {
+  const manifest = await loadProjectsManifest(caseRoot);
+  const project = manifest.repos.find((p) => p.name === repoName);
+  if (!project) throw new Error(`Repo "${repoName}" not found in projects.json`);
+  return resolveRepoPath(manifest.repoBasePath, project.path);
 }

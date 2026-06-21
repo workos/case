@@ -14,12 +14,12 @@ Step-by-step guides for recurring operations across WorkOS OSS repos. Each playb
 
 ## How Playbooks Work
 
-1. A human fills in a task template (from `tasks/templates/`) and drops it in the target repo's `.case/tasks/active/`.
+1. A human fills in a task template (from `tasks/templates/`) and creates a `td` issue in the target repo's `.todos/` store.
 2. The implementer reads the task and playbook, writes the fix/feature, and commits.
 3. The verifier tests the specific scenario with fresh context.
 4. The reviewer checks the diff against golden principles and conventions.
 5. The closer opens a PR in the target repo (requires `.case/<task-slug>/reviewed`).
-6. After merge, the task JSON status is updated; runtime task files stay in ignored `.case/` history.
+6. After merge, the task record's status is updated in the repo's `td` store.
 
 ## Related Docs
 

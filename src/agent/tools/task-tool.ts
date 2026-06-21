@@ -53,7 +53,7 @@ export function createTaskTool(caseRoot: string) {
           content: [
             {
               type: 'text',
-              text: `Task created: ${result.taskId}\n  JSON: ${result.taskJsonPath}\n  Spec: ${result.taskMdPath}`,
+              text: `Task created: ${result.taskId}\n  td issue: ${result.tdId}`,
             },
           ],
           details: result,

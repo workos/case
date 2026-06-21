@@ -17,8 +17,8 @@ async function setupTempFiles() {
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(tempCaseRoot, '.case/tasks/active/cli-1.task.json'),
-    taskMdPath: join(tempCaseRoot, '.case/tasks/active/cli-1.md'),
+    taskId: 'cli-1',
+    tdId: 'td-test1',
     repoPath: tempCaseRoot,
     repoName: 'cli',
     packageRoot: tempCaseRoot,

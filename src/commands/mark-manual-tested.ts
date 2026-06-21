@@ -1,14 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
-import { updateTaskJson } from './mark-tested.js';
+import { updateTaskState } from './mark-tested.js';
+import { resolveFocusedTask } from '../state/td-client.js';
 
 export const description = 'Mark a repo as manually tested (writes .case/<slug>/manual-tested)';
-
-function resolveTaskSlug(): string | null {
-  if (!existsSync('.case/active')) return null;
-  return readFileSync('.case/active', 'utf-8').trim() || null;
-}
 
 function countRecentPngs(dir: string, maxAgeMinutes: number): number {
   if (!existsSync(dir)) return 0;
@@ -30,11 +26,12 @@ function countRecentPngs(dir: string, maxAgeMinutes: number): number {
 }
 
 export async function handler(argv: string[]): Promise<number> {
-  const slug = resolveTaskSlug();
-  if (!slug) {
-    process.stderr.write('ERROR: No active task — .case/active is missing or empty. Run the orchestrator first.\n');
+  const focused = await resolveFocusedTask(process.cwd());
+  if (!focused) {
+    process.stderr.write('ERROR: No active task — no focused td task. Run the orchestrator first.\n');
     return 1;
   }
+  const slug = focused.task.id;
 
   const markerDir = `.case/${slug}`;
   mkdirSync(markerDir, { recursive: true });
@@ -79,6 +76,6 @@ export async function handler(argv: string[]): Promise<number> {
 
   writeFileSync(resolve(markerDir, 'manual-tested'), `timestamp: ${timestamp}\nevidence: ${evidenceDetails}\n`);
   process.stderr.write(`.case/${slug}/manual-tested created (${evidenceDetails})\n`);
-  updateTaskJson(slug, 'manualTested');
+  await updateTaskState(process.cwd(), focused.tdId, 'manualTested');
   return 0;
 }
