@@ -5,12 +5,6 @@ import { formatDuration } from './notify.js';
 import { createStructuredLogRenderer } from './render/structured-log.js';
 import { createTuiRenderer, type TuiRenderer } from './render/tui-renderer.js';
 import type { Notifier } from './notify.js';
-import { runImplementPhase } from './phases/implement.js';
-import { runScoutPhase } from './phases/scout.js';
-import { runVerifyPhase } from './phases/verify.js';
-import { runReviewPhase } from './phases/review.js';
-import { runClosePhase } from './phases/close.js';
-import { runRetrospectivePhase, type MetricsSnapshot } from './phases/retrospective.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
 import { EventAppender } from './events/appender.js';
@@ -20,8 +14,8 @@ import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
 import { createLogger } from './util/logger.js';
 import { buildGraph } from './dag/builder.js';
 import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
-import { resolveOutcome } from './dag/outcome-table.js';
-import type { DagNode } from './dag/types.js';
+import { dispatchNode, type DispatchNodeRef } from './pipeline-dispatch.js';
+import { executeLangGraph } from './langgraph/engine.js';
 import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
 import { restoreGraphState } from './dag/restore.js';
 import type { PipelineGraph } from './dag/types.js';
@@ -103,55 +97,6 @@ async function runPipelineBody(
   await mkdirPlan(planDir, { recursive: true });
   await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
 
-  const graph = buildGraph(profile, maxRevisionCycles);
-
-  // Crash recovery: restore graph state from event log if a prior run didn't complete
-  const existingEventLogPath = resolvePlan(config.dataDir, '.case', task.id, 'events');
-  let resumed = false;
-  try {
-    const { readdir: readdirFs } = await import('node:fs/promises');
-    const files = await readdirFs(existingEventLogPath);
-    const latestLog = files
-      .filter((f) => f.endsWith('.jsonl'))
-      .sort()
-      .pop();
-    if (latestLog) {
-      const events = await loadEventsFromFile(resolvePlan(existingEventLogPath, latestLog));
-      if (events.length > 0) {
-        const state = reduceEvents(events);
-        // Resume if the prior run didn't complete (no pipeline_end event)
-        if (state.outcome === 'running') {
-          restoreGraphState(graph, state);
-          appender.restoreState(state);
-          resumed = true;
-        }
-      }
-    }
-  } catch {
-    // No existing event log — fresh start
-  }
-
-  let initialRevisionRequests: Map<number, RevisionRequest[]> | undefined;
-
-  if (!resumed) {
-    await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
-
-    if (task.pendingRevision) {
-      const revCycle = task.pendingRevision.cycle ?? 1;
-      const prevCycle = revCycle - 1;
-      markCyclesCompleted(graph, profile, 0, prevCycle);
-      seedPendingRevision(graph, task.pendingRevision);
-      initialRevisionRequests = new Map([[prevCycle, [task.pendingRevision]]]);
-      const state = appender.getState();
-      state.revisionCycles = revCycle;
-      state.pendingRevision = task.pendingRevision;
-      resumed = true;
-    } else if (task.status !== 'active') {
-      seedGraphFromTaskStatus(graph, profile, task.status);
-      resumed = true;
-    }
-  }
-
   // Prompt versions are static package assets; run metrics are appended under the repo .case dir.
   const promptVersions = await getCurrentPromptVersions(config.packageRoot);
   let outcome: 'completed' | 'failed' = 'completed';
@@ -164,44 +109,116 @@ async function runPipelineBody(
   // same findings (scout runs once per pipeline).
   const scoutSlot: { current: ScoutFindings | null } = { current: null };
 
-  const ctx: ExecuteGraphContext = {
-    graph,
-    appender,
-    config,
-    notifier,
-    initialRevisionRequests,
-    dispatchPhase: async (node: DagNode, revision?: RevisionRequest) => {
-      return dispatchNode(node, config, store, previousResults, notifier, revision, {
-        incrementHumanOverrides: () => {
-          humanOverrides++;
-        },
-        outcome: () => outcome,
-        setOutcome: (o) => {
-          outcome = o;
-        },
-        setFailedAgent: (a) => {
-          failedAgent = a;
-        },
-        getScoutFindings: () => scoutSlot.current,
-        setScoutFindings: (f) => {
-          scoutSlot.current = f;
-        },
-      });
-    },
-  };
+  // Engine-agnostic per-phase dispatcher. Both the legacy DAG executor and the
+  // LangGraph engine call through this, so per-phase semantics (matrix consult,
+  // abort prompts, scout hand-off, previousResults bookkeeping) stay identical.
+  const dispatch = async (node: DispatchNodeRef, revision?: RevisionRequest): Promise<AgentResult> =>
+    dispatchNode(node, config, store, previousResults, notifier, revision, {
+      incrementHumanOverrides: () => {
+        humanOverrides++;
+      },
+      outcome: () => outcome,
+      setOutcome: (o) => {
+        outcome = o;
+      },
+      setFailedAgent: (a) => {
+        failedAgent = a;
+      },
+      getScoutFindings: () => scoutSlot.current,
+      setScoutFindings: (f) => {
+        scoutSlot.current = f;
+      },
+    });
 
-  await executeGraph(ctx);
+  if (process.env.CASE_ENGINE === 'langgraph') {
+    // Phase 1.1: LangGraph owns orchestration. Fresh runs only — event-log
+    // crash-resume stays legacy until the 1.2 SQLite checkpointer lands. A
+    // td-persisted pendingRevision still seeds a resume-at-implement.
+    await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+    await executeLangGraph({
+      profile,
+      maxRevisionCycles,
+      appender,
+      notifier,
+      dispatch,
+      onPhaseFailed: (agent) => {
+        outcome = 'failed';
+        failedAgent = agent;
+      },
+      initialPendingRevision: task.pendingRevision ?? null,
+    });
+  } else {
+    const graph = buildGraph(profile, maxRevisionCycles);
 
-  const totalDurationMs = Date.now() - Date.parse(appender.getState().startedAt);
+    // Crash recovery: restore graph state from event log if a prior run didn't complete
+    const existingEventLogPath = resolvePlan(config.dataDir, '.case', task.id, 'events');
+    let resumed = false;
+    try {
+      const { readdir: readdirFs } = await import('node:fs/promises');
+      const files = await readdirFs(existingEventLogPath);
+      const latestLog = files
+        .filter((f) => f.endsWith('.jsonl'))
+        .sort()
+        .pop();
+      if (latestLog) {
+        const events = await loadEventsFromFile(resolvePlan(existingEventLogPath, latestLog));
+        if (events.length > 0) {
+          const state = reduceEvents(events);
+          // Resume if the prior run didn't complete (no pipeline_end event)
+          if (state.outcome === 'running') {
+            restoreGraphState(graph, state);
+            appender.restoreState(state);
+            resumed = true;
+          }
+        }
+      }
+    } catch {
+      // No existing event log — fresh start
+    }
 
-  // Check if any node failed
-  for (const [, node] of graph.nodes) {
-    if (node.state === 'failed' && node.agent !== 'retrospective') {
-      outcome = 'failed';
-      failedAgent = node.agent as AgentName;
-      break;
+    let initialRevisionRequests: Map<number, RevisionRequest[]> | undefined;
+
+    if (!resumed) {
+      await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+
+      if (task.pendingRevision) {
+        const revCycle = task.pendingRevision.cycle ?? 1;
+        const prevCycle = revCycle - 1;
+        markCyclesCompleted(graph, profile, 0, prevCycle);
+        seedPendingRevision(graph, task.pendingRevision);
+        initialRevisionRequests = new Map([[prevCycle, [task.pendingRevision]]]);
+        const state = appender.getState();
+        state.revisionCycles = revCycle;
+        state.pendingRevision = task.pendingRevision;
+        resumed = true;
+      } else if (task.status !== 'active') {
+        seedGraphFromTaskStatus(graph, profile, task.status);
+        resumed = true;
+      }
+    }
+
+    const ctx: ExecuteGraphContext = {
+      graph,
+      appender,
+      config,
+      notifier,
+      initialRevisionRequests,
+      dispatchPhase: dispatch,
+    };
+
+    await executeGraph(ctx);
+
+    // Check if any node failed
+    for (const [, node] of graph.nodes) {
+      if (node.state === 'failed' && node.agent !== 'retrospective') {
+        outcome = 'failed';
+        failedAgent = node.agent as AgentName;
+        break;
+      }
     }
   }
+
+  const totalDurationMs = Date.now() - Date.parse(appender.getState().startedAt);
 
   await appender.append({ event: 'pipeline_end', outcome, failedAgent, durationMs: totalDurationMs });
 
@@ -229,183 +246,9 @@ async function runPipelineBody(
   }
 }
 
-interface PipelineCallbacks {
-  incrementHumanOverrides: () => void;
-  outcome: () => 'completed' | 'failed';
-  setOutcome: (o: 'completed' | 'failed') => void;
-  setFailedAgent: (a: AgentName) => void;
-  getScoutFindings: () => ScoutFindings | null;
-  setScoutFindings: (f: ScoutFindings | null) => void;
-}
-
-/**
- * Validate a phase's typed outcome against the unified failure matrix. The
- * matrix is the source of truth for `(phase, outcome) → next-action`; this
- * call surfaces drift between a phase impl and the matrix immediately. The
- * legacy `nextPhase` field still drives control flow until the executor is
- * fully migrated.
- */
-function consultMatrix(outcome: import('./types.js').PhaseOutcome | undefined): void {
-  if (!outcome) return;
-  try {
-    resolveOutcome(outcome.phase, outcome.outcome);
-  } catch (err) {
-    log.error('outcome matrix lookup failed', {
-      phase: outcome.phase,
-      outcome: outcome.outcome,
-      error: (err as Error).message,
-    });
-  }
-}
-
-async function dispatchNode(
-  node: DagNode,
-  config: PipelineConfig,
-  store: TaskStore,
-  previousResults: Map<AgentName, AgentResult>,
-  notifier: Notifier,
-  revision: RevisionRequest | undefined,
-  callbacks: PipelineCallbacks,
-): Promise<AgentResult> {
-  switch (node.phase) {
-    case 'scout': {
-      const output = await runScoutPhase(config, store);
-      consultMatrix(output.outcome);
-      callbacks.setScoutFindings(output.findings);
-      // Emit a lightweight audit event so cross-run analytics can track
-      // scout coverage without reading the phase_end payload.
-      if (config.eventAppender) {
-        const elapsedMs = output.result.summary.startsWith('[dry-run]')
-          ? 0
-          : Date.now() - Date.parse(node.startedAt ?? new Date().toISOString());
-        await config.eventAppender.append({
-          event: 'scout_completed',
-          hasFindings: output.findings !== null,
-          relevantFileCount: output.findings?.relevantFiles.length ?? 0,
-          patternCount: output.findings?.patterns.length ?? 0,
-          durationMs: Math.max(0, elapsedMs),
-        });
-      }
-      // Scout is non-blocking: always surface a `completed` status so the
-      // executor advances to implement_0 regardless of whether findings
-      // were produced. The typed outcome (consulted above) records the
-      // real success/failure for audit fidelity.
-      return { ...output.result, status: 'completed' };
-    }
-
-    case 'implement': {
-      if (revision) {
-        await store.setPendingRevision(revision);
-      }
-      const output = await runImplementPhase(config, store, previousResults, revision, callbacks.getScoutFindings());
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'implementer', output.result, [
-          'Retry with guidance',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('implementer');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      await store.setPendingRevision(null);
-      previousResults.set('implementer', output.result);
-      return output.result;
-    }
-
-    case 'verify': {
-      const output = await runVerifyPhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'verifier', output.result, [
-          'Re-implement and re-verify',
-          'Skip verification',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('verifier');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      previousResults.set('verifier', output.result);
-      return output.result;
-    }
-
-    case 'review': {
-      const output = await runReviewPhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
-          'Re-implement and re-review',
-          'Override and continue',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('reviewer');
-          return output.result;
-        }
-        if (choice === 'Override and continue') {
-          callbacks.incrementHumanOverrides();
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      previousResults.set('reviewer', output.result);
-      return output.result;
-    }
-
-    case 'close': {
-      const output = await runClosePhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('closer');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      const prUrl = output.result.artifacts.prUrl;
-      if (prUrl) notifier.send(`PR created: ${prUrl}`);
-      previousResults.set('closer', output.result);
-      return output.result;
-    }
-
-    case 'retrospective': {
-      const appenderState = config.eventAppender!.getState();
-      const metricsSnapshot: MetricsSnapshot = {
-        revisionCycles: appenderState.revisionCycles,
-        humanOverrides: 0,
-        profile: appenderState.profile,
-        evaluatorEffectiveness: projectMetrics(appenderState).evaluatorEffectiveness,
-      };
-      await runRetrospectivePhase(config, store, previousResults, callbacks.outcome(), undefined, metricsSnapshot);
-      return {
-        status: 'completed',
-        summary: 'Retrospective complete',
-        artifacts: {
-          commit: null,
-          filesChanged: [],
-          testsPassed: null,
-          screenshotUrls: [],
-          evidenceMarkers: [],
-          prUrl: null,
-          prNumber: null,
-        },
-        error: null,
-      };
-    }
-
-    default:
-      throw new Error(`Unknown phase: ${node.phase}`);
-  }
-}
+// Per-phase dispatch (scout/implement/verify/review/close/retrospective) lives
+// in `pipeline-dispatch.ts` so the legacy DAG executor and the LangGraph engine
+// share identical semantics. See `dispatchNode` / `PipelineCallbacks`.
 
 function markCyclesCompleted(
   graph: PipelineGraph,
@@ -502,16 +345,4 @@ function seedPendingRevision(graph: PipelineGraph, revision: RevisionRequest): v
       error: null,
     };
   }
-}
-
-async function handleFailure(
-  notifier: Notifier,
-  config: PipelineConfig,
-  agent: AgentName,
-  result: AgentResult,
-  options: string[],
-): Promise<string> {
-  const errorMsg = result.error ?? result.summary ?? 'unknown error';
-  const prompt = `${agent} failed: ${errorMsg}`;
-  return notifier.askUser(prompt, options);
 }

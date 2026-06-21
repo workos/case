@@ -1,8 +1,46 @@
 # Migration: Custom DAG + Event-Sourcing → LangGraph + Langfuse
 
-**Status:** Proposed (RFC)
+**Status:** In progress — Phase 1.1 complete (see §0).
 **Author:** Case maintainers
 **Scope:** Replace Case's hand-rolled orchestration engine and granular event log with LangGraph (graph execution + checkpointing) and Langfuse (observability dispatch), without losing any existing feature.
+
+---
+
+## 0. Migration Status (handoff log)
+
+> Running log of what has actually landed, with deviations from the plan called out. Update this section as each step completes.
+
+### ✅ Phase 1.1 — Wrap pi as a LangGraph node (parallel path, flag-gated) — **DONE**
+
+LangGraph (`@langchain/langgraph` 1.4.4 + peer `@langchain/core` 1.2.0, Bun-verified) now drives orchestration behind `CASE_ENGINE=langgraph`. Legacy DAG executor remains the **default**; nothing in the default path changed behaviorally.
+
+**Landed:**
+
+- **`src/pipeline-dispatch.ts` (NEW).** Extracted `dispatchNode` / `consultMatrix` / `handleFailure` / `PipelineCallbacks` out of `pipeline.ts`. Both engines call this one dispatcher, so per-phase semantics (matrix consult, abort prompts via `handleFailure`, scout findings hand-off, `previousResults` bookkeeping) are **identical by construction**. First param generalized to `DispatchNodeRef = { phase, startedAt? }` (legacy `DagNode` is assignable).
+- **`src/langgraph/state.ts` (NEW).** `StateGraph` channels: `cycle`, `revisionCycles`, `pendingRevision`, `fingerprints` (Record), `last`, `evaluator`, `decision`, `revisionClosed`. Holds **orchestration** state only — agent context (scout findings, `previousResults`) and run-level `outcome`/`failedAgent` stay in the shared pipeline closure exactly as legacy keeps them. *(This is the object the 1.2 checkpointer will snapshot.)*
+- **`src/langgraph/engine.ts` (NEW).** `executeLangGraph(...)` reproduces scout→implement→verify→review→close→retrospective with the revision loop, fingerprint short-circuit, revision-budget cap, and failure→retrospective routing via conditional edges. Emits the **same event stream** through the existing `EventAppender`, so td-status mirror, evidence markers, metrics, and `runs.jsonl` stay correct **for free** (the appender's `projectTaskJson`/`projectMarkers` is the single projection seam — no shadow DAG needed).
+- **`src/pipeline.ts`.** Branches on `CASE_ENGINE` inside `runPipelineBody`. Shared `dispatch` closure hoisted; legacy graph build/resume/`executeGraph` moved into the `else`. −282 LOC net (dispatcher relocated).
+- **`src/__tests__/langgraph-parity.spec.ts` (NEW).** Runs both engines over an identical mock runtime, asserts identical `(phase, outcome)` sequence (and pins each to an explicit expected). 6 cases: standard happy, tiny profile-skip, verifier revision, reviewer soft-fail revision, budget-exhausted (`maxRevisionCycles=1`), fingerprint short-circuit. **6/6 green.**
+
+**Validation:** typecheck ✅ · `oxlint` ✅ · AST self-lint ✅ · `oxfmt` ✅ · parity 6/6 ✅ · legacy `pipeline.spec` 24/24 unchanged ✅ · full suite green (see test-runner note below).
+
+**Deviations / decisions made during implementation:**
+
+1. **Resume under `langgraph` is deferred to 1.2.** 1.1 is fresh-runs-only on the LangGraph path; event-log crash-resume stays legacy-only until the SQLite checkpointer lands. A td-persisted `pendingRevision` still seeds resume-at-implement (passed as `initialPendingRevision`, seeds `cycle`/`revisionCycles`).
+2. **Replicated a legacy quirk for true parity.** When a **verify** failure is *denied* revision (budget exhausted or fingerprint match), the legacy executor still runs that cycle's **review** before closing — skipping the next cycle unblocks `verifyPassedPredicate`. The engine reproduces this: `revise` routes a denied verify-failure to `review` first (guarded by the `revisionClosed` channel so that trailing review can't itself re-trigger revision). A *review*-triggered denial closes directly (review already ran).
+3. **`status_changed` is computed per-phase** (implement→implementing, verify→verifying, …, post-close→pr-opened) rather than via `projectStatusFromGraph`. The sequential engine never has verify+review running concurrently, so the legacy `evaluating` (concurrent) status is not emitted on the LangGraph path. Does not affect phase-outcome parity; revisit if a profile widens to true parallel supersteps.
+4. **Skipped-phase `phase_end` events are not emitted** on the failure path (legacy emits `outcome:'skipped'` for bypassed pending nodes). Parity is asserted on *executed*-phase outcomes. If `projectMetrics`' `skippedPhases` fidelity matters under LangGraph, emit these in 1.3 when marker/td writes go node-direct.
+
+**Test-runner fix (`src/dev/run-tests.ts`) — required, not optional.** Bun's `mock.module()` is process-global and persists across files; `bun test ./src/__tests__/` loaded all specs into one process, so top-level mocks leaked (`pipeline-tool.spec`'s `pipeline.js` mock broke `pipeline.spec`/parity; `pipeline.spec`'s `task-store` mock broke `task-scanner`/`createTask`/`update-memory`). This was **pre-existing** (38 failures on clean HEAD). Fixed by running each unit spec in its own process (concurrency 8). Every spec passes in isolation; the suite is green. **Next session: keep specs isolated — do not collapse back to a single `bun test <dir>` invocation.**
+
+### ⏭ Next: Phase 1.2 — checkpointer + resume parity
+
+- Add the LangGraph SQLite checkpointer; resolve the **§6 co-location verify** (live alongside td's SQLite in `<repo>/.todos/`, or sibling `case-checkpoints.db`).
+- Wire checkpointed resume on the `langgraph` path; remove the 1.1 "fresh-runs-only" limitation.
+- New oracle test: **checkpointer resume parity** — kill mid-`implement_1`, assert restored node set + `pendingRevision` match `reduceEvents` on the same crash point (replaces `events-reducer.spec` after the 1.3 cutover, not before).
+- Snapshot target is `src/langgraph/state.ts`'s channels (already isolated to orchestration state for this purpose).
+
+**Not yet started:** Phase 1.3 (breaking cutover + legacy delete), all of Phase 2 (Langfuse). The `podman-compose.yaml` Langfuse stack is present but unused until Phase 2.
 
 ---
 
