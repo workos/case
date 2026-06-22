@@ -234,8 +234,27 @@ function defaultEvidenceExpectations(strategy: EvidenceStrategy, issue: IssueCon
 }
 
 /**
+ * Resolve the ref new task branches should be cut from: the repo's default
+ * branch (origin's HEAD, else local main/master), never the current HEAD.
+ * Cutting from whatever happens to be checked out lets a task inherit an
+ * unrelated feature branch's diff as its baseline — the reviewer then reviews
+ * that inherited delta instead of the task's own work. Falls back to HEAD only
+ * when no default branch can be found.
+ */
+async function resolveBaseRef(repoPath: string): Promise<string> {
+  const sym = await runCommand('git', ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'], { cwd: repoPath });
+  if (sym.exitCode === 0 && sym.stdout.trim()) return sym.stdout.trim();
+  for (const candidate of ['main', 'master']) {
+    const verify = await runCommand('git', ['rev-parse', '--verify', candidate], { cwd: repoPath });
+    if (verify.exitCode === 0) return candidate;
+  }
+  return 'HEAD';
+}
+
+/**
  * Create or checkout a git branch.
- * If branch exists, checkout. Otherwise, create from HEAD.
+ * If branch exists, checkout. Otherwise, create from the repo's default branch
+ * (see `resolveBaseRef`) — NOT the current HEAD.
  * When `warnOnCreate` is true (resume flow), warns that the branch was recreated.
  */
 async function ensureBranch(branchName: string, repoPath: string, warnOnCreate = false): Promise<void> {
@@ -247,12 +266,13 @@ async function ensureBranch(branchName: string, repoPath: string, warnOnCreate =
       throw new Error(`Failed to checkout branch ${branchName}: ${co.stderr.trim()}`);
     }
   } else {
+    const base = await resolveBaseRef(repoPath);
     if (warnOnCreate) {
-      process.stdout.write(`  Warning: branch ${branchName} not found, recreating from HEAD\n`);
+      process.stdout.write(`  Warning: branch ${branchName} not found, recreating from ${base}\n`);
     }
-    const create = await runCommand('git', ['checkout', '-b', branchName], { cwd: repoPath });
+    const create = await runCommand('git', ['checkout', '-b', branchName, base], { cwd: repoPath });
     if (create.exitCode !== 0) {
-      throw new Error(`Failed to create branch ${branchName}: ${create.stderr.trim()}`);
+      throw new Error(`Failed to create branch ${branchName} from ${base}: ${create.stderr.trim()}`);
     }
   }
 }
