@@ -30,6 +30,7 @@
   "dependencies": {
     "@langchain/core": "^1.2.0",
     "@langchain/langgraph": "^1.4.4",
+    "@langchain/langgraph-checkpoint": "^1.1.2",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
