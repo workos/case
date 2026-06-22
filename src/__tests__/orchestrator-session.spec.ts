@@ -18,6 +18,12 @@ const mockResourceLoaderReload = mock();
 mock.module('../agent/config.js', () => ({
   getModelForAgent: async () => ({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }),
   loadConfig: async () => ({}),
+  // Pulled into this module's graph via pipeline → provider-routing-runtime →
+  // adapters; the mock must mirror the real export surface or ESM linking fails.
+  resolveAgentModel: async () => ({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }),
+  isClaudeModel: () => true,
+  toolPolicyFor: (agentName: string) =>
+    agentName === 'implementer' || agentName === 'retrospective' ? 'mutable' : 'read-only',
 }));
 
 // Mock entry modules for context gathering

@@ -22,8 +22,14 @@ import type { Rubric } from '../types.js';
 
 const log = createLogger();
 
-/** pi `turn_end.message` shape we read (loosely — pi owns the full type). */
-interface PiAssistantMessage {
+/**
+ * Provider-neutral per-turn usage shape. Each runtime adapter maps its native
+ * turn/result payload into this before calling {@link AgentSpan.generation}:
+ *   - pi: `turn_end.message` already conforms structurally.
+ *   - Claude Agent SDK: `result.usage` + `total_cost_usd` → this shape.
+ *   - LangChain: `on_chat_model_end` `usage_metadata` → this shape.
+ */
+export interface GenerationUsage {
   model?: string;
   usage?: {
     input?: number;
@@ -37,8 +43,8 @@ interface PiAssistantMessage {
 
 /** Per-spawn span handle. One per agent execution (= one phase node). */
 export interface AgentSpan {
-  /** `turn_end` → a generation observation carrying per-call tokens + cost. */
-  generation(message: PiAssistantMessage): void;
+  /** One model turn → a generation observation carrying per-call tokens + cost. */
+  generation(message: GenerationUsage): void;
   /** `tool_execution_start` → open a nested span. */
   toolStart(toolCallId: string, toolName: string, args: unknown): void;
   /** `tool_execution_end` → close the matching nested span. */
@@ -80,7 +86,7 @@ const NOOP_SPAN: AgentSpan = {
 };
 
 /** Map pi `usage` → Langfuse usageDetails/costDetails (snake_case keys, `total` summed by ingest). */
-function mapUsage(usage: NonNullable<PiAssistantMessage['usage']>): {
+function mapUsage(usage: NonNullable<GenerationUsage['usage']>): {
   usageDetails: Record<string, number>;
   costDetails: Record<string, number>;
 } {

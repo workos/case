@@ -9,11 +9,11 @@ import {
   createBashTool,
 } from '@mariozechner/pi-coding-agent';
 import { loadSystemPrompt } from '../prompt-loader.js';
-import { getModelForAgent } from '../config.js';
+import { resolveAgentModel, toolPolicyFor } from '../config.js';
 import { parseAgentResult } from '../../util/parse-agent-result.js';
 import { createLogger } from '../../util/logger.js';
 import { sanitizeForTrace } from '../../tracing/sanitize.js';
-import type { AgentModelConfig, SpawnAgentOptions, SpawnAgentResult } from '../../types.js';
+import type { SpawnAgentOptions, SpawnAgentResult } from '../../types.js';
 import type { CaseAgentRuntime, WorkspacePolicy } from '../runtime.js';
 
 const log = createLogger();
@@ -34,15 +34,7 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
     const systemPrompt = await loadSystemPrompt(options.packageRoot, options.agentName);
     const tools = this.createPiTools(options.agentName, options.cwd);
 
-    const modelOverride = process.env.CASE_MODEL_OVERRIDE;
-    let modelConfig: AgentModelConfig;
-    if (options.model) {
-      modelConfig = { provider: options.provider ?? 'anthropic', model: options.model };
-    } else if (modelOverride) {
-      modelConfig = { provider: options.provider ?? 'anthropic', model: modelOverride };
-    } else {
-      modelConfig = await getModelForAgent(options.agentName);
-    }
+    const modelConfig = await resolveAgentModel(options);
 
     const model = this.registry.find(modelConfig.provider, modelConfig.model);
     if (!model) {
@@ -175,28 +167,14 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
   }
 
   private createPiTools(agentName: string, cwd: string) {
-    switch (agentName) {
-      case 'implementer':
-      case 'retrospective':
-        return [createReadTool(cwd), createWriteTool(cwd), createEditTool(cwd), createBashTool(cwd)];
-      case 'scout':
-        // Read-only exploration: Read + Bash only. Glob/Grep are exposed via
-        // the Bash tool in the pi-coding-agent suite (the agent runs `rg`,
-        // `find`, etc.). Crucially: no Write, no Edit — the scout must not
-        // mutate the working tree.
-        return [createReadTool(cwd), createBashTool(cwd)];
-      case 'interviewer':
-        // Same read-only constraint as scout: Read + Bash. The interviewer
-        // explores the target repo before `ca onboard --interview` persists
-        // results; it must never mutate the working tree. Human Q&A flows
-        // through the conversation channel, not a tool.
-        return [createReadTool(cwd), createBashTool(cwd)];
-      case 'verifier':
-      case 'reviewer':
-      case 'closer':
-      default:
-        return [createReadTool(cwd), createBashTool(cwd)];
-    }
+    // Read-only base: Read + Bash. Glob/Grep are exposed via the Bash tool in
+    // the pi-coding-agent suite (the agent runs `rg`, `find`, etc.). Mutable
+    // roles additionally get Write + Edit. `toolPolicyFor` is the single source
+    // of truth shared with the Agent SDK and LangChain runtimes — scout,
+    // interviewer, verifier, reviewer, closer stay read-only and must never
+    // mutate the working tree; only implementer/retrospective may write.
+    const base = [createReadTool(cwd), createBashTool(cwd)];
+    return toolPolicyFor(agentName) === 'mutable' ? [...base, createWriteTool(cwd), createEditTool(cwd)] : base;
   }
 
   abort(): void {

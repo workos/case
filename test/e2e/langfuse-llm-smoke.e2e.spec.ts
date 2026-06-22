@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { PiRuntimeAdapter } from '../../src/agent/adapters/pi-adapter.js';
+import { ProviderRoutingRuntime } from '../../src/agent/adapters/provider-routing-runtime.js';
 import { createLangfuseTracer } from '../../src/tracing/langfuse.js';
 import { llmE2eEnabled, makeReadClient, pollTrace, ofType } from './readback.js';
 import type { SpawnAgentOptions } from '../../src/types.js';
@@ -7,14 +7,19 @@ import type { SpawnAgentOptions } from '../../src/types.js';
 /**
  * Phase 2.1 E2E — Tier 2: real LLM, manual smoke.
  *
- * Spawns a REAL agent against the configured model and dispatches to a LIVE
- * Langfuse, then reads back and asserts a generation with a non-zero **cost** —
- * the one thing only a real provider call can produce (token counts + dollar
- * cost are computed by pi from the actual API response). This is the true,
- * unmocked end-to-end path.
+ * Spawns a REAL agent through the production runtime (`ProviderRoutingRuntime`)
+ * and dispatches to a LIVE Langfuse, then reads back and asserts a generation
+ * with a non-zero **cost** — the one thing only a real provider call can produce
+ * (token counts + dollar cost come from the actual API/SDK response). This is the
+ * true, unmocked end-to-end path.
+ *
+ * The runtime routes by the configured model's provider: a Claude default model
+ * runs on the Claude Agent SDK (subscription/OAuth), a non-Claude model on the
+ * LangChain runtime. Set `CASE_AGENT_RUNTIME=pi` to force the legacy pi backend.
  *
  * Non-deterministic and billable, so it is gated separately from Tier 1:
- * runs only with LANGFUSE_E2E_LLM=1 (+ Langfuse keys + a working model auth).
+ * runs only with LANGFUSE_E2E_LLM=1 (+ Langfuse keys + a working model auth:
+ * Claude Code OAuth for the SDK path, or a provider API key for LangChain).
  * Run via `bun run test:e2e:llm`. Never part of the default suite or Tier 1.
  *
  * Assertions are intentionally loose (>=1 generation, cost>0) — the model may or
@@ -28,7 +33,7 @@ describe.skipIf(!llmE2eEnabled())('langfuse e2e — real LLM smoke', () => {
     const tracer = createLangfuseTracer(RUN_ID, { id: 'e2e-llm-task' })!;
     expect(tracer).not.toBeNull();
 
-    const adapter = new PiRuntimeAdapter();
+    const adapter = new ProviderRoutingRuntime();
 
     // Minimal, cheap prompt: ask the model to emit a valid AGENT_RESULT and stop.
     const options: SpawnAgentOptions = {

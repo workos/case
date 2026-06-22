@@ -37,7 +37,7 @@ import type {
   CreateAgentSessionRuntimeResult,
   ToolDefinition,
 } from '@mariozechner/pi-coding-agent';
-import { basename, resolve, dirname } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';

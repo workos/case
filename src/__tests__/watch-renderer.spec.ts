@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { renderWatchEvent } from '../watch/renderer.js';
-import type { WatchRecord } from '../watch/watcher.js';
 
 // Lock color OFF so we can assert on exact plain-text shapes.
 let savedNoColor: string | undefined;

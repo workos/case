@@ -9,7 +9,7 @@ import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tr
 import { RunState } from './state/run-state.js';
 import { generatePlan } from './events/plan.js';
 import { projectMetrics } from './events/projections.js';
-import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
+import { ProviderRoutingRuntime } from './agent/adapters/provider-routing-runtime.js';
 import { createLogger } from './util/logger.js';
 import { dispatchNode, type DispatchNodeRef } from './pipeline-dispatch.js';
 import { executeLangGraph } from './langgraph/engine.js';
@@ -78,7 +78,9 @@ async function runPipelineBody(
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
   const runId = crypto.randomUUID();
-  config.runtime ??= new PiRuntimeAdapter();
+  // Default runtime: provider-routed (Claude → Agent SDK, others → LangChain).
+  // pi remains available for interactive modes and via CASE_AGENT_RUNTIME=pi.
+  config.runtime ??= new ProviderRoutingRuntime();
 
   // Langfuse dispatch (Phase 2.1+) — fire-and-forget per-run trace, now the sole
   // observability sink (the granular JSONL log was deleted in 2.2). Null when keys
