@@ -55,7 +55,10 @@ class MockAgent {
     const signal = new AbortController().signal;
     for (const cb of this.listeners) {
       await cb({ type: 'tool_execution_start', toolCallId: 't1', toolName: 'bash', args: { cmd: 'bun test' } }, signal);
-      await cb({ type: 'tool_execution_end', toolCallId: 't1', toolName: 'bash', result: { exitCode: 0 }, isError: false }, signal);
+      await cb(
+        { type: 'tool_execution_end', toolCallId: 't1', toolName: 'bash', result: { exitCode: 0 }, isError: false },
+        signal,
+      );
       await cb({ type: 'turn_end', message: TURN_MESSAGE, toolResults: [] }, signal);
       await cb({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: AGENT_RESULT } }, signal);
     }

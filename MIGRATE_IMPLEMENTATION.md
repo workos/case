@@ -17,7 +17,7 @@ LangGraph (`@langchain/langgraph` 1.4.4 + peer `@langchain/core` 1.2.0, Bun-veri
 **Landed:**
 
 - **`src/pipeline-dispatch.ts` (NEW).** Extracted `dispatchNode` / `consultMatrix` / `handleFailure` / `PipelineCallbacks` out of `pipeline.ts`. Both engines call this one dispatcher, so per-phase semantics (matrix consult, abort prompts via `handleFailure`, scout findings hand-off, `previousResults` bookkeeping) are **identical by construction**. First param generalized to `DispatchNodeRef = { phase, startedAt? }` (legacy `DagNode` is assignable).
-- **`src/langgraph/state.ts` (NEW).** `StateGraph` channels: `cycle`, `revisionCycles`, `pendingRevision`, `fingerprints` (Record), `last`, `evaluator`, `decision`, `revisionClosed`. Holds **orchestration** state only — agent context (scout findings, `previousResults`) and run-level `outcome`/`failedAgent` stay in the shared pipeline closure exactly as legacy keeps them. *(This is the object the 1.2 checkpointer will snapshot.)*
+- **`src/langgraph/state.ts` (NEW).** `StateGraph` channels: `cycle`, `revisionCycles`, `pendingRevision`, `fingerprints` (Record), `last`, `evaluator`, `decision`, `revisionClosed`. Holds **orchestration** state only — agent context (scout findings, `previousResults`) and run-level `outcome`/`failedAgent` stay in the shared pipeline closure exactly as legacy keeps them. _(This is the object the 1.2 checkpointer will snapshot.)_
 - **`src/langgraph/engine.ts` (NEW).** `executeLangGraph(...)` reproduces scout→implement→verify→review→close→retrospective with the revision loop, fingerprint short-circuit, revision-budget cap, and failure→retrospective routing via conditional edges. Emits the **same event stream** through the existing `EventAppender`, so td-status mirror, evidence markers, metrics, and `runs.jsonl` stay correct **for free** (the appender's `projectTaskJson`/`projectMarkers` is the single projection seam — no shadow DAG needed).
 - **`src/pipeline.ts`.** Branches on `CASE_ENGINE` inside `runPipelineBody`. Shared `dispatch` closure hoisted; legacy graph build/resume/`executeGraph` moved into the `else`. −282 LOC net (dispatcher relocated).
 - **`src/__tests__/langgraph-parity.spec.ts` (NEW).** Runs both engines over an identical mock runtime, asserts identical `(phase, outcome)` sequence (and pins each to an explicit expected). 6 cases: standard happy, tiny profile-skip, verifier revision, reviewer soft-fail revision, budget-exhausted (`maxRevisionCycles=1`), fingerprint short-circuit. **6/6 green.**
@@ -27,9 +27,9 @@ LangGraph (`@langchain/langgraph` 1.4.4 + peer `@langchain/core` 1.2.0, Bun-veri
 **Deviations / decisions made during implementation:**
 
 1. **Resume under `langgraph` is deferred to 1.2.** 1.1 is fresh-runs-only on the LangGraph path; event-log crash-resume stays legacy-only until the SQLite checkpointer lands. A td-persisted `pendingRevision` still seeds resume-at-implement (passed as `initialPendingRevision`, seeds `cycle`/`revisionCycles`).
-2. **Replicated a legacy quirk for true parity.** When a **verify** failure is *denied* revision (budget exhausted or fingerprint match), the legacy executor still runs that cycle's **review** before closing — skipping the next cycle unblocks `verifyPassedPredicate`. The engine reproduces this: `revise` routes a denied verify-failure to `review` first (guarded by the `revisionClosed` channel so that trailing review can't itself re-trigger revision). A *review*-triggered denial closes directly (review already ran).
+2. **Replicated a legacy quirk for true parity.** When a **verify** failure is _denied_ revision (budget exhausted or fingerprint match), the legacy executor still runs that cycle's **review** before closing — skipping the next cycle unblocks `verifyPassedPredicate`. The engine reproduces this: `revise` routes a denied verify-failure to `review` first (guarded by the `revisionClosed` channel so that trailing review can't itself re-trigger revision). A _review_-triggered denial closes directly (review already ran).
 3. **`status_changed` is computed per-phase** (implement→implementing, verify→verifying, …, post-close→pr-opened) rather than via `projectStatusFromGraph`. The sequential engine never has verify+review running concurrently, so the legacy `evaluating` (concurrent) status is not emitted on the LangGraph path. Does not affect phase-outcome parity; revisit if a profile widens to true parallel supersteps.
-4. **Skipped-phase `phase_end` events are not emitted** on the failure path (legacy emits `outcome:'skipped'` for bypassed pending nodes). Parity is asserted on *executed*-phase outcomes. If `projectMetrics`' `skippedPhases` fidelity matters under LangGraph, emit these in 1.3 when marker/td writes go node-direct.
+4. **Skipped-phase `phase_end` events are not emitted** on the failure path (legacy emits `outcome:'skipped'` for bypassed pending nodes). Parity is asserted on _executed_-phase outcomes. If `projectMetrics`' `skippedPhases` fidelity matters under LangGraph, emit these in 1.3 when marker/td writes go node-direct.
 
 **Test-runner fix (`src/dev/run-tests.ts`) — required, not optional.** Bun's `mock.module()` is process-global and persists across files; `bun test ./src/__tests__/` loaded all specs into one process, so top-level mocks leaked (`pipeline-tool.spec`'s `pipeline.js` mock broke `pipeline.spec`/parity; `pipeline.spec`'s `task-store` mock broke `task-scanner`/`createTask`/`update-memory`). This was **pre-existing** (38 failures on clean HEAD). Fixed by running each unit spec in its own process (concurrency 8). Every spec passes in isolation; the suite is green. **Next session: keep specs isolated — do not collapse back to a single `bun test <dir>` invocation.**
 
@@ -72,7 +72,7 @@ LangGraph is now **unconditional**. The legacy DAG executor/builder, the event-r
 **Test triage (§9):**
 
 - **DIE (deleted):** `dag-builder.spec`, `dag-builder-scout.spec`, `dag-executor.spec`.
-- **PORT:** `dag-status.spec` → **`phase-status.spec`** (asserts the engine's exported `phaseStatus` phase→status map; the legacy concurrent `evaluating` + graph-derived `merged` are intentionally absent — 1.1 deviation 3). `events-projections.spec` **kept as-is** (the projection functions are pure and unchanged until 2.2); the node-direct *write* behavior is the new `node-projection.spec`. `pipeline.spec` resume parts: the pendingRevision-seed resume tests **pass unchanged** (engine seeds from `initialPendingRevision`); the legacy **status-only** re-entry test was **deleted** (see deviation 1).
+- **PORT:** `dag-status.spec` → **`phase-status.spec`** (asserts the engine's exported `phaseStatus` phase→status map; the legacy concurrent `evaluating` + graph-derived `merged` are intentionally absent — 1.1 deviation 3). `events-projections.spec` **kept as-is** (the projection functions are pure and unchanged until 2.2); the node-direct _write_ behavior is the new `node-projection.spec`. `pipeline.spec` resume parts: the pendingRevision-seed resume tests **pass unchanged** (engine seeds from `initialPendingRevision`); the legacy **status-only** re-entry test was **deleted** (see deviation 1).
 - **Converted:** `langgraph-parity.spec` → single-engine **routing oracle** (the legacy arm it compared against is gone; the 6 pinned `(phase, outcome)` sequences now stand alone as the conditional-edge contract — this is the §9 NET-NEW routing test).
 - **Trimmed:** `events-appender.spec` lost its 3 projection/marker tests (moved to `node-projection.spec`) and the `restoreState` test; the append/sequence/runId/state coverage stays.
 - **NET-NEW:** `node-projection.spec` (td write + marker-file drop + re-projection + dedupe — the evidence-gate coverage §9 requires node-direct).
@@ -83,7 +83,7 @@ LangGraph is now **unconditional**. The legacy DAG executor/builder, the event-r
 
 **Deviations / decisions made during implementation:**
 
-1. **Legacy status-only resume dropped (by design).** `seedGraphFromTaskStatus` let a run resume mid-pipeline from a coarse td status with **no checkpoint** (e.g. td says `verifying` → skip to verify). Checkpointer-only resume removes this: with no checkpoint, a run starts fresh from scout. This is intentional per §5 decision 1 (td is a human mirror, **not** a resume source) — a genuinely interrupted run *has* a checkpoint and resumes correctly (`checkpointer-resume.spec`). The `pipeline.spec` test `re-entry from verifying status skips implement phase` was deleted; td-persisted **pendingRevision** seeding survives.
+1. **Legacy status-only resume dropped (by design).** `seedGraphFromTaskStatus` let a run resume mid-pipeline from a coarse td status with **no checkpoint** (e.g. td says `verifying` → skip to verify). Checkpointer-only resume removes this: with no checkpoint, a run starts fresh from scout. This is intentional per §5 decision 1 (td is a human mirror, **not** a resume source) — a genuinely interrupted run _has_ a checkpoint and resumes correctly (`checkpointer-resume.spec`). The `pipeline.spec` test `re-entry from verifying status skips implement phase` was deleted; td-persisted **pendingRevision** seeding survives.
 2. **Two projections per phase, not per event.** `projectNodeState` fires at `phase_start` (running mirror) and `phase_end` (completed + markers), vs the appender's old fire-on-every-`append`. This preserves the live "running" td status while dropping the event-hop coupling. `pendingRevision` in td is now written at the next implement's `phase_start` (state carries it from the `revision_requested` reducer) plus dispatch's direct `store.setPendingRevision` calls — net final td state unchanged.
 3. **TS narrowing workaround.** With the legacy in-scope failed-node loop gone, TS control-flow analysis narrows `outcome` to its `'completed'` initializer (it can't see the dispatch/`onPhaseFailed` closures mutate it). The final `if` reads `(outcome as string) === 'failed'` to keep the runtime failure branch.
 4. **Carried open item (1.1 deviation 4):** skipped-phase `phase_end` events are **still not emitted**. `projectMetrics.skippedPhases` fidelity is therefore unchanged by this phase. If wanted, emit them from the engine when a profile bypasses a node — deferred (no current consumer).
@@ -113,7 +113,8 @@ Langfuse now receives a per-run trace fed from the single observability seam (`p
 3. **`generation` on `turn_end` only; domain `event()` exposed but not yet wired.** `agent_start/end` map to span open/close; pi `turn_start` carries no usage so only `turn_end` becomes a generation. `AgentSpan.event()` exists for §4's "domain events → `event()`" but the adapter still routes domain/tool events through the JSONL appender (dual observability) — no acceptance criterion rides on span-side `event()`, so it's deferred to avoid duplicate emission before the 2.2 cutover.
 
 **Gotchas for the next session:**
-- **Run tests with `bun run test` (= `bun src/dev/run-tests.ts`, process-isolated, concurrency 8). This is the green, authoritative command.** A naive `bun test src/__tests__/` loads all specs into **one** process and Bun's process-global `mock.module()` leaks across files → **43 false failures** (was 38 pre-1.3; grew because 1.3 added `node-projection.spec` + converted `langgraph-parity.spec` + trimmed `events-appender.spec`, all of which register top-level mocks). Every spec passes in isolation; the isolated runner is **0 fail / 48 specs** (2.1 added `langfuse-dispatch.spec`). The 43 are leak victims (`createTask`, pipeline phase cases, …), not real regressions. *(If naive-`bun test` parity is ever wanted, add `mock.restore()` in an `afterAll` to the specs that `mock.module(...)` at top level — deferred; not blocking.)*
+
+- **Run tests with `bun run test` (= `bun src/dev/run-tests.ts`, process-isolated, concurrency 8). This is the green, authoritative command.** A naive `bun test src/__tests__/` loads all specs into **one** process and Bun's process-global `mock.module()` leaks across files → **43 false failures** (was 38 pre-1.3; grew because 1.3 added `node-projection.spec` + converted `langgraph-parity.spec` + trimmed `events-appender.spec`, all of which register top-level mocks). Every spec passes in isolation; the isolated runner is **0 fail / 48 specs** (2.1 added `langfuse-dispatch.spec`). The 43 are leak victims (`createTask`, pipeline phase cases, …), not real regressions. _(If naive-`bun test` parity is ever wanted, add `mock.restore()` in an `afterAll` to the specs that `mock.module(...)` at top level — deferred; not blocking.)_
 - `better-sqlite3` does **not** load under Bun — the engine's checkpointer is the hand-rolled `BunSqliteSaver`.
 - The control path must **never read back from Langfuse** (§1 constraint 1, §7): the retrospective reads local `runs.jsonl` only.
 - **Uncommitted:** all of Phase 1 (1.1 → 1.3) **and Phase 2.1** are on branch `docs/migrate-langgraph-langfuse-rfc`, **not yet committed**. Suggested commit boundaries: Phase 1.3 as two logical commits (1: ⚠ BREAKING flip+delete+test-triage · 2: node-direct projections + `node-projection.spec`); Phase 2.1 as one additive commit. **Full Phase 2.1 file set:** `src/tracing/langfuse.ts` (NEW), `src/agent/adapters/pi-adapter.ts`, `src/pipeline.ts`, `src/types.ts`, `src/phases/{scout,verify,review,close,retrospective}.ts`, `src/__tests__/langfuse-dispatch.spec.ts` (NEW), `test/e2e/` (NEW), `.env.example` (NEW), `.gitignore`, `package.json`, `bun.lock`. **⚠ Exclude `PROMPT.md`** (untracked, unrelated scratch — not part of the migration). Commit before starting 2.2 for a clean bisect.
@@ -125,7 +126,7 @@ The JSONL event log + its schema/appender/reducer are gone. Langfuse is now the 
 
 **Landed:**
 
-- **`src/state/run-state.ts` (NEW).** `RunState` — a JSONL-free in-memory container holding the **unchanged** `PipelineState` shape, with typed mutators (`startPhase`/`endPhase`/`setStatus`/`requestRevision`/`end`/`seedRevision`) ported from the reducer's per-case bodies. Replaces the `EventAppender` + `reduceEvents` pair: Phase 1.3 had the engine *drive* `PipelineState` via granular events and *read it back* via `appender.getState()`, so deleting the log meant **replacing the live state container**, not just removing a sink. Because the shape is identical, `projectTaskJson`/`projectMarkers`/`projectMetrics` (kept in `events/projections.ts`) are byte-identical by construction.
+- **`src/state/run-state.ts` (NEW).** `RunState` — a JSONL-free in-memory container holding the **unchanged** `PipelineState` shape, with typed mutators (`startPhase`/`endPhase`/`setStatus`/`requestRevision`/`end`/`seedRevision`) ported from the reducer's per-case bodies. Replaces the `EventAppender` + `reduceEvents` pair: Phase 1.3 had the engine _drive_ `PipelineState` via granular events and _read it back_ via `appender.getState()`, so deleting the log meant **replacing the live state container**, not just removing a sink. Because the shape is identical, `projectTaskJson`/`projectMarkers`/`projectMetrics` (kept in `events/projections.ts`) are byte-identical by construction.
 - **Deleted:** `src/events/{schema,appender,reducer,errors}.ts`. **Kept** `src/events/{types,projections,plan}.ts` (state shape, projections, plan generation — no event-log dependency).
 - **`src/langgraph/engine.ts` + `src/pipeline.ts` + `src/pipeline-dispatch.ts`.** `appender` → `runState` throughout; `append({event})` calls became `runState.*` mutators. Orchestration-level domain events (`revision_requested` / `revision_budget_exhausted` / `fingerprint_match` / `scout_completed`) now land on the trace via a new **trace-level `LangfuseTracer.event()`** (closes 2.1 deviation 3 — they have no agent span). `config.eventAppender` → `config.runState` on `PipelineConfig`.
 - **`src/agent/adapters/pi-adapter.ts`.** Deleted the dead `tool_start`/`tool_end` → `eventAppender`/`traceWriter` JSONL branches; `span.toolStart/toolEnd` (Langfuse, unconditional) + `onToolActivity` (TUI) already cover tools. `eventAppender`/`traceWriter` dropped from `SpawnAgentOptions` and the 6 phase pass-throughs.
@@ -138,8 +139,8 @@ The JSONL event log + its schema/appender/reducer are gone. Langfuse is now the 
 
 **Deviations / decisions made during implementation:**
 
-1. **State container replaces appender/reducer (not a pure deletion).** The plan called `projectTaskJson`/`projectMarkers` "orphaned" — stale relative to post-1.3 code, where `projectNodeState` uses them at runtime. The faithful 2.2 keeps the projections + `PipelineState` shape and swaps only the *driver* (events → `RunState` mutators). `reduceEvents`/`loadEventsFromFile`/`validateTransition`/the event schema are gone; the transition logic survives as plain methods.
-2. **`ca watch` re-pointed to Langfuse, not an "in-process callback stream" (§5 decision 3 revised).** That decision predated the realization that `ca watch` is a *separate process* — there is no shared in-process stream cross-process. Per user direction, watch now loads + polls the Langfuse trace (full fidelity: tool spans, generations w/ tokens+cost, scores), reusing the 2.1 read-back client. Trade-off accepted: watch now **requires Langfuse keys + reachability** (no offline tail) and sees events at ingest latency (seconds). Reading Langfuse from a *human tool* does not violate §7 (that bars the *control path*).
+1. **State container replaces appender/reducer (not a pure deletion).** The plan called `projectTaskJson`/`projectMarkers` "orphaned" — stale relative to post-1.3 code, where `projectNodeState` uses them at runtime. The faithful 2.2 keeps the projections + `PipelineState` shape and swaps only the _driver_ (events → `RunState` mutators). `reduceEvents`/`loadEventsFromFile`/`validateTransition`/the event schema are gone; the transition logic survives as plain methods.
+2. **`ca watch` re-pointed to Langfuse, not an "in-process callback stream" (§5 decision 3 revised).** That decision predated the realization that `ca watch` is a _separate process_ — there is no shared in-process stream cross-process. Per user direction, watch now loads + polls the Langfuse trace (full fidelity: tool spans, generations w/ tokens+cost, scores), reusing the 2.1 read-back client. Trade-off accepted: watch now **requires Langfuse keys + reachability** (no offline tail) and sees events at ingest latency (seconds). Reading Langfuse from a _human tool_ does not violate §7 (that bars the _control path_).
 3. **Domain `event()` is trace-level, not span-level (closes 2.1 deviation 3).** Orchestration events fire between phases (no agent span), so they attach to the run trace via `LangfuseTracer.event()`; per-call generations/tool spans stay span-nested as before. No more dual emission — the JSONL sink it would have duplicated is gone.
 4. **`scout_completed`/`status_changed` are no longer state mutations.** They only bumped `lastSequence` in the reducer (observability-only); `scout_completed` is now a trace event, `status_changed` is folded into `RunState.setStatus`. Net td/metrics state unchanged.
 
@@ -160,7 +161,7 @@ Two of those subsystems substantially re-implement what LangGraph and Langfuse p
 - LangGraph gives `StateGraph` (conditional edges, cycles, parallel supersteps) and a **checkpointer** that subsumes our replay-for-resume path.
 - Langfuse models the exact trace → span → event → score tree our event taxonomy already encodes, plus token/cost (which pi pre-computes per call but we never surface).
 
-The agent runtime (pi) **stays** — LangGraph nodes wrap `agent.execute()`. This is not a rewrite of how agents run; it is a replacement of how they are *sequenced* and *observed*.
+The agent runtime (pi) **stays** — LangGraph nodes wrap `agent.execute()`. This is not a rewrite of how agents run; it is a replacement of how they are _sequenced_ and _observed_.
 
 ### Expected net effect
 
@@ -194,70 +195,70 @@ Every current feature, its present implementation, and where it lands after migr
 
 ### Orchestration / DAG
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Graph construction (profiles: tiny/standard) | `buildGraph(profile, maxRevisionCycles)` — `src/dag/builder.ts:5`; `PROFILE_PHASES` `src/types.ts:119` | `StateGraph` definition; profile selects which nodes/edges are added | REPLACE |
-| Ready-node detection + parallel dispatch | `findReadyNodes()` + `Promise.all` — `src/dag/executor.ts:64,177` | LangGraph native parallel supersteps (fan-out edges) | REPLACE — *parallel dispatch exists today; tiny/standard profiles are near-linear and exercise it only as graphs widen* |
-| Conditional revision loops (implement→verify→review→implement N+1) | Edge predicates `revisionRequestedPredicate()` — `src/dag/builder.ts:89,140-178` | LangGraph conditional edges returning next node | REPLACE |
-| Revision budget cap | `maxRevisionCycles` (default 2) — `src/pipeline.ts:106` | Counter channel in graph state + conditional-edge guard; LangGraph `recursionLimit` as backstop | REPLACE |
-| Fingerprint loop detection (SHA-256 of failure reason; abort on repeat) | `handleEvaluatorPairCompletion()` — `src/dag/executor.ts:220-269` | Same logic as a node/edge function over graph state (preserved verbatim, relocated) | MOVE |
-| Outcome matrix `(phase, outcome) → action` | `src/dag/outcome-table.ts` | Conditional-edge routing functions keyed off the same table | REPLACE |
-| Failure routing → skip pending, run retrospective once | `src/dag/executor.ts:112` | Conditional edge to `retrospective` node; other pending nodes unreachable | REPLACE |
-| Human override (retry/abort prompt, attended mode) | `src/pipeline.ts:303-313` | LangGraph `interrupt` (human-in-the-loop) or retain custom prompt around graph step | REPLACE — **decision needed** (see §5) |
-| Scout non-blocking routing | Always routes `implement_0` — `src/pipeline.ts:289-293` | Unconditional edge scout→implement | REPLACE |
-| Cross-phase state passing (`scoutSlot`, `previousResults`, `revision`) | Closures + `Map<AgentName, AgentResult>` — `src/pipeline.ts:82,165,297` | LangGraph state channels (typed `StateGraph` state object) | MOVE |
+| Name                                                                    | Current implementation                                                                                 | New implementation                                                                              | Disposition                                                                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Graph construction (profiles: tiny/standard)                            | `buildGraph(profile, maxRevisionCycles)` — `src/dag/builder.ts:5`; `PROFILE_PHASES` `src/types.ts:119` | `StateGraph` definition; profile selects which nodes/edges are added                            | REPLACE                                                                                                                 |
+| Ready-node detection + parallel dispatch                                | `findReadyNodes()` + `Promise.all` — `src/dag/executor.ts:64,177`                                      | LangGraph native parallel supersteps (fan-out edges)                                            | REPLACE — _parallel dispatch exists today; tiny/standard profiles are near-linear and exercise it only as graphs widen_ |
+| Conditional revision loops (implement→verify→review→implement N+1)      | Edge predicates `revisionRequestedPredicate()` — `src/dag/builder.ts:89,140-178`                       | LangGraph conditional edges returning next node                                                 | REPLACE                                                                                                                 |
+| Revision budget cap                                                     | `maxRevisionCycles` (default 2) — `src/pipeline.ts:106`                                                | Counter channel in graph state + conditional-edge guard; LangGraph `recursionLimit` as backstop | REPLACE                                                                                                                 |
+| Fingerprint loop detection (SHA-256 of failure reason; abort on repeat) | `handleEvaluatorPairCompletion()` — `src/dag/executor.ts:220-269`                                      | Same logic as a node/edge function over graph state (preserved verbatim, relocated)             | MOVE                                                                                                                    |
+| Outcome matrix `(phase, outcome) → action`                              | `src/dag/outcome-table.ts`                                                                             | Conditional-edge routing functions keyed off the same table                                     | REPLACE                                                                                                                 |
+| Failure routing → skip pending, run retrospective once                  | `src/dag/executor.ts:112`                                                                              | Conditional edge to `retrospective` node; other pending nodes unreachable                       | REPLACE                                                                                                                 |
+| Human override (retry/abort prompt, attended mode)                      | `src/pipeline.ts:303-313`                                                                              | LangGraph `interrupt` (human-in-the-loop) or retain custom prompt around graph step             | REPLACE — **decision needed** (see §5)                                                                                  |
+| Scout non-blocking routing                                              | Always routes `implement_0` — `src/pipeline.ts:289-293`                                                | Unconditional edge scout→implement                                                              | REPLACE                                                                                                                 |
+| Cross-phase state passing (`scoutSlot`, `previousResults`, `revision`)  | Closures + `Map<AgentName, AgentResult>` — `src/pipeline.ts:82,165,297`                                | LangGraph state channels (typed `StateGraph` state object)                                      | MOVE                                                                                                                    |
 
 ### Resume / state
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Crash recovery / mid-graph resume | Replay log: `loadEventsFromFile` → `reduceEvents` → `restoreGraphState` — `src/pipeline.ts:119-127`, `src/dag/restore.ts:4-18` | LangGraph checkpointer (SQLite) auto-restores last superstep | REPLACE |
-| Resume from pending revision | `task.pendingRevision` seeded from td — `src/pipeline.ts:139-148` | `pendingRevision` lives in checkpointed graph state; td still seeds first run | MOVE |
-| Pipeline state model | Event-sourced `PipelineState` via `reduceEvents` — `src/events/reducer.ts` | LangGraph state channels; checkpointer snapshots replace event replay | REPLACE |
-| Task state persistence (authoritative `TaskJson`) | Hidden `<!-- case-state -->` JSON in td issue description — `src/state/td-client.ts`, `src/state/task-store.ts` | **Unchanged** — td remains the task-grain store | KEEP |
-| Working memory (per-agent context between phases) | `working-memory.json` r/w — `src/memory/working-memory.ts:32-96`; `ca update-memory` | **Unchanged** — local JSON, not event-derived | KEEP |
+| Name                                              | Current implementation                                                                                                         | New implementation                                                            | Disposition |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ----------- |
+| Crash recovery / mid-graph resume                 | Replay log: `loadEventsFromFile` → `reduceEvents` → `restoreGraphState` — `src/pipeline.ts:119-127`, `src/dag/restore.ts:4-18` | LangGraph checkpointer (SQLite) auto-restores last superstep                  | REPLACE     |
+| Resume from pending revision                      | `task.pendingRevision` seeded from td — `src/pipeline.ts:139-148`                                                              | `pendingRevision` lives in checkpointed graph state; td still seeds first run | MOVE        |
+| Pipeline state model                              | Event-sourced `PipelineState` via `reduceEvents` — `src/events/reducer.ts`                                                     | LangGraph state channels; checkpointer snapshots replace event replay         | REPLACE     |
+| Task state persistence (authoritative `TaskJson`) | Hidden `<!-- case-state -->` JSON in td issue description — `src/state/td-client.ts`, `src/state/task-store.ts`                | **Unchanged** — td remains the task-grain store                               | KEEP        |
+| Working memory (per-agent context between phases) | `working-memory.json` r/w — `src/memory/working-memory.ts:32-96`; `ca update-memory`                                           | **Unchanged** — local JSON, not event-derived                                 | KEEP        |
 
 ### Observability
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Granular event log (phase/tool/domain events) | JSONL `run-*.jsonl` — `src/events/appender.ts:48`, schema `src/events/schema.ts` | Langfuse dispatch at the subscriber seam (trace/span/event); **log deleted** | MOVE → Langfuse |
-| Tool activity tracing (sanitized args/results) | `tool_execution_start/end` → event + `onToolActivity` — `src/agent/adapters/pi-adapter.ts:79-126` | Langfuse nested spans (via same subscriber) | MOVE → Langfuse |
-| LLM-call telemetry (tokens) | Cumulative only: `ctx.getContextUsage().tokens` — `src/agent/orchestrator-session.ts:246` | Langfuse **generation** spans from `turn_end.message.usage` (per call) | UPGRADE |
-| LLM-call **cost** ($) | Not tracked | Langfuse generation `usage.cost` — pi pre-computes per call (`pi-ai types.d.ts:144-157`) | NEW |
-| Eval rubric scores (verifier/reviewer) | Embedded in `AgentResult` / metrics | Langfuse **score()** — first-class eval dashboards | UPGRADE |
-| Phase metrics (duration, status, artifacts) | `projectMetrics()` — `src/events/projections.ts:61` | Langfuse spans + retained run-summary | MOVE → Langfuse |
-| Run summary log (`runs.jsonl`) | `writeRunMetrics()` — `src/metrics/writer.ts:12` | **Kept local** — retrospective's durable read source | KEEP |
-| Prior-run linking (`priorRunId`) | `findPriorRunId()` reads `runs.jsonl` — `src/versioning/prompt-tracker.ts:56-82` | **Unchanged** — reads kept `runs.jsonl` | KEEP |
-| Live TUI activity feed / heartbeat (10s) | `onToolActivity` / `onAgentHeartbeat` callbacks → notifier — `src/agent/adapters/pi-adapter.ts` | **Unchanged** — synchronous in-process callbacks (Langfuse cannot drive live local UI) | KEEP |
-| Live event tail (`ca watch`) | Polls JSONL — `src/watch/watcher.ts:26-77` | Langfuse trace UI (remote) **or** re-point `ca watch` at in-process callback stream | REPLACE — **decision needed** (see §5) |
+| Name                                           | Current implementation                                                                            | New implementation                                                                       | Disposition                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- |
+| Granular event log (phase/tool/domain events)  | JSONL `run-*.jsonl` — `src/events/appender.ts:48`, schema `src/events/schema.ts`                  | Langfuse dispatch at the subscriber seam (trace/span/event); **log deleted**             | MOVE → Langfuse                        |
+| Tool activity tracing (sanitized args/results) | `tool_execution_start/end` → event + `onToolActivity` — `src/agent/adapters/pi-adapter.ts:79-126` | Langfuse nested spans (via same subscriber)                                              | MOVE → Langfuse                        |
+| LLM-call telemetry (tokens)                    | Cumulative only: `ctx.getContextUsage().tokens` — `src/agent/orchestrator-session.ts:246`         | Langfuse **generation** spans from `turn_end.message.usage` (per call)                   | UPGRADE                                |
+| LLM-call **cost** ($)                          | Not tracked                                                                                       | Langfuse generation `usage.cost` — pi pre-computes per call (`pi-ai types.d.ts:144-157`) | NEW                                    |
+| Eval rubric scores (verifier/reviewer)         | Embedded in `AgentResult` / metrics                                                               | Langfuse **score()** — first-class eval dashboards                                       | UPGRADE                                |
+| Phase metrics (duration, status, artifacts)    | `projectMetrics()` — `src/events/projections.ts:61`                                               | Langfuse spans + retained run-summary                                                    | MOVE → Langfuse                        |
+| Run summary log (`runs.jsonl`)                 | `writeRunMetrics()` — `src/metrics/writer.ts:12`                                                  | **Kept local** — retrospective's durable read source                                     | KEEP                                   |
+| Prior-run linking (`priorRunId`)               | `findPriorRunId()` reads `runs.jsonl` — `src/versioning/prompt-tracker.ts:56-82`                  | **Unchanged** — reads kept `runs.jsonl`                                                  | KEEP                                   |
+| Live TUI activity feed / heartbeat (10s)       | `onToolActivity` / `onAgentHeartbeat` callbacks → notifier — `src/agent/adapters/pi-adapter.ts`   | **Unchanged** — synchronous in-process callbacks (Langfuse cannot drive live local UI)   | KEEP                                   |
+| Live event tail (`ca watch`)                   | Polls JSONL — `src/watch/watcher.ts:26-77`                                                        | Langfuse trace UI (remote) **or** re-point `ca watch` at in-process callback stream      | REPLACE — **decision needed** (see §5) |
 
 ### Evidence / task mirror
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Evidence markers (`tested` / `reviewed` / `manual-tested`) | Disk files written via `projectMarkers()` — `src/events/appender.ts:76-84`; `ca mark-*` | Node writes marker file **directly** on phase completion; checkpointer holds marker set | MOVE (drop event hop; disk stays truth) |
-| td status mirror (native status + labels) | `projectTaskJson()` after each event — `src/events/appender.ts:72`; `caseToTdStatus` `src/state/td-client.ts:76` | Node writes td **directly** on phase end (already a synchronous projection) | MOVE (drop event hop) |
-| td CRUD / focus / resolveFocusedTask | `src/state/td-client.ts` | **Unchanged** | KEEP |
+| Name                                                       | Current implementation                                                                                           | New implementation                                                                      | Disposition                             |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------- |
+| Evidence markers (`tested` / `reviewed` / `manual-tested`) | Disk files written via `projectMarkers()` — `src/events/appender.ts:76-84`; `ca mark-*`                          | Node writes marker file **directly** on phase completion; checkpointer holds marker set | MOVE (drop event hop; disk stays truth) |
+| td status mirror (native status + labels)                  | `projectTaskJson()` after each event — `src/events/appender.ts:72`; `caseToTdStatus` `src/state/td-client.ts:76` | Node writes td **directly** on phase end (already a synchronous projection)             | MOVE (drop event hop)                   |
+| td CRUD / focus / resolveFocusedTask                       | `src/state/td-client.ts`                                                                                         | **Unchanged**                                                                           | KEEP                                    |
 
 ### Agent runtime
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Per-phase agent execution | `PiRuntimeAdapter.spawn` → `agent.execute()` — `src/agent/adapters/pi-adapter.ts:29-186` | **Unchanged** — wrapped as a LangGraph node | KEEP |
-| Per-agent tool sets (mutable vs read-only) | `createPiTools()` per agent | **Unchanged** | KEEP |
-| System-prompt loading per agent | Loaded from `agents/*.md` | **Unchanged** | KEEP |
-| Model resolution + override | `ModelRegistry` + `CASE_MODEL_OVERRIDE` | **Unchanged** | KEEP |
-| Per-phase timeout (600s default) | pi-adapter timeout | **Unchanged** (or LangGraph node timeout) | KEEP |
-| Result parsing → `AgentResult` | `parseAgentResult()` | **Unchanged** | KEEP |
-| Runtime pluggability interface | `CaseAgentRuntime` — `src/agent/runtime.ts` | **Unchanged** — LangGraph node calls through it | KEEP |
+| Name                                       | Current implementation                                                                   | New implementation                              | Disposition |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------- |
+| Per-phase agent execution                  | `PiRuntimeAdapter.spawn` → `agent.execute()` — `src/agent/adapters/pi-adapter.ts:29-186` | **Unchanged** — wrapped as a LangGraph node     | KEEP        |
+| Per-agent tool sets (mutable vs read-only) | `createPiTools()` per agent                                                              | **Unchanged**                                   | KEEP        |
+| System-prompt loading per agent            | Loaded from `agents/*.md`                                                                | **Unchanged**                                   | KEEP        |
+| Model resolution + override                | `ModelRegistry` + `CASE_MODEL_OVERRIDE`                                                  | **Unchanged**                                   | KEEP        |
+| Per-phase timeout (600s default)           | pi-adapter timeout                                                                       | **Unchanged** (or LangGraph node timeout)       | KEEP        |
+| Result parsing → `AgentResult`             | `parseAgentResult()`                                                                     | **Unchanged**                                   | KEEP        |
+| Runtime pluggability interface             | `CaseAgentRuntime` — `src/agent/runtime.ts`                                              | **Unchanged** — LangGraph node calls through it | KEEP        |
 
 ### Self-improvement
 
-| Name | Current implementation | New implementation | Disposition |
-|---|---|---|---|
-| Retrospective phase | Reads in-memory `metricsSnapshot` + `previousResults` — `src/phases/retrospective.ts:24-26,57-76` | **Unchanged** logic; snapshot computed from graph state / kept `runs.jsonl` | KEEP |
-| Prompt versioning | `promptVersions` in metrics — `src/versioning/` | **Unchanged** | KEEP |
+| Name                | Current implementation                                                                            | New implementation                                                          | Disposition |
+| ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------- |
+| Retrospective phase | Reads in-memory `metricsSnapshot` + `previousResults` — `src/phases/retrospective.ts:24-26,57-76` | **Unchanged** logic; snapshot computed from graph state / kept `runs.jsonl` | KEEP        |
+| Prompt versioning   | `promptVersions` in metrics — `src/versioning/`                                                   | **Unchanged**                                                               | KEEP        |
 
 ---
 
@@ -299,37 +300,37 @@ Three homes, zero overlap:
 
 Two phases, severable because the event log's two roles (resume source, observability source) die in different phases. **Phase 1** swaps orchestration to LangGraph and severs the resume role; the log survives **write-only** as the observability source. **Phase 2** adds Langfuse, then severs the observability role and deletes the log. Each phase is a sequence of additive/flagged/reversible steps followed by **exactly one labeled breaking cutover** — so a bisect localizes any regression to one phase, and the breaking commit in each phase is singular.
 
-Invariant across the whole migration until `2.2`: the granular `run-*.jsonl` keeps being **written** (the appender is untouched). Phase 1 only stops *reading* it for resume; Phase 2 stops writing it.
+Invariant across the whole migration until `2.2`: the granular `run-*.jsonl` keeps being **written** (the appender is untouched). Phase 1 only stops _reading_ it for resume; Phase 2 stops writing it.
 
 ### Phase 1 — Orchestration → LangGraph
 
 No observability change. Event log still written (now only the metrics/observability source). Langfuse absent. `ca watch` still polls JSONL.
 
-**1.1 — Wrap pi as a LangGraph node (parallel path, no cutover).** *Additive · reversible.*
+**1.1 — Wrap pi as a LangGraph node (parallel path, no cutover).** _Additive · reversible._
 Introduce `StateGraph` reproducing the current linear+revision flow; each node calls the existing `CaseAgentRuntime`. Gate behind `CASE_ENGINE=langgraph`. Old executor remains default.
-*Acceptance:* a tiny-profile run completes through the LangGraph path with identical phase outcomes to the legacy executor.
+_Acceptance:_ a tiny-profile run completes through the LangGraph path with identical phase outcomes to the legacy executor.
 
-**1.2 — Stand up the checkpointer; dual-write; prove resume parity.** *Additive · reversible.*
+**1.2 — Stand up the checkpointer; dual-write; prove resume parity.** _Additive · reversible._
 Add the LangGraph SQLite checkpointer in `.todos/` (co-location per §6). Run both resume mechanisms; assert restored graph state matches `reduceEvents` on the same crash point.
-*Acceptance:* kill a run mid-`implement_1`; both paths resume to the same node set and `pendingRevision`.
+_Acceptance:_ kill a run mid-`implement_1`; both paths resume to the same node set and `pendingRevision`.
 
-**1.3 — ⚠ BREAKING: resume cutover + default flip.** *The one breaking change of Phase 1. Guarded by 1.2's parity test.*
+**1.3 — ⚠ BREAKING: resume cutover + default flip.** _The one breaking change of Phase 1. Guarded by 1.2's parity test._
 Flip the default to LangGraph and delete the legacy engine: remove `loadEventsFromFile` → `reduceEvents` → `restoreGraphState` and the old executor/builder. Relocate the td mirror + marker writes to **node-direct** (write on node completion; remove those projection side-effects from the event path — the raw appender stays, only its derived writes move). After this, resume is checkpointer-only and orchestration no longer touches the event log.
-*Acceptance:* resume works with the replay path gone; td status + labels and marker files still update each phase; `runs.jsonl`/metrics unchanged; full suite green.
+_Acceptance:_ resume works with the replay path gone; td status + labels and marker files still update each phase; `runs.jsonl`/metrics unchanged; full suite green.
 
-*End state of Phase 1:* LangGraph + checkpointer own orchestration; event log is a write-only observability sink; everything else (Langfuse, `ca watch`) unchanged.
+_End state of Phase 1:_ LangGraph + checkpointer own orchestration; event log is a write-only observability sink; everything else (Langfuse, `ca watch`) unchanged.
 
 ### Phase 2 — Observability → Langfuse
 
 No orchestration change. Begins additive; the single breaking cutover is the log deletion.
 
-**2.1 — Add Langfuse dispatch at the subscriber seam.** *Additive · fire-and-forget · reversible.*
+**2.1 — Add Langfuse dispatch at the subscriber seam.** _Additive · fire-and-forget · reversible._
 In `pi-adapter.ts:68`, map `agent_start/end`, `turn_start/end`, `tool_execution_*`, domain events, and rubrics to Langfuse trace/span/generation/event/score. Keep `onToolActivity`/heartbeat feeding the TUI. Langfuse failures must not affect the run. Observability is now **dual** (JSONL + Langfuse).
-*Acceptance:* a run produces a complete Langfuse trace with per-call token + cost; with Langfuse unreachable, the run still completes and the TUI feed is intact.
+_Acceptance:_ a run produces a complete Langfuse trace with per-call token + cost; with Langfuse unreachable, the run still completes and the TUI feed is intact.
 
-**2.2 — ⚠ BREAKING: delete granular event log + re-point `ca watch`.** *The one breaking change of Phase 2.*
+**2.2 — ⚠ BREAKING: delete granular event log + re-point `ca watch`.** _The one breaking change of Phase 2._
 Delete `src/events/{schema,appender,reducer}.ts` and the now-orphaned `projectTaskJson`/`projectMarkers`. Re-point `ca watch` from JSONL polling to the in-process callback stream (per §5 decision 3). **Keep** `runs.jsonl`, `findPriorRunId`, working memory, markers, td.
-*Acceptance:* full suite green; `ca watch` tails live activity; retrospective still reads `runs.jsonl`; Langfuse trace complete. Breaking surface = any external consumer of `run-*.jsonl` and `ca watch`'s source.
+_Acceptance:_ full suite green; `ca watch` tails live activity; retrospective still reads `runs.jsonl`; Langfuse trace complete. Breaking surface = any external consumer of `run-*.jsonl` and `ca watch`'s source.
 
 ---
 
@@ -337,7 +338,7 @@ Delete `src/events/{schema,appender,reducer}.ts` and the now-orphaned `projectTa
 
 1. **Resume mechanism — DECIDED: LangGraph SQLite checkpointer.** Not td-embedded graph state (td stays a coarse human-facing projection — it lacks per-cycle keys, `revisionCycles`, the fingerprint set, and full `AgentResult` bodies), and not a hand-rolled snapshot. The checkpointer owns engine state; td keeps mirroring coarse status for humans. Co-location with td's SQLite must be verified (§6).
 2. **Human override mechanism — DECIDED: LangGraph `interrupt`.** Native human-in-the-loop; composes with checkpointed resume. (Alt considered: custom retry/abort prompt wrapped around graph steps.)
-3. **`ca watch` future — DECIDED: re-point at the in-process callback stream. → REVISED at 2.2: load + poll the Langfuse trace.** The callback-stream plan assumed a shared in-process channel, but `ca watch` is a *separate process* — nothing in-process is shared cross-process. 2.2 instead has watch load the run's Langfuse observations then poll-with-cursor (full fidelity, reuses the 2.1 read-back client). Trade-off: watch now requires Langfuse (no offline tail) + ingest latency; reading Langfuse from a human tool does not breach §7. See §0 Phase 2.2 deviation 2. (Alts considered: in-process callback tee — impossible cross-process; a minimal activity-log file — rejected, resurrects the JSONL we deleted.)
+3. **`ca watch` future — DECIDED: re-point at the in-process callback stream. → REVISED at 2.2: load + poll the Langfuse trace.** The callback-stream plan assumed a shared in-process channel, but `ca watch` is a _separate process_ — nothing in-process is shared cross-process. 2.2 instead has watch load the run's Langfuse observations then poll-with-cursor (full fidelity, reuses the 2.1 read-back client). Trade-off: watch now requires Langfuse (no offline tail) + ingest latency; reading Langfuse from a human tool does not breach §7. See §0 Phase 2.2 deviation 2. (Alts considered: in-process callback tee — impossible cross-process; a minimal activity-log file — rejected, resurrects the JSONL we deleted.)
 4. **Revision budget mechanism — DECIDED: custom counter channel + edge guard.** Explicit, matches today's `maxRevisionCycles`. LangGraph `recursionLimit` retained only as a runaway backstop. (Alt considered: `recursionLimit` alone — too blunt.)
 
 ---
@@ -352,13 +353,13 @@ Delete `src/events/{schema,appender,reducer}.ts` and the now-orphaned `projectTa
 
 ## 7. Risks
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Event-sourcing → snapshot semantics shift | Lose "replay full event stream to derive new metrics retroactively" | Langfuse holds the audit trace; retro metrics derived live and persisted to `runs.jsonl` |
-| Langfuse retention evicts history the control path needs | Self-improvement loop breaks | Hard rule: control path never reads Langfuse; retro reads local `runs.jsonl` |
-| Langfuse outage during a run | Lost observability for that run | Fire-and-forget dispatch; run + TUI unaffected (checkpointer + callbacks are local) |
-| LangGraph edge re-expression drifts from outcome matrix | Subtle routing bugs | Phase 1.1/1.2 parity test vs. legacy executor on identical inputs before the 1.3 cutover |
-| Marker / td drift after dropping event projection | Gates or status out of sync | Phase 1.3 writes them node-direct (same synchronous point as today) + suite assertions |
+| Risk                                                     | Impact                                                              | Mitigation                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Event-sourcing → snapshot semantics shift                | Lose "replay full event stream to derive new metrics retroactively" | Langfuse holds the audit trace; retro metrics derived live and persisted to `runs.jsonl` |
+| Langfuse retention evicts history the control path needs | Self-improvement loop breaks                                        | Hard rule: control path never reads Langfuse; retro reads local `runs.jsonl`             |
+| Langfuse outage during a run                             | Lost observability for that run                                     | Fire-and-forget dispatch; run + TUI unaffected (checkpointer + callbacks are local)      |
+| LangGraph edge re-expression drifts from outcome matrix  | Subtle routing bugs                                                 | Phase 1.1/1.2 parity test vs. legacy executor on identical inputs before the 1.3 cutover |
+| Marker / td drift after dropping event projection        | Gates or status out of sync                                         | Phase 1.3 writes them node-direct (same synchronous point as today) + suite assertions   |
 
 ---
 
@@ -376,24 +377,24 @@ The phases delete whole subsystems, so their tests must be triaged — not blank
 
 ### DIE — remove with the code
 
-| Test | Deleted dependency | When |
-|---|---|---|
-| `dag-builder.spec` | `dag/builder buildGraph` (→ `StateGraph` def) | 1.3 |
-| `dag-builder-scout.spec` | `dag/builder` | 1.3 |
-| `dag-executor.spec` | `dag/executor executeGraph,findReadyNodes` (→ LangGraph runs the graph) | 1.3 |
-| `events-appender.spec` | `events/appender` | 2.2 |
-| `events-reducer.spec` | `events/reducer reduceEvents,loadEventsFromFile` | 2.2 |
-| `events-validation.spec` | `events/errors validateTransition` (no event lifecycle) | 2.2 |
+| Test                     | Deleted dependency                                                      | When |
+| ------------------------ | ----------------------------------------------------------------------- | ---- |
+| `dag-builder.spec`       | `dag/builder buildGraph` (→ `StateGraph` def)                           | 1.3  |
+| `dag-builder-scout.spec` | `dag/builder`                                                           | 1.3  |
+| `dag-executor.spec`      | `dag/executor executeGraph,findReadyNodes` (→ LangGraph runs the graph) | 1.3  |
+| `events-appender.spec`   | `events/appender`                                                       | 2.2  |
+| `events-reducer.spec`    | `events/reducer reduceEvents,loadEventsFromFile`                        | 2.2  |
+| `events-validation.spec` | `events/errors validateTransition` (no event lifecycle)                 | 2.2  |
 
 > ⚠ `events-reducer.spec` is the **resume-correctness oracle**. Its assertions are the parity target the checkpointer must match in 1.2. Retire only after 1.3 cutover is green — do not delete in step order ahead of its replacement.
 
 ### PORT — behavior survives, must stay tested
 
-| Test | Behavior preserved | Re-point to |
-|---|---|---|
-| `events-projections.spec` | `projectTaskJson` status mapping; **`projectMarkers` (evidence gates)**; `projectMetrics` | node-direct td-write + marker-write (1.3); metrics → `runs.jsonl`/Langfuse |
-| `dag-status.spec` | `projectStatusFromGraph` (node states → `TaskStatus`) | same logic over LangGraph state channels (1.3) |
-| resume assertions in `pipeline.spec` | crash → correct node set + `pendingRevision` | checkpointer restore (1.2) |
+| Test                                 | Behavior preserved                                                                        | Re-point to                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `events-projections.spec`            | `projectTaskJson` status mapping; **`projectMarkers` (evidence gates)**; `projectMetrics` | node-direct td-write + marker-write (1.3); metrics → `runs.jsonl`/Langfuse |
+| `dag-status.spec`                    | `projectStatusFromGraph` (node states → `TaskStatus`)                                     | same logic over LangGraph state channels (1.3)                             |
+| resume assertions in `pipeline.spec` | crash → correct node set + `pendingRevision`                                              | checkpointer restore (1.2)                                                 |
 
 > ⚠ `projectMarkers` coverage must exist node-direct after 1.3 — markers are the evidence gates (§1 constraint 4). Losing this test silently weakens a gate.
 
@@ -415,4 +416,4 @@ Deleting the DIE bucket leaves holes. Add:
 
 - **1.2:** checkpointer resume parity (the new oracle replacing `events-reducer.spec`).
 - **1.3:** LangGraph graph-construction + conditional-edge routing (replaces builder/executor tests; routing still keys off `outcome-table`).
-- **2.1:** Langfuse dispatch is fire-and-forget — assert *run completes + TUI feed intact with Langfuse unreachable* (§7 risk row).
+- **2.1:** Langfuse dispatch is fire-and-forget — assert _run completes + TUI feed intact with Langfuse unreachable_ (§7 risk row).

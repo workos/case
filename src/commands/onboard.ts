@@ -286,9 +286,7 @@ async function loadOrCreateManifest(caseRoot: string): Promise<LoadedProjectsMan
     // file that exists (corrupt JSON, schema mismatch, etc.), creating a fresh
     // empty one would silently destroy the user's repo entries.
     if (existsSync(path)) {
-      throw new Error(
-        `projects.json exists at ${path} but could not be loaded. Fix or delete it manually.`,
-      );
+      throw new Error(`projects.json exists at ${path} but could not be loaded. Fix or delete it manually.`);
     }
 
     await mkdir(dirname(path), { recursive: true });

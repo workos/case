@@ -234,8 +234,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   const captured = winner;
   if (!captured.includes(AGENT_RESULT_END)) {
     process.stderr.write(
-      `\nInterview did not produce an AGENT_RESULT block.\n` +
-        `Falling back to mechanical-only onboarding.\n`,
+      `\nInterview did not produce an AGENT_RESULT block.\n` + `Falling back to mechanical-only onboarding.\n`,
     );
     return null;
   }

@@ -12,9 +12,9 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
+    "lint": "vp lint",
+    "format": "vp fmt --write",
+    "format:check": "vp fmt --check",
     "test": "bun src/dev/run-tests.ts",
     "test:e2e": "bun test --cwd test/e2e langfuse-mocked-agent.e2e.spec.ts",
     "test:e2e:llm": "bun test --cwd test/e2e langfuse-llm-smoke.e2e.spec.ts",
@@ -45,7 +45,8 @@
     "@types/node": "^22.0.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.65.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vite-plus": "^0.2.1"
   },
   "trustedDependencies": [
     "@ast-grep/cli"
