@@ -163,6 +163,8 @@ export interface PipelineConfig {
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */
   eventAppender?: import('./events/appender.js').EventAppender;
+  /** Per-run Langfuse tracer (Phase 2.1). Absent → JSONL-only observability. */
+  langfuse?: import('./tracing/langfuse.js').LangfuseTracer | null;
   /** Agent runtime for spawning agents. */
   runtime?: import('./agent/runtime.js').CaseAgentRuntime;
   /**
@@ -326,6 +328,8 @@ export interface SpawnAgentOptions {
   traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
   /** Event appender for unified event logging. */
   eventAppender?: import('./events/appender.js').EventAppender;
+  /** Per-run Langfuse tracer (Phase 2.1). Absent → JSONL-only observability. */
+  langfuse?: import('./tracing/langfuse.js').LangfuseTracer | null;
   /** Current pipeline phase (used for trace events). */
   phase?: PipelinePhase;
 }

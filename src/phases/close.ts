@@ -55,6 +55,7 @@ export async function runClosePhase(
     onToolActivity: config.onToolActivity,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
+    langfuse: config.langfuse,
     phase: 'close',
   });
 

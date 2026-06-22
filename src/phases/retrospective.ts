@@ -103,6 +103,7 @@ export async function runRetrospectivePhase(
       onToolActivity: config.onToolActivity,
       traceWriter: config.traceWriter,
       eventAppender: config.eventAppender,
+      langfuse: config.langfuse,
       phase: 'retrospective',
     });
     log.phase('retrospective', 'completed');

@@ -57,6 +57,7 @@ export async function runReviewPhase(
     onToolActivity: config.onToolActivity,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
+    langfuse: config.langfuse,
     phase: 'review',
   });
 

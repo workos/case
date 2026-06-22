@@ -1,0 +1,4 @@
+[test]
+# No preload — the e2e tier drives the REAL PiRuntimeAdapter against a live
+# Langfuse instance. It must NOT inherit the root bunfig's mocks.ts (which stubs
+# spawnAgent and would short-circuit the very seam we're validating).

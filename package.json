@@ -16,6 +16,8 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "test": "bun src/dev/run-tests.ts",
+    "test:e2e": "bun test --cwd test/e2e langfuse-mocked-agent.e2e.spec.ts",
+    "test:e2e:llm": "bun test --cwd test/e2e langfuse-llm-smoke.e2e.spec.ts",
     "test:ast": "bun src/dev/test-ast-rules.ts",
     "lint:ast": "bun src/dev/lint-ast.ts target src/",
     "lint:ast:self": "bun src/dev/lint-ast.ts self src/",
@@ -33,6 +35,7 @@
     "@mariozechner/pi-coding-agent": "^0.73.1",
     "@mariozechner/pi-tui": "^0.73.1",
     "@sinclair/typebox": "^0.34.49",
+    "langfuse": "^3.38.20",
     "pi-askuserquestion": "github:ghoseb/pi-askuserquestion"
   },
   "devDependencies": {

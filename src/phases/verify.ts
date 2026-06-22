@@ -59,6 +59,7 @@ export async function runVerifyPhase(
     onToolActivity: config.onToolActivity,
     traceWriter: config.traceWriter,
     eventAppender: config.eventAppender,
+    langfuse: config.langfuse,
     phase: 'verify',
   });
 

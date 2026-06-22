@@ -14,6 +14,7 @@ import { createLogger } from './util/logger.js';
 import { dispatchNode, type DispatchNodeRef } from './pipeline-dispatch.js';
 import { executeLangGraph } from './langgraph/engine.js';
 import { createSqliteCheckpointer } from './langgraph/checkpointer.js';
+import { createLangfuseTracer } from './tracing/langfuse.js';
 
 const log = createLogger();
 
@@ -82,6 +83,11 @@ async function runPipelineBody(
   // Event log is mutable runtime state — lives under <repo>/.case/<taskId>/events/.
   const appender = new EventAppender(config.dataDir, task.id, runId);
   config.eventAppender = appender;
+
+  // Langfuse dispatch (Phase 2.1) — additive, fire-and-forget. Null when keys
+  // are unset, in which case observability stays JSONL-only. Never blocks the run.
+  const langfuse = createLangfuseTracer(runId, { id: task.id });
+  config.langfuse = langfuse;
 
   const plan = generatePlan(task, config, runId);
 
@@ -175,6 +181,10 @@ async function runPipelineBody(
     priorRunId,
     parentTaskId: task.contractPath,
   });
+
+  // Flush the Langfuse trace. Bounded so a hung/unreachable sink can't stall run
+  // teardown; the retrospective already read local runs.jsonl, never Langfuse.
+  await langfuse?.shutdownSafely();
 
   log.info('pipeline finished', {
     outcome,
