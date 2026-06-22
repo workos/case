@@ -1,7 +1,7 @@
 import { StateGraph, START, END } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import type { AgentName, AgentResult, PipelinePhase, PipelineProfile, RevisionRequest, TaskStatus } from '../types.js';
-import { PROFILE_PHASES } from '../types.js';
+import { PROFILE_PHASES, REVIEWER_HARD_CATEGORIES } from '../types.js';
 import type { Notifier } from '../notify.js';
 import type { RunState } from '../state/run-state.js';
 import type { LangfuseTracer } from '../tracing/langfuse.js';
@@ -81,6 +81,20 @@ export function phaseStatus(phase: PipelinePhase, state: CaseGraphStateType): Ta
 
 function rubricFailed(result: AgentResult): boolean {
   return result.rubric?.categories.some((c) => c.verdict === 'fail') ?? false;
+}
+
+/**
+ * True when a reviewer rubric fails a *hard-gate* category
+ * (principle-compliance, scope-discipline). These are golden-principle
+ * violations: terminal aborts, not fixable-in-a-cycle revisions. Mirrors
+ * `runReviewPhase`'s hard/soft split so the LangGraph engine doesn't loop a hard
+ * fail as a revision (the reviewer-treadmill bug). Verifier rubrics have no
+ * hard/soft split — they route through `rubricFailed` (any fail → revise).
+ */
+function reviewerHardFailed(result: AgentResult): boolean {
+  if (result.rubric?.role !== 'reviewer') return false;
+  const hard = new Set<string>(REVIEWER_HARD_CATEGORIES);
+  return result.rubric.categories.some((c) => c.verdict === 'fail' && hard.has(c.category));
 }
 
 /**
@@ -172,10 +186,14 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
   function evaluatorNode(phase: 'verify' | 'review', agent: AgentName) {
     return async (state: CaseGraphStateType): Promise<Partial<CaseGraphStateType>> => {
       const result = await runPhase(phase, agent, state);
-      const failed = result.status !== 'completed';
-      const failedRubric = !failed && rubricFailed(result);
+      const agentFailed = result.status !== 'completed';
+      // Reviewer hard-rubric fails are terminal aborts, not revision triggers:
+      // route them through phase failure (→ retrospective) instead of spinning
+      // revision cycles. Soft reviewer fails and verifier fails still revise.
+      const hardAbort = !agentFailed && reviewerHardFailed(result);
+      const failedRubric = !agentFailed && !hardAbort && rubricFailed(result);
       return {
-        last: { phase, status: failed ? 'failed' : 'completed', rubricFailed: failedRubric },
+        last: { phase, status: agentFailed || hardAbort ? 'failed' : 'completed', rubricFailed: failedRubric },
         evaluator: failedRubric ? { phase, result } : null,
       };
     };

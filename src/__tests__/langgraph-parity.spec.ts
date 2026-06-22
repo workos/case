@@ -149,6 +149,19 @@ const reviewerSoftFail: AgentResult = {
   },
 };
 
+const reviewerHardFail: AgentResult = {
+  ...completed,
+  rubric: {
+    role: 'reviewer',
+    categories: [
+      { category: 'principle-compliance', verdict: 'fail', detail: 'violates golden principle' },
+      { category: 'test-sufficiency', verdict: 'pass', detail: 'OK' },
+      { category: 'scope-discipline', verdict: 'pass', detail: 'OK' },
+      { category: 'pattern-fit', verdict: 'pass', detail: 'OK' },
+    ],
+  },
+};
+
 function agentRaw(result: AgentResult): string {
   return `\n<<<AGENT_RESULT\n${JSON.stringify(result)}\nAGENT_RESULT>>>\n`;
 }
@@ -291,6 +304,24 @@ describe('LangGraph engine routing (phase-outcome sequences)', () => {
         'close:completed',
         'retrospective:completed',
       ],
+    );
+  });
+
+  it('reviewer hard-fail aborts (no revision)', async () => {
+    // Hard-gate categories (principle-compliance, scope-discipline) are
+    // golden-principle violations: terminal, not revisable. The engine must
+    // route straight to retrospective — no revision cycle, no close. Regression
+    // guard for the reviewer-treadmill loop, where a hard fail was spun as a
+    // soft revision until the budget/crash ended it.
+    await assertSequence(
+      [
+        spawn(scoutResult), // scout
+        spawn(completed), // implement c0
+        spawn(completed), // verify c0 clean
+        spawn(reviewerHardFail), // review c0 hard-fail → abort
+        spawn(completed), // retrospective
+      ],
+      ['scout:completed', 'implement:completed', 'verify:completed', 'review:completed', 'retrospective:completed'],
     );
   });
 
