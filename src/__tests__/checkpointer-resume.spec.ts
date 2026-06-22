@@ -1,13 +1,11 @@
 import { describe, it, expect } from 'bun:test';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { executeLangGraph, type DispatchFn } from '../langgraph/engine.js';
-import { reduceEvents } from '../events/reducer.js';
 import type { AgentResult, RevisionRequest } from '../types.js';
-import type { PipelineEvent } from '../events/types.js';
 
 /**
- * Phase 1.2 acceptance — checkpointer resume parity (the new oracle that will
- * replace `events-reducer.spec` after the 1.3 cutover).
+ * Checkpointer resume parity (Phase 1.2 acceptance; Phase 2.2 re-pointed off the
+ * deleted `reduceEvents` oracle).
  *
  * A run is killed mid-`implement_1` (the implementer throws on the revision
  * cycle, escaping `invoke` exactly as a process crash would). A *second*
@@ -15,9 +13,9 @@ import type { PipelineEvent } from '../events/types.js';
  * restored run:
  *   1. re-enters at `implement` (not `scout`) — it did not restart from the top,
  *   2. carries the restored pending revision into that implement, and
- *   3. that restored revision matches what `reduceEvents` derives from the
- *      pre-crash event stream — i.e. the checkpointer snapshot and the legacy
- *      event-replay oracle agree on (revisionCycles, pendingRevision).
+ *   3. that restored revision is the verifier failure from cycle 0 → cycle 1
+ *      (the crash point the dispatch script injects) — i.e. the checkpointer
+ *      snapshot preserves (revisionCycles, pendingRevision) across the crash.
  */
 
 const completed: AgentResult = {
@@ -48,12 +46,13 @@ const verifierFail: AgentResult = {
   },
 };
 
-/** A recording appender: collects what the engine emits, stamped like the real one. */
-function recordingAppender(events: PipelineEvent[]) {
-  let seq = 1;
+/**
+ * A stub run-state: the engine only needs a valid `getState()` for the
+ * node-direct projection (empty phases/markers → no marker files, a single
+ * no-op td write) plus the mutators it calls, which are no-ops here.
+ */
+function stubRunState() {
   return {
-    // Minimal-but-valid PipelineState shape for the node-direct projection
-    // (empty phases/markers → no marker files, a single no-op td write).
     getState: () => ({
       status: 'active',
       taskId: 'task-1',
@@ -62,9 +61,12 @@ function recordingAppender(events: PipelineEvent[]) {
       markers: new Set<string>(),
       pendingRevision: null,
     }),
-    append: async (e: Record<string, unknown>) => {
-      events.push({ ...e, ts: new Date(0).toISOString(), sequence: seq++ } as unknown as PipelineEvent);
-    },
+    startPhase() {},
+    endPhase() {},
+    setStatus() {},
+    requestRevision() {},
+    end() {},
+    seedRevision() {},
   };
 }
 
@@ -83,11 +85,11 @@ const noopNotifier = {
   askUser: async (_p: string, options: string[]) => options[options.length - 1],
 };
 
-function baseArgs(appender: unknown, dispatch: DispatchFn, checkpointer: MemorySaver) {
+function baseArgs(runState: unknown, dispatch: DispatchFn, checkpointer: MemorySaver) {
   return {
     profile: 'standard' as const,
     maxRevisionCycles: 2,
-    appender: appender as never,
+    runState: runState as never,
     store: noopStore as never,
     caseRoot: '/tmp/case-resume-spec-unused',
     notifier: noopNotifier as never,
@@ -99,11 +101,10 @@ function baseArgs(appender: unknown, dispatch: DispatchFn, checkpointer: MemoryS
 }
 
 describe('checkpointer resume parity', () => {
-  it('resumes mid-implement_1 with the restored pending revision (matches reduceEvents)', async () => {
+  it('resumes mid-implement_1 with the checkpointer-restored pending revision', async () => {
     const checkpointer = new MemorySaver();
 
     // --- Run 1: crash on the second implement (the revision cycle). ----------
-    const crashEvents: PipelineEvent[] = [];
     let implementCalls = 0;
     const crashDispatch: DispatchFn = async (node) => {
       switch (node.phase) {
@@ -120,27 +121,9 @@ describe('checkpointer resume parity', () => {
       }
     };
 
-    await expect(
-      executeLangGraph(baseArgs(recordingAppender(crashEvents), crashDispatch, checkpointer)),
-    ).rejects.toThrow('simulated crash mid-implement_1');
-
-    // Legacy oracle: replay the pre-crash event stream the way resume used to.
-    const oracleStream: PipelineEvent[] = [
-      {
-        event: 'pipeline_start',
-        runId: 'r1',
-        taskId: 'task-1',
-        profile: 'standard',
-        plan: {},
-        ts: new Date(0).toISOString(),
-        sequence: 0,
-      } as unknown as PipelineEvent,
-      ...crashEvents,
-    ];
-    const oracle = reduceEvents(oracleStream);
-    expect(oracle.revisionCycles).toBe(1);
-    expect(oracle.pendingRevision?.source).toBe('verifier');
-    expect(oracle.pendingRevision?.cycle).toBe(1);
+    await expect(executeLangGraph(baseArgs(stubRunState(), crashDispatch, checkpointer))).rejects.toThrow(
+      'simulated crash mid-implement_1',
+    );
 
     // --- Run 2: resume over the same checkpointer + thread. ------------------
     const resumeCalls: { phase: string; revision: RevisionRequest | null }[] = [];
@@ -149,27 +132,24 @@ describe('checkpointer resume parity', () => {
       return completed; // implement clears, verify passes, review/close/retro proceed
     };
 
-    await executeLangGraph(baseArgs(recordingAppender([]), resumeDispatch, checkpointer));
+    await executeLangGraph(baseArgs(stubRunState(), resumeDispatch, checkpointer));
 
     // It resumed at implement (no scout re-run) and ran the cycle to the end.
     expect(resumeCalls.map((c) => c.phase)).toEqual(['implement', 'verify', 'review', 'close', 'retrospective']);
 
-    // The restored implement carried the pending revision …
+    // The restored implement carried the pending revision from the pre-crash
+    // verify failure (cycle 0 → cycle 1) — the checkpointer preserved it.
     const firstRevision = resumeCalls[0]?.revision;
     expect(firstRevision).not.toBeNull();
     expect(firstRevision?.source).toBe('verifier');
     expect(firstRevision?.cycle).toBe(1);
-
-    // … and it agrees with the legacy event-replay oracle.
-    expect(firstRevision?.source).toBe(oracle.pendingRevision?.source);
-    expect(firstRevision?.cycle).toBe(oracle.pendingRevision?.cycle);
   });
 
   it('a clean run leaves no resumable checkpoint (thread dropped on completion)', async () => {
     const checkpointer = new MemorySaver();
     const cleanDispatch: DispatchFn = async () => completed;
 
-    await executeLangGraph(baseArgs(recordingAppender([]), cleanDispatch, checkpointer));
+    await executeLangGraph(baseArgs(stubRunState(), cleanDispatch, checkpointer));
 
     const tuple = await checkpointer.getTuple({ configurable: { thread_id: 'task-1', checkpoint_ns: '' } });
     expect(tuple).toBeUndefined();

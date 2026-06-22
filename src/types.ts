@@ -159,11 +159,13 @@ export interface PipelineConfig {
   onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
   /** Optional pre-built notifier override (tests / custom renderers). Defaults to StructuredLogRenderer. */
   notifier?: import('./notify.js').Notifier;
-  /** Per-run trace writer for tool-level observability (deprecated — use eventAppender). */
-  traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
-  /** Event appender for unified event logging. */
-  eventAppender?: import('./events/appender.js').EventAppender;
-  /** Per-run Langfuse tracer (Phase 2.1). Absent → JSONL-only observability. */
+  /**
+   * In-memory run-state container (Phase 2.2). Drives the node-direct td/marker
+   * projection, run metrics, and the retrospective snapshot — replaces the deleted
+   * `eventAppender`. Set by the pipeline; read by the engine + dispatch.
+   */
+  runState?: import('./state/run-state.js').RunState;
+  /** Per-run Langfuse tracer (Phase 2.1). Absent → no trace sink (observability disabled). */
   langfuse?: import('./tracing/langfuse.js').LangfuseTracer | null;
   /** Agent runtime for spawning agents. */
   runtime?: import('./agent/runtime.js').CaseAgentRuntime;
@@ -324,11 +326,7 @@ export interface SpawnAgentOptions {
   onHeartbeat?: (elapsedMs: number) => void;
   /** Called on every tool start/end so renderers can show live activity. */
   onToolActivity?: (event: import('./render/types.js').ToolActivityEvent) => void;
-  /** Trace writer for per-run observability (deprecated — use eventAppender). */
-  traceWriter?: { write(event: any): void; flush(): Promise<void>; path: string };
-  /** Event appender for unified event logging. */
-  eventAppender?: import('./events/appender.js').EventAppender;
-  /** Per-run Langfuse tracer (Phase 2.1). Absent → JSONL-only observability. */
+  /** Per-run Langfuse tracer (Phase 2.1). Absent → no trace sink (observability disabled). */
   langfuse?: import('./tracing/langfuse.js').LangfuseTracer | null;
   /** Current pipeline phase (used for trace events). */
   phase?: PipelinePhase;
@@ -551,7 +549,6 @@ export interface InterviewFindings {
   ciProvider: string;
 }
 
-// Event system re-exports
-export type { PipelineEvent } from './events/schema.js';
+// Run-state re-exports
 export type { PipelineState } from './events/types.js';
 export type { PlanArtifact } from './events/plan.js';

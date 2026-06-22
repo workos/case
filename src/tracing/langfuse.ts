@@ -55,6 +55,15 @@ export interface AgentSpan {
 export interface LangfuseTracer {
   /** Open a phase span under the run trace. Always returns a usable (possibly no-op) handle. */
   startAgentSpan(agentName: string, phase?: string): AgentSpan;
+  /**
+   * Trace-level domain event (Phase 2.2). Orchestration-level events that have no
+   * agent span — `revision_requested`, `revision_budget_exhausted`,
+   * `fingerprint_match`, `scout_completed` — land on the run trace directly. These
+   * used to be granular JSONL events; with the log gone they become trace events
+   * so `ca watch` and the Langfuse UI still surface the revision/fingerprint story.
+   * Self-defensive: never throws into the control path.
+   */
+  event(name: string, data?: unknown): void;
   /** Fire-and-forget flush — never awaited in the control path. */
   flushSafely(): void;
   /** Bounded flush at run end: races shutdown against a timeout so a hung sink can't block. */
@@ -190,6 +199,14 @@ export function createLangfuseTracer(runId: string, task: { id: string; title?: 
           }
         },
       };
+    },
+
+    event(name, data) {
+      try {
+        trace.event({ name, input: data });
+      } catch (e) {
+        log.error('langfuse trace event failed', { error: e instanceof Error ? e.message : String(e) });
+      }
     },
 
     flushSafely() {

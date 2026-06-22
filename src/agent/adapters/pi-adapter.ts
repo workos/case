@@ -100,21 +100,6 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
             });
           }
         }
-        if (options.phase) {
-          const toolEvent = {
-            event: 'tool_start' as const,
-            phase: options.phase,
-            agent: options.agentName,
-            toolCallId: event.toolCallId,
-            tool: event.toolName,
-            args: sanitizedArgs,
-          };
-          if (options.eventAppender) {
-            void options.eventAppender.append(toolEvent);
-          } else if (options.traceWriter) {
-            options.traceWriter.write({ ts: new Date().toISOString(), ...toolEvent });
-          }
-        }
       }
       if (event.type === 'tool_execution_end') {
         const toolStart = toolTimers.get(event.toolCallId);
@@ -133,23 +118,6 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
             log.error('onToolActivity end callback threw', {
               error: e instanceof Error ? e.message : String(e),
             });
-          }
-        }
-        if (options.phase) {
-          const toolEvent = {
-            event: 'tool_end' as const,
-            phase: options.phase,
-            agent: options.agentName,
-            toolCallId: event.toolCallId,
-            tool: event.toolName,
-            durationMs,
-            isError: event.isError,
-            result: sanitizeForTrace(event.result),
-          };
-          if (options.eventAppender) {
-            void options.eventAppender.append(toolEvent);
-          } else if (options.traceWriter) {
-            options.traceWriter.write({ ts: new Date().toISOString(), ...toolEvent });
           }
         }
       }

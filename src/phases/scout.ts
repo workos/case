@@ -71,8 +71,6 @@ export async function runScoutPhase(config: PipelineConfig, store: TaskStore): P
     timeout: timeoutMs,
     onHeartbeat: config.onAgentHeartbeat,
     onToolActivity: config.onToolActivity,
-    traceWriter: config.traceWriter,
-    eventAppender: config.eventAppender,
     langfuse: config.langfuse,
     phase: 'scout',
   });

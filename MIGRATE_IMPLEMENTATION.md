@@ -1,6 +1,6 @@
 # Migration: Custom DAG + Event-Sourcing → LangGraph + Langfuse
 
-**Status:** In progress — **Phase 1 done** + **Phase 2.1 done** (Langfuse dispatch live-validated; see §0). Next: Phase 2.2 (⚠ BREAKING — delete the JSONL event log, cut over to Langfuse-only observability).
+**Status:** **COMPLETE** — Phase 1 (1.1–1.3) + Phase 2 (2.1–2.2) all landed. The custom DAG and the granular event-sourcing log are gone; LangGraph + checkpointer own orchestration/resume; Langfuse is the sole observability sink. See §0.
 **Author:** Case maintainers
 **Scope:** Replace Case's hand-rolled orchestration engine and granular event log with LangGraph (graph execution + checkpointing) and Langfuse (observability dispatch), without losing any existing feature.
 
@@ -119,7 +119,31 @@ Langfuse now receives a per-run trace fed from the single observability seam (`p
 - **Uncommitted:** all of Phase 1 (1.1 → 1.3) **and Phase 2.1** are on branch `docs/migrate-langgraph-langfuse-rfc`, **not yet committed**. Suggested commit boundaries: Phase 1.3 as two logical commits (1: ⚠ BREAKING flip+delete+test-triage · 2: node-direct projections + `node-projection.spec`); Phase 2.1 as one additive commit. **Full Phase 2.1 file set:** `src/tracing/langfuse.ts` (NEW), `src/agent/adapters/pi-adapter.ts`, `src/pipeline.ts`, `src/types.ts`, `src/phases/{scout,verify,review,close,retrospective}.ts`, `src/__tests__/langfuse-dispatch.spec.ts` (NEW), `test/e2e/` (NEW), `.env.example` (NEW), `.gitignore`, `package.json`, `bun.lock`. **⚠ Exclude `PROMPT.md`** (untracked, unrelated scratch — not part of the migration). Commit before starting 2.2 for a clean bisect.
 - **e2e needs the live stack:** Tier 1 (`bun run test:e2e`, `LANGFUSE_E2E=1`) requires `podman-compose -f podman-compose.yaml up -d` and the seeded keys exported (the script runs `--cwd test/e2e`, so the root `.env` is **not** auto-loaded — export `LANGFUSE_HOST`/`LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY` inline). Default `bun run test` excludes `test/e2e` entirely.
 
-**Not yet started:** Phase 2.2 (⚠ BREAKING: delete `src/events/{schema,appender,reducer}.ts` + `projectTaskJson`/`projectMarkers`/`projectMetrics`, re-point `ca watch` at the in-process callback stream per §5 decision 3, retire the DIE-at-2.2 event specs, and wire domain `event()` span-side once the JSONL sink is gone — see 2.1 deviation 3). The `podman-compose.yaml` Langfuse stack is now **in use** by Phase 2.1 (dispatch target + e2e read-back).
+### ✅ Phase 2.2 — ⚠ BREAKING: delete the granular event log, cut over to Langfuse-only observability — **DONE**
+
+The JSONL event log + its schema/appender/reducer are gone. Langfuse is now the **sole** trace sink; orchestration state lives in an in-memory container; `ca watch` reads the Langfuse trace. Full suite green (46 unit + 9 standalone, 0 fail).
+
+**Landed:**
+
+- **`src/state/run-state.ts` (NEW).** `RunState` — a JSONL-free in-memory container holding the **unchanged** `PipelineState` shape, with typed mutators (`startPhase`/`endPhase`/`setStatus`/`requestRevision`/`end`/`seedRevision`) ported from the reducer's per-case bodies. Replaces the `EventAppender` + `reduceEvents` pair: Phase 1.3 had the engine *drive* `PipelineState` via granular events and *read it back* via `appender.getState()`, so deleting the log meant **replacing the live state container**, not just removing a sink. Because the shape is identical, `projectTaskJson`/`projectMarkers`/`projectMetrics` (kept in `events/projections.ts`) are byte-identical by construction.
+- **Deleted:** `src/events/{schema,appender,reducer,errors}.ts`. **Kept** `src/events/{types,projections,plan}.ts` (state shape, projections, plan generation — no event-log dependency).
+- **`src/langgraph/engine.ts` + `src/pipeline.ts` + `src/pipeline-dispatch.ts`.** `appender` → `runState` throughout; `append({event})` calls became `runState.*` mutators. Orchestration-level domain events (`revision_requested` / `revision_budget_exhausted` / `fingerprint_match` / `scout_completed`) now land on the trace via a new **trace-level `LangfuseTracer.event()`** (closes 2.1 deviation 3 — they have no agent span). `config.eventAppender` → `config.runState` on `PipelineConfig`.
+- **`src/agent/adapters/pi-adapter.ts`.** Deleted the dead `tool_start`/`tool_end` → `eventAppender`/`traceWriter` JSONL branches; `span.toolStart/toolEnd` (Langfuse, unconditional) + `onToolActivity` (TUI) already cover tools. `eventAppender`/`traceWriter` dropped from `SpawnAgentOptions` and the 6 phase pass-throughs.
+- **`src/state/transitions.ts`.** Dropped the dead `determineEntryPhase(PipelineState)` overload (only the `TaskJson` form has a prod caller).
+- **`ca watch` → Langfuse (RFC §5 decision 3, revised).** `src/tracing/readback.ts` (NEW, promoted from `test/e2e/readback.ts`; e2e re-exports it) is a read-only client honoring §7. `src/watch/watcher.ts` now **loads the run's trace observations then polls-with-cursor** for new ones (Langfuse has no push API — same as the dashboard), yielding normalized `WatchRecord`s; `renderer.ts` renders them; `commands/watch.ts` errors clearly when keys are absent (`--run <id>` pins a run).
+
+**Test triage (§9):** DIE (deleted) — `events-appender.spec`, `events-reducer.spec`, `events-validation.spec`. PORT — `events-reducer.spec` behavior → **`run-state.spec` (NEW)** (state-build oracle over `RunState`). Re-pointed — `checkpointer-resume.spec` (dropped the `reduceEvents` oracle for the directly-known crash-point expectation; `appender` stub → `runState` stub). Rewritten — `watch-watcher.spec` + `watch-renderer.spec` (Langfuse `WatchRecord` API, fake read client). Unchanged — `events-projections.spec`, `node-projection.spec` (projections + state shape survive).
+
+**Validation:** typecheck ✅ · `oxlint` 0 errors (2 pre-existing warnings on `interview/session.ts:40`) ✅ · `oxfmt` (my files) ✅ · full suite **46 unit + 9 standalone, 0 fail** (process-isolated runner) ✅.
+
+**Deviations / decisions made during implementation:**
+
+1. **State container replaces appender/reducer (not a pure deletion).** The plan called `projectTaskJson`/`projectMarkers` "orphaned" — stale relative to post-1.3 code, where `projectNodeState` uses them at runtime. The faithful 2.2 keeps the projections + `PipelineState` shape and swaps only the *driver* (events → `RunState` mutators). `reduceEvents`/`loadEventsFromFile`/`validateTransition`/the event schema are gone; the transition logic survives as plain methods.
+2. **`ca watch` re-pointed to Langfuse, not an "in-process callback stream" (§5 decision 3 revised).** That decision predated the realization that `ca watch` is a *separate process* — there is no shared in-process stream cross-process. Per user direction, watch now loads + polls the Langfuse trace (full fidelity: tool spans, generations w/ tokens+cost, scores), reusing the 2.1 read-back client. Trade-off accepted: watch now **requires Langfuse keys + reachability** (no offline tail) and sees events at ingest latency (seconds). Reading Langfuse from a *human tool* does not violate §7 (that bars the *control path*).
+3. **Domain `event()` is trace-level, not span-level (closes 2.1 deviation 3).** Orchestration events fire between phases (no agent span), so they attach to the run trace via `LangfuseTracer.event()`; per-call generations/tool spans stay span-nested as before. No more dual emission — the JSONL sink it would have duplicated is gone.
+4. **`scout_completed`/`status_changed` are no longer state mutations.** They only bumped `lastSequence` in the reducer (observability-only); `scout_completed` is now a trace event, `status_changed` is folded into `RunState.setStatus`. Net td/metrics state unchanged.
+
+**End state:** the migration is complete. `runs.jsonl`, working memory, marker files, and td are the durable local truth (unchanged); LangGraph + the SQLite checkpointer own orchestration + resume; Langfuse holds the audit trace and drives `ca watch`. Breaking surface of 2.2 = any external consumer of `run-*.jsonl` and `ca watch`'s old JSONL source.
 
 ---
 
@@ -313,7 +337,7 @@ Delete `src/events/{schema,appender,reducer}.ts` and the now-orphaned `projectTa
 
 1. **Resume mechanism — DECIDED: LangGraph SQLite checkpointer.** Not td-embedded graph state (td stays a coarse human-facing projection — it lacks per-cycle keys, `revisionCycles`, the fingerprint set, and full `AgentResult` bodies), and not a hand-rolled snapshot. The checkpointer owns engine state; td keeps mirroring coarse status for humans. Co-location with td's SQLite must be verified (§6).
 2. **Human override mechanism — DECIDED: LangGraph `interrupt`.** Native human-in-the-loop; composes with checkpointed resume. (Alt considered: custom retry/abort prompt wrapped around graph steps.)
-3. **`ca watch` future — DECIDED: re-point at the in-process callback stream.** Keeps the offline local-first terminal tail; small adapter. (Alt considered: replace with the remote Langfuse trace UI — loses offline tail.)
+3. **`ca watch` future — DECIDED: re-point at the in-process callback stream. → REVISED at 2.2: load + poll the Langfuse trace.** The callback-stream plan assumed a shared in-process channel, but `ca watch` is a *separate process* — nothing in-process is shared cross-process. 2.2 instead has watch load the run's Langfuse observations then poll-with-cursor (full fidelity, reuses the 2.1 read-back client). Trade-off: watch now requires Langfuse (no offline tail) + ingest latency; reading Langfuse from a human tool does not breach §7. See §0 Phase 2.2 deviation 2. (Alts considered: in-process callback tee — impossible cross-process; a minimal activity-log file — rejected, resurrects the JSONL we deleted.)
 4. **Revision budget mechanism — DECIDED: custom counter channel + edge guard.** Explicit, matches today's `maxRevisionCycles`. LangGraph `recursionLimit` retained only as a runaway backstop. (Alt considered: `recursionLimit` alone — too blunt.)
 
 ---

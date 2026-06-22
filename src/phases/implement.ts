@@ -54,8 +54,6 @@ export async function runImplementPhase(
     dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
     onToolActivity: config.onToolActivity,
-    traceWriter: config.traceWriter,
-    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 
@@ -155,8 +153,6 @@ async function attemptRetry(
     dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
     onToolActivity: config.onToolActivity,
-    traceWriter: config.traceWriter,
-    eventAppender: config.eventAppender,
     phase: 'implement',
   });
 

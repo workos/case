@@ -6,7 +6,7 @@ import { createTuiRenderer, type TuiRenderer } from './render/tui-renderer.js';
 import type { Notifier } from './notify.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
-import { EventAppender } from './events/appender.js';
+import { RunState } from './state/run-state.js';
 import { generatePlan } from './events/plan.js';
 import { projectMetrics } from './events/projections.js';
 import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
@@ -80,16 +80,18 @@ async function runPipelineBody(
   const runId = crypto.randomUUID();
   config.runtime ??= new PiRuntimeAdapter();
 
-  // Event log is mutable runtime state — lives under <repo>/.case/<taskId>/events/.
-  const appender = new EventAppender(config.dataDir, task.id, runId);
-  config.eventAppender = appender;
-
-  // Langfuse dispatch (Phase 2.1) — additive, fire-and-forget. Null when keys
-  // are unset, in which case observability stays JSONL-only. Never blocks the run.
+  // Langfuse dispatch (Phase 2.1+) — fire-and-forget per-run trace, now the sole
+  // observability sink (the granular JSONL log was deleted in 2.2). Null when keys
+  // are unset → no trace; the run is unaffected. Never blocks the control path.
   const langfuse = createLangfuseTracer(runId, { id: task.id });
   config.langfuse = langfuse;
 
   const plan = generatePlan(task, config, runId);
+
+  // In-memory run-state (Phase 2.2) — replaces the EventAppender. Drives the
+  // node-direct td/marker projection, run metrics, and the retrospective snapshot.
+  const runState = new RunState({ runId, taskId: task.id, profile, plan });
+  config.runState = runState;
 
   const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
   const { resolve: resolvePlan } = await import('node:path');
@@ -136,26 +138,23 @@ async function runPipelineBody(
   // task id, so an interrupted run of the same task resumes from its last
   // superstep; the engine drops the thread on normal completion. td seeds the
   // first run's pending revision (resume-at-implement); the checkpoint is
-  // authoritative once a run has begun. Resume is checkpointer-only — the legacy
-  // event-replay path was removed in Phase 1.3.
-  await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
+  // authoritative once a run has begun. Resume is checkpointer-only.
 
   // A td-persisted pending revision seeds the cumulative revision-cycle count so
   // metrics + the retrospective snapshot see the pre-crash cycles even though no
-  // new `revision_requested` event fires on this resumed run. The graph state is
-  // seeded separately via `initialPendingRevision` (the engine routes to
-  // implement and carries the revision into the cycle counters).
+  // new revision is requested on this resumed run. The graph state is seeded
+  // separately via `initialPendingRevision` (the engine routes to implement and
+  // carries the revision into the cycle counters).
   if (task.pendingRevision) {
-    const seedState = appender.getState();
-    seedState.revisionCycles = task.pendingRevision.cycle ?? 1;
-    seedState.pendingRevision = task.pendingRevision;
+    runState.seedRevision(task.pendingRevision);
   }
 
   const checkpointer = createSqliteCheckpointer(config.repoPath);
   await executeLangGraph({
     profile,
     maxRevisionCycles,
-    appender,
+    runState,
+    langfuse,
     store,
     caseRoot: config.dataDir,
     notifier,
@@ -169,11 +168,11 @@ async function runPipelineBody(
     threadId: task.id,
   });
 
-  const totalDurationMs = Date.now() - Date.parse(appender.getState().startedAt);
+  const totalDurationMs = Date.now() - Date.parse(runState.getState().startedAt);
 
-  await appender.append({ event: 'pipeline_end', outcome, failedAgent, durationMs: totalDurationMs });
+  runState.end(outcome, failedAgent, totalDurationMs);
 
-  const runMetrics = projectMetrics(appender.getState());
+  const runMetrics = projectMetrics(runState.getState());
   runMetrics.promptVersions = promptVersions;
   runMetrics.humanOverrides = humanOverrides;
   const priorRunId = await findPriorRunId(config.repoPath, task.id);
@@ -191,7 +190,6 @@ async function runPipelineBody(
     failedAgent,
     runId,
     totalDurationMs: runMetrics.totalDurationMs,
-    eventLog: appender.path,
   });
 
   // `outcome` is mutated only via the dispatch/onPhaseFailed closures, which

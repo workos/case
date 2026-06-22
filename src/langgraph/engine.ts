@@ -3,7 +3,8 @@ import type { BaseCheckpointSaver } from '@langchain/langgraph-checkpoint';
 import type { AgentName, AgentResult, PipelinePhase, PipelineProfile, RevisionRequest, TaskStatus } from '../types.js';
 import { PROFILE_PHASES } from '../types.js';
 import type { Notifier } from '../notify.js';
-import type { EventAppender } from '../events/appender.js';
+import type { RunState } from '../state/run-state.js';
+import type { LangfuseTracer } from '../tracing/langfuse.js';
 import type { TaskStore } from '../state/task-store.js';
 import type { DispatchNodeRef } from '../pipeline-dispatch.js';
 import { projectNodeState } from './projection.js';
@@ -19,7 +20,14 @@ export type DispatchFn = (node: DispatchNodeRef, revision?: RevisionRequest) => 
 export interface LangGraphEngineArgs {
   profile: PipelineProfile;
   maxRevisionCycles: number;
-  appender: EventAppender;
+  /** In-memory run-state (Phase 2.2) — drives the node-direct projection + metrics. */
+  runState: RunState;
+  /**
+   * Per-run Langfuse tracer (Phase 2.2). Orchestration-level domain events
+   * (`revision_requested` / `revision_budget_exhausted` / `fingerprint_match`) land
+   * on the trace here. Null/absent → no trace sink; the run is unaffected.
+   */
+  langfuse?: LangfuseTracer | null;
   /** Task-grain store — receives the node-direct td mirror (RFC §1.3 step 2). */
   store: TaskStore;
   /** Repo data dir; marker files are written under `<caseRoot>/.case/<task>/`. */
@@ -95,17 +103,17 @@ function fingerprintFor(request: RevisionRequest): string | undefined {
  * stay correct.
  */
 export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void> {
-  const { appender, store, caseRoot, notifier, dispatch, onPhaseFailed, maxRevisionCycles } = args;
+  const { runState, store, caseRoot, notifier, dispatch, onPhaseFailed, maxRevisionCycles, langfuse } = args;
   const phases = PROFILE_PHASES[args.profile];
   const hasScout = phases.includes('scout');
   const hasVerify = phases.includes('verify');
 
-  let currentStatus: TaskStatus = appender.getState().status;
+  let currentStatus: TaskStatus = runState.getState().status;
 
-  async function emitStatus(phase: PipelinePhase, state: CaseGraphStateType): Promise<void> {
+  function emitStatus(phase: PipelinePhase, state: CaseGraphStateType): void {
     const next = phaseStatus(phase, state);
     if (!next || next === currentStatus) return;
-    await appender.append({ event: 'status_changed', from: currentStatus, to: next });
+    runState.setStatus(next);
     currentStatus = next;
   }
 
@@ -117,12 +125,12 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
     revision?: RevisionRequest,
   ): Promise<AgentResult> {
     const startedAt = new Date().toISOString();
-    await appender.append({ event: 'phase_start', phase, agent });
+    runState.startPhase(phase, agent);
     notifier.phaseStart(phase, agent);
-    await emitStatus(phase, state);
+    emitStatus(phase, state);
     // Node-direct td mirror at phase start: surfaces the running phase + its new
     // status to td/humans before the (possibly long) dispatch (RFC §1.3 step 2).
-    await projectNodeState(appender.getState(), store, caseRoot);
+    await projectNodeState(runState.getState(), store, caseRoot);
 
     notifier.startHeartbeat();
     let result: AgentResult;
@@ -134,11 +142,11 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
 
     const elapsed = Date.now() - Date.parse(startedAt);
     const outcome = result.status === 'completed' ? 'completed' : 'failed';
-    await appender.append({ event: 'phase_end', phase, agent, outcome, durationMs: elapsed, result });
+    runState.endPhase(phase, agent, outcome, elapsed, result);
     // Node-direct td mirror + evidence markers on completion: agent status flips
     // to completed/failed and a passed verify/review drops its tested/reviewed
     // marker file in the same tick.
-    await projectNodeState(appender.getState(), store, caseRoot);
+    await projectNodeState(runState.getState(), store, caseRoot);
     notifier.phaseEnd(phase, agent, elapsed, outcome);
     if (outcome === 'failed' && agent !== 'retrospective') onPhaseFailed(agent);
     return result;
@@ -208,7 +216,7 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
     // Revision budget: implement nodes exist for cycles 0..maxRevisionCycles, so
     // a next cycle is available iff c + 1 <= maxRevisionCycles.
     if (c + 1 > maxRevisionCycles) {
-      await appender.append({ event: 'revision_budget_exhausted', cycles: c + 1 });
+      langfuse?.event('revision_budget_exhausted', { cycles: c + 1 });
       notifier.send(
         `Revision budget exhausted after cycle ${c}. ${source} found issues but no revision cycles remain. Proceeding with warnings.`,
       );
@@ -219,8 +227,8 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
     // is unlikely to clear with another pass.
     const previousFingerprint = c - 1 >= 0 ? state.fingerprints[c - 1] : undefined;
     if (fingerprint && previousFingerprint && fingerprintsMatch(fingerprint, previousFingerprint)) {
-      await appender.append({ event: 'fingerprint_match', cycle: c + 1, fingerprint, previousCycle: c - 1 });
-      await appender.append({ event: 'revision_budget_exhausted', cycles: c + 1 });
+      langfuse?.event('fingerprint_match', { cycle: c + 1, fingerprint, previousCycle: c - 1 });
+      langfuse?.event('revision_budget_exhausted', { cycles: c + 1 });
       notifier.send(
         `Revision budget exhausted: fingerprint match (cycle ${c} matched cycle ${c - 1}, ${fingerprint}). Aborting revision cycle ${c + 1} and proceeding with warnings.`,
       );
@@ -229,8 +237,10 @@ export async function executeLangGraph(args: LangGraphEngineArgs): Promise<void>
 
     const merged = mergeRevisionRequests([request]);
     if (fingerprint) merged.fingerprint = fingerprint;
-    await appender.append({
-      event: 'revision_requested',
+    // Update run-state (drives metrics + the td pendingRevision projection) and
+    // surface the domain event on the trace.
+    runState.requestRevision(merged.source, c + 1, merged.failedCategories);
+    langfuse?.event('revision_requested', {
       source: merged.source,
       cycle: c + 1,
       failedCategories: merged.failedCategories,

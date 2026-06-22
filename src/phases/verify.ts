@@ -57,8 +57,6 @@ export async function runVerifyPhase(
     dataDir: config.dataDir,
     onHeartbeat: config.onAgentHeartbeat,
     onToolActivity: config.onToolActivity,
-    traceWriter: config.traceWriter,
-    eventAppender: config.eventAppender,
     langfuse: config.langfuse,
     phase: 'verify',
   });

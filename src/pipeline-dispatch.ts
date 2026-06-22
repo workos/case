@@ -72,14 +72,13 @@ export async function dispatchNode(
       const output = await runScoutPhase(config, store);
       consultMatrix(output.outcome);
       callbacks.setScoutFindings(output.findings);
-      // Emit a lightweight audit event so cross-run analytics can track
-      // scout coverage without reading the phase_end payload.
-      if (config.eventAppender) {
+      // Emit a lightweight audit event on the trace so cross-run analytics can
+      // track scout coverage without reading the phase span payload.
+      {
         const elapsedMs = output.result.summary.startsWith('[dry-run]')
           ? 0
           : Date.now() - Date.parse(node.startedAt ?? new Date().toISOString());
-        await config.eventAppender.append({
-          event: 'scout_completed',
+        config.langfuse?.event('scout_completed', {
           hasFindings: output.findings !== null,
           relevantFileCount: output.findings?.relevantFiles.length ?? 0,
           patternCount: output.findings?.patterns.length ?? 0,
@@ -178,12 +177,12 @@ export async function dispatchNode(
     }
 
     case 'retrospective': {
-      const appenderState = config.eventAppender!.getState();
+      const runStateSnapshot = config.runState!.getState();
       const metricsSnapshot: MetricsSnapshot = {
-        revisionCycles: appenderState.revisionCycles,
+        revisionCycles: runStateSnapshot.revisionCycles,
         humanOverrides: 0,
-        profile: appenderState.profile,
-        evaluatorEffectiveness: projectMetrics(appenderState).evaluatorEffectiveness,
+        profile: runStateSnapshot.profile,
+        evaluatorEffectiveness: projectMetrics(runStateSnapshot).evaluatorEffectiveness,
       };
       await runRetrospectivePhase(config, store, previousResults, callbacks.outcome(), undefined, metricsSnapshot);
       return {
