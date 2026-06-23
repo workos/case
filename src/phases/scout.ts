@@ -71,8 +71,7 @@ export async function runScoutPhase(config: PipelineConfig, store: TaskStore): P
     timeout: timeoutMs,
     onHeartbeat: config.onAgentHeartbeat,
     onToolActivity: config.onToolActivity,
-    traceWriter: config.traceWriter,
-    eventAppender: config.eventAppender,
+    langfuse: config.langfuse,
     phase: 'scout',
   });
 
@@ -192,8 +191,8 @@ async function readScoutTemplate(packageRoot: string): Promise<string> {
 
 function buildScoutContextBlock(config: PipelineConfig, task: TaskJson): string {
   const lines: string[] = ['## Task Context', ''];
-  lines.push(`- **Task file**: \`${config.taskMdPath}\``);
-  lines.push(`- **Task JSON**: \`${config.taskJsonPath}\``);
+  lines.push(`- **Task**: ${config.taskId}`);
+  lines.push(`- **td issue**: ${config.tdId}`);
   lines.push(`- **Target repo**: \`${config.repoPath}\``);
   lines.push(`- **Repo name**: ${config.repoName}`);
   if (config.project) {

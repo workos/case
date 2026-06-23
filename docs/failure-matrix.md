@@ -98,5 +98,5 @@ becomes a non-fatal warning so the run can still report `complete`.
    `APPLICABLE_OUTCOMES` inside [`src/dag/outcome-table.ts`](../src/dag/outcome-table.ts).
 3. Add the matrix entry (or entries) — every applicable pair needs one.
 4. Update the table above in this document.
-5. Re-run `bun test ./src/__tests__/outcome-table.spec.ts` — the
+5. Re-run `bun run test src/__tests__/outcome-table.spec.ts` — the
    exhaustiveness tests will fail until every applicable pair is wired up.

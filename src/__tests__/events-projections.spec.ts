@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { projectTaskJson, projectMetrics, projectMarkers } from '../events/projections.js';
 import type { PipelineState, PhaseState } from '../events/types.js';
 import type { PlanArtifact } from '../events/plan.js';

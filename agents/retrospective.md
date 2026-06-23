@@ -12,8 +12,7 @@ You run after every `/case` pipeline completion (success or failure). Your job: 
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file (with progress log from all agents)
-- **Task JSON path** — the `.task.json` companion (with status, agent phases, evidence flags)
+- **td issue handle** — the `td-…` id for this task (shown as **td issue** in the Task Context block); pass it to `ca status`/`ca session`. The task record carries the progress log, status, agent phases, and evidence flags.
 - **Pipeline outcome** — "completed" (PR created) or "failed" (stopped at some agent)
 - **Failed agent** (if applicable) — which agent failed and the AGENT_RESULT error
 
@@ -24,16 +23,16 @@ You receive from the orchestrator:
 Run the session-start command to orient yourself:
 
 ```bash
-SESSION=$(ca session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <td-id>)
 echo "$SESSION"
 ```
 
-Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task discovery.
 
 ### 1. Read the Full Record
 
-1. Read the task file — focus on the `## Progress Log` section
-2. Read the task JSON — check agent phase statuses, timing, evidence flags
+1. Read the task (`td show <td-id>`) — focus on the `## Progress Log` section
+2. Read the task record — check agent phase statuses, timing, evidence flags
 3. If the pipeline failed, read the failed agent's error from AGENT_RESULT
 
 ### 2. Analyze for Improvement Signals
@@ -107,7 +106,7 @@ If any of your proposals target an agent prompt (`agents/*.md`), create a snapsh
 
 ```bash
 ca snapshot <agent-name> \
-  --task "<task-filename>" \
+  --task "<td-id>" \
   --reason "<1-line: what metric or failure motivated this change>"
 ```
 
@@ -122,7 +121,7 @@ For each finding, create a proposal file in `.case/amendments/` under the target
 
 **Priority:** high | medium | low
 **Target file:** {path relative to case/}
-**Triggered by:** {task filename} — {brief description of what happened}
+**Triggered by:** {task id} — {brief description of what happened}
 **Metrics motivation:** {what measurement or observation led to this}
 **Prompt version:** {version tag from `ca snapshot`, if target is agents/\*.md — otherwise omit}
 
@@ -155,7 +154,7 @@ Filename format: `{YYYY-MM-DD}-{slug}.md` (e.g., `2026-03-14-implementer-esm-rem
 **What you must NEVER edit:**
 
 - Target repo source code (anything outside `.case/`)
-- Task files in `.case/tasks/active/` (those are the record of what happened)
+- Task records in the repo's `td` store (`td list`, `td show <id>`) (those are the record of what happened)
 - `projects.json` schema or structure
 
 ### 4b. Update Repo Learnings (direct — no staging required)
@@ -177,12 +176,12 @@ Repo learnings are tactical, low-risk, and append-only. These are the ONE thing 
 
 **How to append:**
 
-1. Identify the target repo from the task file's `## Target Repos` section
+1. Identify the target repo from the task's `## Target Repos` section
 2. Read `.case/learnings.md`
 3. Check if a similar learning already exists (don't duplicate)
 4. Append a new entry:
    ```
-   - **{YYYY-MM-DD}** — `{file or area}`: {1-2 line tactical note}. (from task {task-filename})
+   - **{YYYY-MM-DD}** — `{file or area}`: {1-2 line tactical note}. (from task {task-id})
    ```
 
 ### 4c. Escalate Repeated Violations

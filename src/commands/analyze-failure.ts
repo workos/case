@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
 import type { FailureAnalysis } from '../types.js';
 
 const FAILURE_PATTERNS: Array<{ keywords: string[]; failureClass: string; suggestedFocus: string }> = [
@@ -90,15 +89,11 @@ async function getFilesInvolved(cwd?: string): Promise<string[]> {
 }
 
 export async function analyzeFailure(
-  taskFile: string,
+  workingMemoryFile: string,
   failedAgent: string,
   errorSummary: string,
 ): Promise<FailureAnalysis> {
-  const taskStem = basename(taskFile, '.task.json');
-  const taskDir = dirname(taskFile);
-  const workingFile = resolve(taskDir, `${taskStem}.working.md`);
-
-  const whatWasTried = parseWorkingMemory(workingFile);
+  const whatWasTried = parseWorkingMemory(workingMemoryFile);
   const filesInvolved = await getFilesInvolved();
   const { failureClass, suggestedFocus: baseFocus } = classifyError(errorSummary);
 

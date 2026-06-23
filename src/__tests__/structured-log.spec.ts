@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createStructuredLogRenderer } from '../render/structured-log.js';
 
 // Lock color OFF for all structured-log tests so assertions that compare exact

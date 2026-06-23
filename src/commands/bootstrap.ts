@@ -115,10 +115,13 @@ function ensureCaseIgnored(repoPath: string): void {
   if (!existsSync(gitignore)) return;
 
   const current = readFileSync(gitignore, 'utf-8');
-  if (current.split(/\r?\n/).some((line) => line.trim() === '.case/')) return;
+  const lines = current.split(/\r?\n/).map((line) => line.trim());
+  // `.case/` = evidence markers & runtime state; `.todos/` = the td task database.
+  const missing = ['.case/', '.todos/'].filter((entry) => !lines.includes(entry));
+  if (missing.length === 0) return;
 
   const prefix = current.endsWith('\n') ? '' : '\n';
-  writeFileSync(gitignore, `${current}${prefix}\n# Case harness markers\n.case/\n`);
+  writeFileSync(gitignore, `${current}${prefix}\n# Case harness markers\n${missing.join('\n')}\n`);
 }
 
 function lastLines(text: string, count: number): string[] {

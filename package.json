@@ -12,10 +12,13 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
-    "test": "bun src/dev/run-tests.ts",
+    "lint": "vp lint",
+    "format": "vp fmt --write",
+    "format:check": "vp fmt --check",
+    "test": "bun --bun run vitest run",
+    "test:watch": "bun --bun run vitest",
+    "test:e2e": "bun --bun run vitest run test/e2e/langfuse-mocked-agent.e2e.spec.ts",
+    "test:e2e:llm": "bun --bun run vitest run test/e2e/langfuse-llm-smoke.e2e.spec.ts",
     "test:ast": "bun src/dev/test-ast-rules.ts",
     "lint:ast": "bun src/dev/lint-ast.ts target src/",
     "lint:ast:self": "bun src/dev/lint-ast.ts self src/",
@@ -26,11 +29,19 @@
     "start": "bun src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.186",
+    "@github/copilot-sdk": "^1.0.3",
+    "@langchain/core": "^1.2.0",
+    "@langchain/google-genai": "^2.2.0",
+    "@langchain/langgraph": "^1.4.4",
+    "@langchain/langgraph-checkpoint": "^1.1.2",
+    "@langchain/openai": "^1.5.2",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
     "@mariozechner/pi-tui": "^0.73.1",
     "@sinclair/typebox": "^0.34.49",
+    "langfuse": "^3.38.20",
     "pi-askuserquestion": "github:ghoseb/pi-askuserquestion"
   },
   "devDependencies": {
@@ -39,7 +50,8 @@
     "@types/node": "^22.0.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.65.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vite-plus": "^0.2.1"
   },
   "trustedDependencies": [
     "@ast-grep/cli"

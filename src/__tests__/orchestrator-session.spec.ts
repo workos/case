@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * Orchestrator session tests.
@@ -8,30 +8,48 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
  * auth credentials and a TUI.
  */
 
-// Mock the Pi SDK before importing the module under test
-const mockCreateAgentSession = mock();
-const mockCreateAgentSessionRuntime = mock();
-const mockInteractiveModeRun = mock();
-const mockResourceLoaderReload = mock();
+// Mock the Pi SDK before importing the module under test. These mocks are
+// referenced by hoisted `vi.mock` factories below, so they must be created in
+// `vi.hoisted` and destructured.
+const {
+  mockCreateAgentSession,
+  mockCreateAgentSessionRuntime,
+  mockInteractiveModeRun,
+  mockResourceLoaderReload,
+  mockDetectRepo,
+  mockFindTaskByIssue,
+  mockFindTaskByMarker,
+  mockFetchIssue,
+} = vi.hoisted(() => ({
+  mockCreateAgentSession: vi.fn(),
+  mockCreateAgentSessionRuntime: vi.fn(),
+  mockInteractiveModeRun: vi.fn(),
+  mockResourceLoaderReload: vi.fn(),
+  mockDetectRepo: vi.fn(),
+  mockFindTaskByIssue: vi.fn(),
+  mockFindTaskByMarker: vi.fn(),
+  mockFetchIssue: vi.fn(),
+}));
 
 // Mock config module to avoid filesystem reads
-mock.module('../agent/config.js', () => ({
+vi.mock('../agent/config.js', () => ({
   getModelForAgent: async () => ({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }),
   loadConfig: async () => ({}),
+  // Pulled into this module's graph via pipeline → provider-routing-runtime →
+  // adapters; the mock must mirror the real export surface or ESM linking fails.
+  resolveAgentModel: async () => ({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }),
+  isClaudeModel: () => true,
+  toolPolicyFor: (agentName: string) =>
+    agentName === 'implementer' || agentName === 'retrospective' ? 'mutable' : 'read-only',
 }));
 
 // Mock entry modules for context gathering
-const mockDetectRepo = mock();
-const mockFindTaskByIssue = mock();
-const mockFindTaskByMarker = mock();
-const mockFetchIssue = mock();
-
-mock.module('../entry/repo-detector.js', () => ({ detectRepo: mockDetectRepo }));
-mock.module('../entry/task-scanner.js', () => ({
+vi.mock('../entry/repo-detector.js', () => ({ detectRepo: mockDetectRepo }));
+vi.mock('../entry/task-scanner.js', () => ({
   findTaskByIssue: mockFindTaskByIssue,
   findTaskByMarker: mockFindTaskByMarker,
 }));
-mock.module('../entry/issue-fetcher.js', () => ({
+vi.mock('../entry/issue-fetcher.js', () => ({
   detectArgumentType: (arg: string) => (/^\d+$/.test(arg) ? 'github' : 'freeform'),
   fetchIssue: mockFetchIssue,
 }));
@@ -43,7 +61,7 @@ const mockRuntime = {
   modelFallbackMessage: undefined as string | undefined,
 };
 
-mock.module('@mariozechner/pi-coding-agent', () => ({
+vi.mock('@mariozechner/pi-coding-agent', () => ({
   createAgentSession: mockCreateAgentSession,
   createAgentSessionRuntime: mockCreateAgentSessionRuntime,
   InteractiveMode: class MockInteractiveMode {
@@ -76,7 +94,9 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
       },
     }),
   },
-  getAgentDir: () => '/tmp/pi-agent',
+  // Mirror real getAgentDir (honors PI_CODING_AGENT_DIR) so this global mock,
+  // which bun leaks across files, doesn't break specs that rely on the env.
+  getAgentDir: () => process.env.PI_CODING_AGENT_DIR ?? '/tmp/pi-agent',
   createReadTool: () => ({ name: 'read' }),
   createWriteTool: () => ({ name: 'write' }),
   createEditTool: () => ({ name: 'edit' }),

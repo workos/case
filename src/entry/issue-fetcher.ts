@@ -141,11 +141,22 @@ async function fetchLinearIssue(issueId: string): Promise<IssueContext> {
 }
 
 /**
+ * td rejects titles shorter than this. Short freeform args (e.g. an
+ * identifier like `td-4854df`) get a descriptive prefix so the downstream
+ * `td create` succeeds.
+ */
+const TD_MIN_TITLE_LENGTH = 15;
+
+/**
  * Construct an IssueContext from freeform text.
+ *
+ * The raw text is preserved as the body. The title is padded with a prefix
+ * when the text is too short to satisfy td's minimum title length.
  */
 function freeformIssue(text: string): IssueContext {
+  const title = text.length >= TD_MIN_TITLE_LENGTH ? text : `Freeform task: ${text}`;
   return {
-    title: text,
+    title,
     body: text,
     labels: [],
     issueType: 'freeform',

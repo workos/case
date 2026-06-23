@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createTuiRenderer, type TuiSurface } from '../render/tui-renderer.js';
 
 // Strip ANSI so assertions are stable regardless of color env.

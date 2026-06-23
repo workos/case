@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -285,6 +285,15 @@ describe('taskSlugFromTaskJsonPath', () => {
 describe('ca update-memory CLI (handler)', () => {
   let tempCwd: string;
   let originalCwd: string;
+  let slug: string;
+
+  // The slug is the focused td task's id. Create a real td-backed task in the
+  // temp repo and run the command from that cwd so `td current` resolves it.
+  async function focusTask(): Promise<void> {
+    const { createTdTask } = await import('./helpers/td-task.js');
+    const fixture = await createTdTask({ repoPath: tempCwd });
+    slug = fixture.taskId;
+  }
 
   beforeEach(() => {
     originalCwd = process.cwd();
@@ -305,12 +314,12 @@ describe('ca update-memory CLI (handler)', () => {
   });
 
   it('creates working-memory.json on first call', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
     const code = await handler(['--state', 'Starting', '--approach', 'TDD', '--file', 'src/x.ts']);
     expect(code).toBe(0);
 
-    const path = join(tempCwd, '.case/foo-1/working-memory.json');
+    const path = join(tempCwd, '.case', slug, 'working-memory.json');
     expect(existsSync(path)).toBe(true);
     const memory = JSON.parse(readFileSync(path, 'utf-8'));
     expect(memory.currentState).toBe('Starting');
@@ -320,33 +329,33 @@ describe('ca update-memory CLI (handler)', () => {
   });
 
   it('appends to arrays on subsequent calls', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
 
     await handler(['--state', 'A', '--file', 'src/a.ts']);
     await handler(['--file', 'src/b.ts', '--tried', 'first', '--tried-outcome', 'failed']);
 
-    const memory = JSON.parse(readFileSync(join(tempCwd, '.case/foo-1/working-memory.json'), 'utf-8'));
+    const memory = JSON.parse(readFileSync(join(tempCwd, '.case', slug, 'working-memory.json'), 'utf-8'));
     expect(memory.filesChanged).toEqual(['src/a.ts', 'src/b.ts']);
     expect(memory.approachesTried).toEqual([{ approach: 'first', outcome: 'failed' }]);
   });
 
   it('rejects invalid --error-status with exit 1', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
     const code = await handler(['--error', 'X', '--error-status', 'bogus']);
     expect(code).toBe(1);
   });
 
   it('rejects --error-status without preceding --error', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
     const code = await handler(['--error-status', 'fixed']);
     expect(code).toBe(1);
   });
 
   it('rejects empty argv', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
     const code = await handler([]);
     expect(code).toBe(1);
@@ -359,7 +368,7 @@ describe('ca update-memory CLI (handler)', () => {
   });
 
   it('attaches --error-file and --error-status to most recent --error', async () => {
-    writeFileSync(join(tempCwd, '.case/active'), 'foo-1');
+    await focusTask();
     const { handler } = await import('../commands/update-memory.js');
     const code = await handler([
       '--error',
@@ -374,7 +383,7 @@ describe('ca update-memory CLI (handler)', () => {
       'workaround',
     ]);
     expect(code).toBe(0);
-    const memory = JSON.parse(readFileSync(join(tempCwd, '.case/foo-1/working-memory.json'), 'utf-8'));
+    const memory = JSON.parse(readFileSync(join(tempCwd, '.case', slug, 'working-memory.json'), 'utf-8'));
     expect(memory.errorsSeen).toEqual([
       { error: 'TypeError', file: 'src/x.ts', resolution: 'fixed' },
       { error: 'RangeError', resolution: 'workaround' },

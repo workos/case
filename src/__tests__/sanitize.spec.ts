@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { sanitizeForTrace } from '../tracing/sanitize.js';
 
 describe('sanitizeForTrace', () => {
@@ -41,7 +41,7 @@ describe('sanitizeForTrace', () => {
     const long = 'a'.repeat(600);
     const result = sanitizeForTrace(long, 100);
     expect(result.length).toBe(100);
-    expect(result).toEndWith('…[truncated]');
+    expect(result.endsWith('…[truncated]')).toBe(true);
   });
 
   it('does not truncate strings at exactly maxLen', () => {
@@ -123,6 +123,6 @@ describe('sanitizeForTrace', () => {
     const result = sanitizeForTrace(input, 100);
     expect(result).not.toContain('sk-verylongsecretkey');
     expect(result.length).toBe(100);
-    expect(result).toEndWith('…[truncated]');
+    expect(result.endsWith('…[truncated]')).toBe(true);
   });
 });

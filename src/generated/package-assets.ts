@@ -14,63 +14,36 @@ import asset10 from '../../ast-rules/self/no-macos-open.yml' with { type: 'text'
 import asset11 from '../../ast-rules/target/no-console-log.yml' with { type: 'text' };
 import asset12 from '../../ast-rules/target/no-default-export.yml' with { type: 'text' };
 import asset13 from '../../ast-rules/target/no-require.yml' with { type: 'text' };
-import asset14 from '../../docs/agent-versions/implementer-2026-05-17.md' with { type: 'text' };
-import asset15 from '../../docs/architecture/README.md' with { type: 'text' };
-import asset16 from '../../docs/architecture/authkit-framework.md' with { type: 'text' };
-import asset17 from '../../docs/architecture/authkit-session.md' with { type: 'text' };
-import asset18 from '../../docs/architecture/cli.md' with { type: 'text' };
-import asset19 from '../../docs/architecture/skills-plugin.md' with { type: 'text' };
-import asset20 from '../../docs/architecture/workos-node.md' with { type: 'text' };
-import asset21 from '../../docs/conventions/README.md' with { type: 'text' };
-import asset22 from '../../docs/conventions/claude-md-ordering.md' with { type: 'text' };
-import asset23 from '../../docs/conventions/code-style.md' with { type: 'text' };
-import asset24 from '../../docs/conventions/commits.md' with { type: 'text' };
-import asset25 from '../../docs/conventions/entropy-management.md' with { type: 'text' };
-import asset26 from '../../docs/conventions/pull-requests.md' with { type: 'text' };
-import asset27 from '../../docs/conventions/testing.md' with { type: 'text' };
-import asset28 from '../../docs/failure-matrix.md' with { type: 'text' };
-import asset29 from '../../docs/golden-principles.md' with { type: 'text' };
-import asset30 from '../../docs/ideation/harness-resilience/contract.md' with { type: 'text' };
-import asset31 from '../../docs/ideation/harness-resilience/spec-phase-1.md' with { type: 'text' };
-import asset32 from '../../docs/ideation/harness-resilience/spec-phase-2.md' with { type: 'text' };
-import asset33 from '../../docs/ideation/harness-resilience/spec-phase-3.md' with { type: 'text' };
-import asset34 from '../../docs/ideation/harness-resilience/spec-phase-4.md' with { type: 'text' };
-import asset35 from '../../docs/ideation/onboard-interview/contract.md' with { type: 'text' };
-import asset36 from '../../docs/ideation/onboard-interview/spec-phase-1.md' with { type: 'text' };
-import asset37 from '../../docs/ideation/onboard-interview/spec-phase-2.md' with { type: 'text' };
-import asset38 from '../../docs/ideation/onboard-interview/spec-phase-3.md' with { type: 'text' };
-import asset39 from '../../docs/ideation/pipeline-terminal-ux/contract.md' with { type: 'text' };
-import asset40 from '../../docs/ideation/pipeline-terminal-ux/spec-phase-1.md' with { type: 'text' };
-import asset41 from '../../docs/ideation/pipeline-terminal-ux/spec-phase-2.md' with { type: 'text' };
-import asset42 from '../../docs/ideation/pipeline-terminal-ux/spec-phase-3.md' with { type: 'text' };
-import asset43 from '../../docs/ideation/pipeline-terminal-ux/spec-phase-4.md' with { type: 'text' };
-import asset44 from '../../docs/learnings/README.md' with { type: 'text' };
-import asset45 from '../../docs/learnings/authkit-nextjs.md' with { type: 'text' };
-import asset46 from '../../docs/learnings/authkit-session.md' with { type: 'text' };
-import asset47 from '../../docs/learnings/authkit-tanstack-start.md' with { type: 'text' };
-import asset48 from '../../docs/learnings/cli.md' with { type: 'text' };
-import asset49 from '../../docs/learnings/skills.md' with { type: 'text' };
-import asset50 from '../../docs/learnings/workos-node.md' with { type: 'text' };
-import asset51 from '../../docs/philosophy.md' with { type: 'text' };
-import asset52 from '../../docs/playbooks/README.md' with { type: 'text' };
-import asset53 from '../../docs/playbooks/add-authkit-framework.md' with { type: 'text' };
-import asset54 from '../../docs/playbooks/add-cli-command.md' with { type: 'text' };
-import asset55 from '../../docs/playbooks/add-feature.md' with { type: 'text' };
-import asset56 from '../../docs/playbooks/cross-repo-update.md' with { type: 'text' };
-import asset57 from '../../docs/playbooks/fix-bug.md' with { type: 'text' };
-import asset58 from '../../docs/proposed-amendments/2026-03-14-clean-stale-markers-on-resume.md' with { type: 'text' };
-import asset59 from '../../docs/proposed-amendments/2026-03-14-mark-manual-tested-subdirectory-screenshots.md' with { type: 'text' };
-import asset60 from '../../docs/proposed-amendments/2026-03-14-transitions-detect-stale-running.md' with { type: 'text' };
-import asset61 from '../../docs/proposed-amendments/2026-03-16-add-feature-playbook-library-manual-test-note.md' with { type: 'text' };
-import asset62 from '../../docs/proposed-amendments/2026-03-16-pre-pr-hook-skip-manual-test-for-library-repos.md' with { type: 'text' };
-import asset63 from '../../docs/proposed-amendments/2026-03-18-closer-preflight-library-repo-exemption.md' with { type: 'text' };
-import asset64 from '../../docs/proposed-amendments/2026-03-18-missing-playbooks-directory.md' with { type: 'text' };
-import asset65 from '../../docs/proposed-amendments/2026-03-18-projects-json-workos-node-library-type.md' with { type: 'text' };
-import asset66 from '../../docs/proposed-amendments/2026-03-18-verifier-library-repo-skip-playwright.md' with { type: 'text' };
-import asset67 from '../../docs/proposed-amendments/2026-03-19-mark-tested-jest-summary-parsing.md' with { type: 'text' };
-import asset68 from '../../docs/proposed-amendments/2026-03-19-mark-tested-vitest-summary-parsing.md' with { type: 'text' };
-import asset69 from '../../docs/proposed-amendments/2026-03-29-escalate-mark-tested-false-positives.md' with { type: 'text' };
-import asset70 from '../../docs/proposed-amendments/README.md' with { type: 'text' };
+import asset14 from '../../docs/architecture/README.md' with { type: 'text' };
+import asset15 from '../../docs/architecture/authkit-framework.md' with { type: 'text' };
+import asset16 from '../../docs/architecture/authkit-session.md' with { type: 'text' };
+import asset17 from '../../docs/architecture/cli.md' with { type: 'text' };
+import asset18 from '../../docs/architecture/skills-plugin.md' with { type: 'text' };
+import asset19 from '../../docs/architecture/workos-node.md' with { type: 'text' };
+import asset20 from '../../docs/conventions/README.md' with { type: 'text' };
+import asset21 from '../../docs/conventions/claude-md-ordering.md' with { type: 'text' };
+import asset22 from '../../docs/conventions/code-style.md' with { type: 'text' };
+import asset23 from '../../docs/conventions/commits.md' with { type: 'text' };
+import asset24 from '../../docs/conventions/entropy-management.md' with { type: 'text' };
+import asset25 from '../../docs/conventions/pull-requests.md' with { type: 'text' };
+import asset26 from '../../docs/conventions/testing.md' with { type: 'text' };
+import asset27 from '../../docs/failure-matrix.md' with { type: 'text' };
+import asset28 from '../../docs/golden-principles.md' with { type: 'text' };
+import asset29 from '../../docs/learnings/README.md' with { type: 'text' };
+import asset30 from '../../docs/learnings/authkit-nextjs.md' with { type: 'text' };
+import asset31 from '../../docs/learnings/authkit-session.md' with { type: 'text' };
+import asset32 from '../../docs/learnings/authkit-tanstack-start.md' with { type: 'text' };
+import asset33 from '../../docs/learnings/cli.md' with { type: 'text' };
+import asset34 from '../../docs/learnings/skills.md' with { type: 'text' };
+import asset35 from '../../docs/learnings/workos-node.md' with { type: 'text' };
+import asset36 from '../../docs/philosophy.md' with { type: 'text' };
+import asset37 from '../../docs/playbooks/README.md' with { type: 'text' };
+import asset38 from '../../docs/playbooks/add-authkit-framework.md' with { type: 'text' };
+import asset39 from '../../docs/playbooks/add-cli-command.md' with { type: 'text' };
+import asset40 from '../../docs/playbooks/add-feature.md' with { type: 'text' };
+import asset41 from '../../docs/playbooks/cross-repo-update.md' with { type: 'text' };
+import asset42 from '../../docs/playbooks/fix-bug.md' with { type: 'text' };
+import asset43 from '../../docs/proposed-amendments/README.md' with { type: 'text' };
 
 export const embeddedPackageAssets: Record<string, string> = {
   'agents/closer.md': asset0,
@@ -87,61 +60,34 @@ export const embeddedPackageAssets: Record<string, string> = {
   'ast-rules/target/no-console-log.yml': asset11,
   'ast-rules/target/no-default-export.yml': asset12,
   'ast-rules/target/no-require.yml': asset13,
-  'docs/agent-versions/implementer-2026-05-17.md': asset14,
-  'docs/architecture/README.md': asset15,
-  'docs/architecture/authkit-framework.md': asset16,
-  'docs/architecture/authkit-session.md': asset17,
-  'docs/architecture/cli.md': asset18,
-  'docs/architecture/skills-plugin.md': asset19,
-  'docs/architecture/workos-node.md': asset20,
-  'docs/conventions/README.md': asset21,
-  'docs/conventions/claude-md-ordering.md': asset22,
-  'docs/conventions/code-style.md': asset23,
-  'docs/conventions/commits.md': asset24,
-  'docs/conventions/entropy-management.md': asset25,
-  'docs/conventions/pull-requests.md': asset26,
-  'docs/conventions/testing.md': asset27,
-  'docs/failure-matrix.md': asset28,
-  'docs/golden-principles.md': asset29,
-  'docs/ideation/harness-resilience/contract.md': asset30,
-  'docs/ideation/harness-resilience/spec-phase-1.md': asset31,
-  'docs/ideation/harness-resilience/spec-phase-2.md': asset32,
-  'docs/ideation/harness-resilience/spec-phase-3.md': asset33,
-  'docs/ideation/harness-resilience/spec-phase-4.md': asset34,
-  'docs/ideation/onboard-interview/contract.md': asset35,
-  'docs/ideation/onboard-interview/spec-phase-1.md': asset36,
-  'docs/ideation/onboard-interview/spec-phase-2.md': asset37,
-  'docs/ideation/onboard-interview/spec-phase-3.md': asset38,
-  'docs/ideation/pipeline-terminal-ux/contract.md': asset39,
-  'docs/ideation/pipeline-terminal-ux/spec-phase-1.md': asset40,
-  'docs/ideation/pipeline-terminal-ux/spec-phase-2.md': asset41,
-  'docs/ideation/pipeline-terminal-ux/spec-phase-3.md': asset42,
-  'docs/ideation/pipeline-terminal-ux/spec-phase-4.md': asset43,
-  'docs/learnings/README.md': asset44,
-  'docs/learnings/authkit-nextjs.md': asset45,
-  'docs/learnings/authkit-session.md': asset46,
-  'docs/learnings/authkit-tanstack-start.md': asset47,
-  'docs/learnings/cli.md': asset48,
-  'docs/learnings/skills.md': asset49,
-  'docs/learnings/workos-node.md': asset50,
-  'docs/philosophy.md': asset51,
-  'docs/playbooks/README.md': asset52,
-  'docs/playbooks/add-authkit-framework.md': asset53,
-  'docs/playbooks/add-cli-command.md': asset54,
-  'docs/playbooks/add-feature.md': asset55,
-  'docs/playbooks/cross-repo-update.md': asset56,
-  'docs/playbooks/fix-bug.md': asset57,
-  'docs/proposed-amendments/2026-03-14-clean-stale-markers-on-resume.md': asset58,
-  'docs/proposed-amendments/2026-03-14-mark-manual-tested-subdirectory-screenshots.md': asset59,
-  'docs/proposed-amendments/2026-03-14-transitions-detect-stale-running.md': asset60,
-  'docs/proposed-amendments/2026-03-16-add-feature-playbook-library-manual-test-note.md': asset61,
-  'docs/proposed-amendments/2026-03-16-pre-pr-hook-skip-manual-test-for-library-repos.md': asset62,
-  'docs/proposed-amendments/2026-03-18-closer-preflight-library-repo-exemption.md': asset63,
-  'docs/proposed-amendments/2026-03-18-missing-playbooks-directory.md': asset64,
-  'docs/proposed-amendments/2026-03-18-projects-json-workos-node-library-type.md': asset65,
-  'docs/proposed-amendments/2026-03-18-verifier-library-repo-skip-playwright.md': asset66,
-  'docs/proposed-amendments/2026-03-19-mark-tested-jest-summary-parsing.md': asset67,
-  'docs/proposed-amendments/2026-03-19-mark-tested-vitest-summary-parsing.md': asset68,
-  'docs/proposed-amendments/2026-03-29-escalate-mark-tested-false-positives.md': asset69,
-  'docs/proposed-amendments/README.md': asset70,
+  'docs/architecture/README.md': asset14,
+  'docs/architecture/authkit-framework.md': asset15,
+  'docs/architecture/authkit-session.md': asset16,
+  'docs/architecture/cli.md': asset17,
+  'docs/architecture/skills-plugin.md': asset18,
+  'docs/architecture/workos-node.md': asset19,
+  'docs/conventions/README.md': asset20,
+  'docs/conventions/claude-md-ordering.md': asset21,
+  'docs/conventions/code-style.md': asset22,
+  'docs/conventions/commits.md': asset23,
+  'docs/conventions/entropy-management.md': asset24,
+  'docs/conventions/pull-requests.md': asset25,
+  'docs/conventions/testing.md': asset26,
+  'docs/failure-matrix.md': asset27,
+  'docs/golden-principles.md': asset28,
+  'docs/learnings/README.md': asset29,
+  'docs/learnings/authkit-nextjs.md': asset30,
+  'docs/learnings/authkit-session.md': asset31,
+  'docs/learnings/authkit-tanstack-start.md': asset32,
+  'docs/learnings/cli.md': asset33,
+  'docs/learnings/skills.md': asset34,
+  'docs/learnings/workos-node.md': asset35,
+  'docs/philosophy.md': asset36,
+  'docs/playbooks/README.md': asset37,
+  'docs/playbooks/add-authkit-framework.md': asset38,
+  'docs/playbooks/add-cli-command.md': asset39,
+  'docs/playbooks/add-feature.md': asset40,
+  'docs/playbooks/cross-repo-update.md': asset41,
+  'docs/playbooks/fix-bug.md': asset42,
+  'docs/proposed-amendments/README.md': asset43,
 };

@@ -1,14 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { resolveDataDir, resolvePackageRoot, resolveRepoTaskJson } from '../paths.js';
+import { resolveFocusedTask } from '../state/td-client.js';
+import { TaskStore } from '../state/task-store.js';
 
 export const description = 'Mark a repo as auto-tested (writes .case/<slug>/tested with SHA-256 of test output)';
-
-function resolveTaskSlug(): string | null {
-  if (!existsSync('.case/active')) return null;
-  return readFileSync('.case/active', 'utf-8').trim() || null;
-}
 
 function parseVitestJson(raw: string): {
   passed: number;
@@ -54,11 +50,12 @@ export async function handler(argv: string[]): Promise<number> {
     return 1;
   }
 
-  const slug = resolveTaskSlug();
-  if (!slug) {
-    process.stderr.write('ERROR: No active task — .case/active is missing or empty. Run the orchestrator first.\n');
+  const focused = await resolveFocusedTask(process.cwd());
+  if (!focused) {
+    process.stderr.write('ERROR: No active task — no focused td task. Run the orchestrator first.\n');
     return 1;
   }
+  const slug = focused.task.id;
 
   const markerDir = `.case/${slug}`;
   mkdirSync(markerDir, { recursive: true });
@@ -88,30 +85,14 @@ export async function handler(argv: string[]): Promise<number> {
   writeFileSync(resolve(markerDir, 'tested'), markerContent);
   process.stderr.write(`.case/${slug}/tested created (hash: ${hash.slice(0, 12)}...)\n`);
 
-  updateTaskJson(slug, 'tested');
+  await updateTaskState(process.cwd(), focused.tdId, 'tested');
   return 0;
 }
 
-export function updateTaskJson(slug: string, field: 'tested' | 'manualTested'): void {
-  let dataRoot: string;
+/** Flip a boolean evidence flag in the focused task's td-backed state. Best-effort. */
+export async function updateTaskState(repoPath: string, tdId: string, field: 'tested' | 'manualTested'): Promise<void> {
   try {
-    dataRoot = resolveDataDir();
-  } catch {
-    dataRoot = resolvePackageRoot();
-  }
-
-  let taskJson = resolveRepoTaskJson(process.cwd(), slug);
-  if (!existsSync(taskJson)) taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
-  if (!existsSync(taskJson)) taskJson = resolve(resolvePackageRoot(), 'tasks', 'active', `${slug}.task.json`);
-  if (!existsSync(taskJson)) {
-    process.stderr.write(`WARNING: task JSON not found for ${slug}\n`);
-    return;
-  }
-
-  try {
-    const data = JSON.parse(readFileSync(taskJson, 'utf-8'));
-    data[field] = true;
-    writeFileSync(taskJson, JSON.stringify(data, null, 2) + '\n');
+    await new TaskStore(repoPath, tdId).writeFromProjection({ [field]: true });
   } catch {
     /* best-effort */
   }

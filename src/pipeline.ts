@@ -1,36 +1,26 @@
 import type { AgentName, AgentResult, PipelineConfig, RevisionRequest, ScoutFindings } from './types.js';
-import { PROFILE_PHASES } from './types.js';
 import { TaskStore } from './state/task-store.js';
 import { formatDuration } from './notify.js';
 import { createStructuredLogRenderer } from './render/structured-log.js';
 import { createTuiRenderer, type TuiRenderer } from './render/tui-renderer.js';
 import type { Notifier } from './notify.js';
-import { runImplementPhase } from './phases/implement.js';
-import { runScoutPhase } from './phases/scout.js';
-import { runVerifyPhase } from './phases/verify.js';
-import { runReviewPhase } from './phases/review.js';
-import { runClosePhase } from './phases/close.js';
-import { runRetrospectivePhase, type MetricsSnapshot } from './phases/retrospective.js';
 import { writeRunMetrics } from './metrics/writer.js';
 import { getCurrentPromptVersions, findPriorRunId } from './versioning/prompt-tracker.js';
-import { EventAppender } from './events/appender.js';
+import { RunState } from './state/run-state.js';
 import { generatePlan } from './events/plan.js';
 import { projectMetrics } from './events/projections.js';
-import { PiRuntimeAdapter } from './agent/adapters/pi-adapter.js';
+import { ProviderRoutingRuntime } from './agent/adapters/provider-routing-runtime.js';
 import { createLogger } from './util/logger.js';
-import { buildGraph } from './dag/builder.js';
-import { executeGraph, type ExecuteGraphContext } from './dag/executor.js';
-import { resolveOutcome } from './dag/outcome-table.js';
-import type { DagNode } from './dag/types.js';
-import { loadEventsFromFile, reduceEvents } from './events/reducer.js';
-import { restoreGraphState } from './dag/restore.js';
-import type { PipelineGraph } from './dag/types.js';
+import { dispatchNode, type DispatchNodeRef } from './pipeline-dispatch.js';
+import { executeLangGraph } from './langgraph/engine.js';
+import { createSqliteCheckpointer } from './langgraph/checkpointer.js';
+import { createLangfuseTracer } from './tracing/langfuse.js';
 
 const log = createLogger();
 
 export async function runPipeline(config: PipelineConfig): Promise<void> {
-  // Task JSON lives in the target repo's ignored .case directory.
-  const store = new TaskStore(config.taskJsonPath, config.packageRoot);
+  // Task state is backed by the repo's `td` store (see td-client.ts).
+  const store = new TaskStore(config.repoPath, config.tdId);
   // Renderer selection: TUI wins when explicitly requested (even over a
   // pre-built notifier from cli-orchestrator's setup phase). Otherwise an
   // explicit notifier takes priority, falling back to structured log.
@@ -88,13 +78,22 @@ async function runPipelineBody(
   const maxRevisionCycles = config.maxRevisionCycles ?? 2;
 
   const runId = crypto.randomUUID();
-  config.runtime ??= new PiRuntimeAdapter();
+  // Default runtime: provider-routed (Claude → Agent SDK, others → LangChain).
+  // pi remains available for interactive modes and via CASE_AGENT_RUNTIME=pi.
+  config.runtime ??= new ProviderRoutingRuntime();
 
-  // Event log is mutable runtime state — lives under <repo>/.case/<taskId>/events/.
-  const appender = new EventAppender(config.dataDir, task.id, runId, store);
-  config.eventAppender = appender;
+  // Langfuse dispatch (Phase 2.1+) — fire-and-forget per-run trace, now the sole
+  // observability sink (the granular JSONL log was deleted in 2.2). Null when keys
+  // are unset → no trace; the run is unaffected. Never blocks the control path.
+  const langfuse = createLangfuseTracer(runId, { id: task.id });
+  config.langfuse = langfuse;
 
   const plan = generatePlan(task, config, runId);
+
+  // In-memory run-state (Phase 2.2) — replaces the EventAppender. Drives the
+  // node-direct td/marker projection, run metrics, and the retrospective snapshot.
+  const runState = new RunState({ runId, taskId: task.id, profile, plan });
+  config.runState = runState;
 
   const { mkdir: mkdirPlan, writeFile: writePlan } = await import('node:fs/promises');
   const { resolve: resolvePlan } = await import('node:path');
@@ -102,55 +101,6 @@ async function runPipelineBody(
   const planDir = resolvePlan(config.dataDir, '.case', task.id);
   await mkdirPlan(planDir, { recursive: true });
   await writePlan(resolvePlan(planDir, 'plan.json'), JSON.stringify(plan, null, 2));
-
-  const graph = buildGraph(profile, maxRevisionCycles);
-
-  // Crash recovery: restore graph state from event log if a prior run didn't complete
-  const existingEventLogPath = resolvePlan(config.dataDir, '.case', task.id, 'events');
-  let resumed = false;
-  try {
-    const { readdir: readdirFs } = await import('node:fs/promises');
-    const files = await readdirFs(existingEventLogPath);
-    const latestLog = files
-      .filter((f) => f.endsWith('.jsonl'))
-      .sort()
-      .pop();
-    if (latestLog) {
-      const events = await loadEventsFromFile(resolvePlan(existingEventLogPath, latestLog));
-      if (events.length > 0) {
-        const state = reduceEvents(events);
-        // Resume if the prior run didn't complete (no pipeline_end event)
-        if (state.outcome === 'running') {
-          restoreGraphState(graph, state);
-          appender.restoreState(state);
-          resumed = true;
-        }
-      }
-    }
-  } catch {
-    // No existing event log — fresh start
-  }
-
-  let initialRevisionRequests: Map<number, RevisionRequest[]> | undefined;
-
-  if (!resumed) {
-    await appender.append({ event: 'pipeline_start', taskId: task.id, profile, plan });
-
-    if (task.pendingRevision) {
-      const revCycle = task.pendingRevision.cycle ?? 1;
-      const prevCycle = revCycle - 1;
-      markCyclesCompleted(graph, profile, 0, prevCycle);
-      seedPendingRevision(graph, task.pendingRevision);
-      initialRevisionRequests = new Map([[prevCycle, [task.pendingRevision]]]);
-      const state = appender.getState();
-      state.revisionCycles = revCycle;
-      state.pendingRevision = task.pendingRevision;
-      resumed = true;
-    } else if (task.status !== 'active') {
-      seedGraphFromTaskStatus(graph, profile, task.status);
-      resumed = true;
-    }
-  }
 
   // Prompt versions are static package assets; run metrics are appended under the repo .case dir.
   const promptVersions = await getCurrentPromptVersions(config.packageRoot);
@@ -164,48 +114,67 @@ async function runPipelineBody(
   // same findings (scout runs once per pipeline).
   const scoutSlot: { current: ScoutFindings | null } = { current: null };
 
-  const ctx: ExecuteGraphContext = {
-    graph,
-    appender,
-    config,
-    notifier,
-    initialRevisionRequests,
-    dispatchPhase: async (node: DagNode, revision?: RevisionRequest) => {
-      return dispatchNode(node, config, store, previousResults, notifier, revision, {
-        incrementHumanOverrides: () => {
-          humanOverrides++;
-        },
-        outcome: () => outcome,
-        setOutcome: (o) => {
-          outcome = o;
-        },
-        setFailedAgent: (a) => {
-          failedAgent = a;
-        },
-        getScoutFindings: () => scoutSlot.current,
-        setScoutFindings: (f) => {
-          scoutSlot.current = f;
-        },
-      });
-    },
-  };
+  // Engine-agnostic per-phase dispatcher. Both the legacy DAG executor and the
+  // LangGraph engine call through this, so per-phase semantics (matrix consult,
+  // abort prompts, scout hand-off, previousResults bookkeeping) stay identical.
+  const dispatch = async (node: DispatchNodeRef, revision?: RevisionRequest): Promise<AgentResult> =>
+    dispatchNode(node, config, store, previousResults, notifier, revision, {
+      incrementHumanOverrides: () => {
+        humanOverrides++;
+      },
+      outcome: () => outcome,
+      setOutcome: (o) => {
+        outcome = o;
+      },
+      setFailedAgent: (a) => {
+        failedAgent = a;
+      },
+      getScoutFindings: () => scoutSlot.current,
+      setScoutFindings: (f) => {
+        scoutSlot.current = f;
+      },
+    });
 
-  await executeGraph(ctx);
+  // LangGraph owns orchestration AND crash/abort resume via the SQLite
+  // checkpointer (sibling DB in <repo>/.todos/, RFC §6). The thread is keyed by
+  // task id, so an interrupted run of the same task resumes from its last
+  // superstep; the engine drops the thread on normal completion. td seeds the
+  // first run's pending revision (resume-at-implement); the checkpoint is
+  // authoritative once a run has begun. Resume is checkpointer-only.
 
-  const totalDurationMs = Date.now() - Date.parse(appender.getState().startedAt);
-
-  // Check if any node failed
-  for (const [, node] of graph.nodes) {
-    if (node.state === 'failed' && node.agent !== 'retrospective') {
-      outcome = 'failed';
-      failedAgent = node.agent as AgentName;
-      break;
-    }
+  // A td-persisted pending revision seeds the cumulative revision-cycle count so
+  // metrics + the retrospective snapshot see the pre-crash cycles even though no
+  // new revision is requested on this resumed run. The graph state is seeded
+  // separately via `initialPendingRevision` (the engine routes to implement and
+  // carries the revision into the cycle counters).
+  if (task.pendingRevision) {
+    runState.seedRevision(task.pendingRevision);
   }
 
-  await appender.append({ event: 'pipeline_end', outcome, failedAgent, durationMs: totalDurationMs });
+  const checkpointer = createSqliteCheckpointer(config.repoPath);
+  await executeLangGraph({
+    profile,
+    maxRevisionCycles,
+    runState,
+    langfuse,
+    store,
+    caseRoot: config.dataDir,
+    notifier,
+    dispatch,
+    onPhaseFailed: (agent) => {
+      outcome = 'failed';
+      failedAgent = agent;
+    },
+    initialPendingRevision: task.pendingRevision ?? null,
+    checkpointer,
+    threadId: task.id,
+  });
 
-  const runMetrics = projectMetrics(appender.getState());
+  const totalDurationMs = Date.now() - Date.parse(runState.getState().startedAt);
+
+  runState.end(outcome, failedAgent, totalDurationMs);
+
+  const runMetrics = projectMetrics(runState.getState());
   runMetrics.promptVersions = promptVersions;
   runMetrics.humanOverrides = humanOverrides;
   const priorRunId = await findPriorRunId(config.repoPath, task.id);
@@ -214,304 +183,27 @@ async function runPipelineBody(
     parentTaskId: task.contractPath,
   });
 
+  // Flush the Langfuse trace. Bounded so a hung/unreachable sink can't stall run
+  // teardown; the retrospective already read local runs.jsonl, never Langfuse.
+  await langfuse?.shutdownSafely();
+
   log.info('pipeline finished', {
     outcome,
     failedAgent,
     runId,
     totalDurationMs: runMetrics.totalDurationMs,
-    eventLog: appender.path,
   });
 
-  if (outcome === 'failed') {
+  // `outcome` is mutated only via the dispatch/onPhaseFailed closures, which
+  // TS control-flow analysis can't see — it narrows `outcome` to its initializer
+  // here. Widen the read so the runtime 'failed' branch isn't compiled away.
+  if ((outcome as string) === 'failed') {
     notifier.send(`Pipeline failed at ${failedAgent ?? 'unknown'} phase.`);
   } else {
     notifier.send('Pipeline completed successfully.');
   }
 }
 
-interface PipelineCallbacks {
-  incrementHumanOverrides: () => void;
-  outcome: () => 'completed' | 'failed';
-  setOutcome: (o: 'completed' | 'failed') => void;
-  setFailedAgent: (a: AgentName) => void;
-  getScoutFindings: () => ScoutFindings | null;
-  setScoutFindings: (f: ScoutFindings | null) => void;
-}
-
-/**
- * Validate a phase's typed outcome against the unified failure matrix. The
- * matrix is the source of truth for `(phase, outcome) → next-action`; this
- * call surfaces drift between a phase impl and the matrix immediately. The
- * legacy `nextPhase` field still drives control flow until the executor is
- * fully migrated.
- */
-function consultMatrix(outcome: import('./types.js').PhaseOutcome | undefined): void {
-  if (!outcome) return;
-  try {
-    resolveOutcome(outcome.phase, outcome.outcome);
-  } catch (err) {
-    log.error('outcome matrix lookup failed', {
-      phase: outcome.phase,
-      outcome: outcome.outcome,
-      error: (err as Error).message,
-    });
-  }
-}
-
-async function dispatchNode(
-  node: DagNode,
-  config: PipelineConfig,
-  store: TaskStore,
-  previousResults: Map<AgentName, AgentResult>,
-  notifier: Notifier,
-  revision: RevisionRequest | undefined,
-  callbacks: PipelineCallbacks,
-): Promise<AgentResult> {
-  switch (node.phase) {
-    case 'scout': {
-      const output = await runScoutPhase(config, store);
-      consultMatrix(output.outcome);
-      callbacks.setScoutFindings(output.findings);
-      // Emit a lightweight audit event so cross-run analytics can track
-      // scout coverage without reading the phase_end payload.
-      if (config.eventAppender) {
-        const elapsedMs = output.result.summary.startsWith('[dry-run]')
-          ? 0
-          : Date.now() - Date.parse(node.startedAt ?? new Date().toISOString());
-        await config.eventAppender.append({
-          event: 'scout_completed',
-          hasFindings: output.findings !== null,
-          relevantFileCount: output.findings?.relevantFiles.length ?? 0,
-          patternCount: output.findings?.patterns.length ?? 0,
-          durationMs: Math.max(0, elapsedMs),
-        });
-      }
-      // Scout is non-blocking: always surface a `completed` status so the
-      // executor advances to implement_0 regardless of whether findings
-      // were produced. The typed outcome (consulted above) records the
-      // real success/failure for audit fidelity.
-      return { ...output.result, status: 'completed' };
-    }
-
-    case 'implement': {
-      if (revision) {
-        await store.setPendingRevision(revision);
-      }
-      const output = await runImplementPhase(config, store, previousResults, revision, callbacks.getScoutFindings());
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'implementer', output.result, [
-          'Retry with guidance',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('implementer');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      await store.setPendingRevision(null);
-      previousResults.set('implementer', output.result);
-      return output.result;
-    }
-
-    case 'verify': {
-      const output = await runVerifyPhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'verifier', output.result, [
-          'Re-implement and re-verify',
-          'Skip verification',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('verifier');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      previousResults.set('verifier', output.result);
-      return output.result;
-    }
-
-    case 'review': {
-      const output = await runReviewPhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'reviewer', output.result, [
-          'Re-implement and re-review',
-          'Override and continue',
-          'Abort',
-        ]);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('reviewer');
-          return output.result;
-        }
-        if (choice === 'Override and continue') {
-          callbacks.incrementHumanOverrides();
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      previousResults.set('reviewer', output.result);
-      return output.result;
-    }
-
-    case 'close': {
-      const output = await runClosePhase(config, store, previousResults);
-      consultMatrix(output.outcome);
-      if (output.nextPhase === 'abort') {
-        const choice = await handleFailure(notifier, config, 'closer', output.result, ['Retry', 'Abort']);
-        if (choice === 'Abort') {
-          callbacks.setOutcome('failed');
-          callbacks.setFailedAgent('closer');
-          return output.result;
-        }
-        return { ...output.result, status: 'completed' };
-      }
-      const prUrl = output.result.artifacts.prUrl;
-      if (prUrl) notifier.send(`PR created: ${prUrl}`);
-      previousResults.set('closer', output.result);
-      return output.result;
-    }
-
-    case 'retrospective': {
-      const appenderState = config.eventAppender!.getState();
-      const metricsSnapshot: MetricsSnapshot = {
-        revisionCycles: appenderState.revisionCycles,
-        humanOverrides: 0,
-        profile: appenderState.profile,
-        evaluatorEffectiveness: projectMetrics(appenderState).evaluatorEffectiveness,
-      };
-      await runRetrospectivePhase(config, store, previousResults, callbacks.outcome(), undefined, metricsSnapshot);
-      return {
-        status: 'completed',
-        summary: 'Retrospective complete',
-        artifacts: {
-          commit: null,
-          filesChanged: [],
-          testsPassed: null,
-          screenshotUrls: [],
-          evidenceMarkers: [],
-          prUrl: null,
-          prNumber: null,
-        },
-        error: null,
-      };
-    }
-
-    default:
-      throw new Error(`Unknown phase: ${node.phase}`);
-  }
-}
-
-function markCyclesCompleted(
-  graph: PipelineGraph,
-  profile: import('./types.js').PipelineProfile,
-  fromCycle: number,
-  toCycle: number,
-): void {
-  const phases = PROFILE_PHASES[profile];
-  // Scout runs only at cycle 0 and only once per pipeline. When the pending
-  // revision lives at cycle >= 1, scout has already completed.
-  if (fromCycle === 0 && phases.includes('scout')) {
-    const scoutNode = graph.nodes.get('scout_0');
-    if (scoutNode && scoutNode.state === 'pending') {
-      scoutNode.state = 'completed';
-      scoutNode.startedAt = new Date().toISOString();
-      scoutNode.completedAt = new Date().toISOString();
-    }
-  }
-  for (let c = fromCycle; c <= toCycle; c++) {
-    for (const phase of ['implement', 'verify', 'review']) {
-      if (phase === 'verify' && !phases.includes('verify')) continue;
-      const node = graph.nodes.get(`${phase}_${c}`);
-      if (node && node.state === 'pending') {
-        node.state = 'completed';
-        node.startedAt = new Date().toISOString();
-        node.completedAt = new Date().toISOString();
-      }
-    }
-  }
-}
-
-function seedGraphFromTaskStatus(
-  graph: PipelineGraph,
-  profile: import('./types.js').PipelineProfile,
-  status: import('./types.js').TaskStatus,
-): void {
-  const phaseOrder = ['implementing', 'verifying', 'reviewing', 'evaluating', 'closing'] as const;
-  const phaseToNode: Record<string, string> = {
-    implementing: 'implement_0',
-    verifying: 'verify_0',
-    reviewing: 'review_0',
-    evaluating: 'review_0',
-    closing: 'close',
-  };
-
-  // Scout has no dedicated TaskStatus — when we resume past `active`, the
-  // scout phase already ran (or was skipped because the profile didn't
-  // include it). Mark scout_0 completed so its outgoing edge to implement_0
-  // is satisfied during resume.
-  if (status !== 'active' && PROFILE_PHASES[profile].includes('scout')) {
-    const scoutNode = graph.nodes.get('scout_0');
-    if (scoutNode && scoutNode.state === 'pending') {
-      scoutNode.state = 'completed';
-      scoutNode.startedAt = new Date().toISOString();
-      scoutNode.completedAt = new Date().toISOString();
-    }
-  }
-
-  for (const phase of phaseOrder) {
-    if (phase === status) break;
-    const nodeId = phaseToNode[phase];
-    if (!nodeId) continue;
-    if (phase === 'verifying' && !PROFILE_PHASES[profile].includes('verify')) continue;
-    const node = graph.nodes.get(nodeId);
-    if (node && node.state === 'pending') {
-      node.state = 'completed';
-      node.startedAt = new Date().toISOString();
-      node.completedAt = new Date().toISOString();
-    }
-  }
-}
-
-function seedPendingRevision(graph: PipelineGraph, revision: RevisionRequest): void {
-  const sourceCycle = (revision.cycle ?? 1) - 1;
-  const sourcePhase = revision.source === 'reviewer' ? 'review' : 'verify';
-  const sourceNode = graph.nodes.get(`${sourcePhase}_${sourceCycle}`);
-  if (sourceNode) {
-    sourceNode.result = {
-      status: 'completed',
-      summary: revision.summary,
-      artifacts: {
-        commit: null,
-        filesChanged: revision.suggestedFocus,
-        testsPassed: null,
-        screenshotUrls: [],
-        evidenceMarkers: [],
-        prUrl: null,
-        prNumber: null,
-      },
-      rubric: {
-        role: revision.source === 'reviewer' ? 'reviewer' : 'verifier',
-        categories: revision.failedCategories,
-      },
-      error: null,
-    };
-  }
-}
-
-async function handleFailure(
-  notifier: Notifier,
-  config: PipelineConfig,
-  agent: AgentName,
-  result: AgentResult,
-  options: string[],
-): Promise<string> {
-  const errorMsg = result.error ?? result.summary ?? 'unknown error';
-  const prompt = `${agent} failed: ${errorMsg}`;
-  return notifier.askUser(prompt, options);
-}
+// Per-phase dispatch (scout/implement/verify/review/close/retrospective) lives
+// in `pipeline-dispatch.ts` so the LangGraph engine and the per-phase logic
+// share one seam. See `dispatchNode` / `PipelineCallbacks`.

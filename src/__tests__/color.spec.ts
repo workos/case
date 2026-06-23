@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { bold, color, cyan, dim, green, isColorEnabled, red, yellow } from '../render/color.js';
 
 const ESC = '\x1b[';
