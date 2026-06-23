@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTask } from '../entry/task-factory.js';
 import { decodeState, extractSpec, tdCurrent, tdShow } from '../state/td-client.js';
 import type { TaskCreateRequest } from '../types.js';

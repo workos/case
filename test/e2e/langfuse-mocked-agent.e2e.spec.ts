@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { createLangfuseTracer } from '../../src/tracing/langfuse.js';
 import { e2eEnabled, makeReadClient, pollTrace, byName, ofType } from './readback.js';
 import type { SpawnAgentOptions } from '../../src/types.js';
@@ -43,36 +43,49 @@ const AGENT_RESULT = `<<<AGENT_RESULT
 {"status":"completed","summary":"verified the change","rubric":{"role":"verifier","categories":[{"category":"reproduced-scenario","verdict":"pass","detail":"ran the repro"},{"category":"edge-case-checked","verdict":"fail","detail":"missed the null path"}]}}
 AGENT_RESULT>>>`;
 
-/** Mock pi Agent: replays the exact event shapes pi-adapter subscribes to. */
-class MockAgent {
-  private listeners: Array<(e: any, s: AbortSignal) => unknown> = [];
-  constructor(public opts: unknown) {}
-  subscribe(cb: (e: any, s: AbortSignal) => unknown): () => void {
-    this.listeners.push(cb);
-    return () => {};
-  }
-  async prompt(_input: string): Promise<void> {
-    const signal = new AbortController().signal;
-    for (const cb of this.listeners) {
-      await cb({ type: 'tool_execution_start', toolCallId: 't1', toolName: 'bash', args: { cmd: 'bun test' } }, signal);
-      await cb(
-        { type: 'tool_execution_end', toolCallId: 't1', toolName: 'bash', result: { exitCode: 0 }, isError: false },
-        signal,
-      );
-      await cb({ type: 'turn_end', message: TURN_MESSAGE, toolResults: [] }, signal);
-      await cb({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: AGENT_RESULT } }, signal);
+/**
+ * Mock pi Agent: replays the exact event shapes pi-adapter subscribes to.
+ * Hoisted so the vi.mock factory below can reference it. The class is a real
+ * `class` (not vi.fn) so `new MockAgent()` works under the Bun runtime.
+ */
+const { MockAgent } = vi.hoisted(() => {
+  class MockAgent {
+    private listeners: Array<(e: any, s: AbortSignal) => unknown> = [];
+    constructor(public opts: unknown) {}
+    subscribe(cb: (e: any, s: AbortSignal) => unknown): () => void {
+      this.listeners.push(cb);
+      return () => {};
     }
+    async prompt(_input: string): Promise<void> {
+      const signal = new AbortController().signal;
+      for (const cb of this.listeners) {
+        await cb(
+          { type: 'tool_execution_start', toolCallId: 't1', toolName: 'bash', args: { cmd: 'bun test' } },
+          signal,
+        );
+        await cb(
+          { type: 'tool_execution_end', toolCallId: 't1', toolName: 'bash', result: { exitCode: 0 }, isError: false },
+          signal,
+        );
+        await cb({ type: 'turn_end', message: TURN_MESSAGE, toolResults: [] }, signal);
+        await cb(
+          { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: AGENT_RESULT } },
+          signal,
+        );
+      }
+    }
+    abort(): void {}
   }
-  abort(): void {}
-}
+  return { MockAgent };
+});
 
 // Mock only the two boundaries the adapter would otherwise hit for real:
 //   - the pi Agent (no LLM / network)
 //   - the system-prompt loader (no package-asset disk read)
 // ModelRegistry/tool creators stay REAL: registry.find('anthropic','claude-sonnet-4-6')
 // resolves offline against static metadata; tool constructors are pure.
-mock.module('@mariozechner/pi-agent-core', () => ({ Agent: MockAgent }));
-mock.module('../../src/agent/prompt-loader.js', () => ({ loadSystemPrompt: async () => '' }));
+vi.mock('@mariozechner/pi-agent-core', () => ({ Agent: MockAgent }));
+vi.mock('../../src/agent/prompt-loader.js', () => ({ loadSystemPrompt: async () => '' }));
 
 const { PiRuntimeAdapter } = await import('../../src/agent/adapters/pi-adapter.js');
 

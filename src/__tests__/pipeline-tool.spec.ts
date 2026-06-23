@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
  * Pipeline tool tests.
@@ -7,11 +7,13 @@ import { describe, it, expect, mock, beforeEach } from 'bun:test';
  * progress streaming, error propagation. The actual pipeline is mocked.
  */
 
-const mockRunPipeline = mock();
-const mockBuildPipelineConfig = mock();
+const { mockRunPipeline, mockBuildPipelineConfig } = vi.hoisted(() => ({
+  mockRunPipeline: vi.fn(),
+  mockBuildPipelineConfig: vi.fn(),
+}));
 
-mock.module('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
-mock.module('../config.js', () => ({ buildPipelineConfig: mockBuildPipelineConfig }));
+vi.mock('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
+vi.mock('../config.js', () => ({ buildPipelineConfig: mockBuildPipelineConfig }));
 
 const { createPipelineTool } = await import('../agent/tools/pipeline-tool.js');
 
@@ -94,7 +96,7 @@ describe('createPipelineTool', () => {
 
   it('streams progress via onUpdate when heartbeat fires', async () => {
     const updates: unknown[] = [];
-    const onUpdate = mock((update: unknown) => updates.push(update));
+    const onUpdate = vi.fn((update: unknown) => updates.push(update));
 
     // Make runPipeline trigger the heartbeat callback
     mockRunPipeline.mockImplementation(async (config: any) => {

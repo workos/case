@@ -10,7 +10,10 @@
  * Write/Edit is what makes a role read-only — identical to the pi adapter.
  */
 import { tool } from '@langchain/core/tools';
-import { z } from 'zod';
+// Namespace import: Vitest's module resolver mishandles zod v4's export map and
+// yields `undefined` for the named `z` binding. `import * as z` is robust under
+// both the Bun runtime and the Vite/Vitest transform.
+import * as z from 'zod';
 import { exec } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';

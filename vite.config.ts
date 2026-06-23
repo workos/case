@@ -42,6 +42,19 @@ export default defineConfig({
     },
   },
   plugins: [bunTextImportPlugin()],
+  test: {
+    globals: true,
+    environment: 'node',
+    // Workers run under Bun (forks spawn via process.execPath = bun), giving
+    // specs a native `Bun` global. `threads` is unreliable under Bun — keep forks.
+    pool: 'forks',
+    include: ['src/__tests__/**/*.spec.ts', 'test/e2e/**/*.e2e.spec.ts'],
+    setupFiles: ['./src/__tests__/setup-mocks.ts'],
+    restoreMocks: true,
+    // `bun:*` builtins (bun:sqlite, etc.) aren't resolvable by Vite's bundler.
+    // Externalize them so the Bun worker resolves them natively at runtime.
+    server: { deps: { external: [/^bun:/] } },
+  },
   build: {
     target: 'node22',
     outDir: 'dist',

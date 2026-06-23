@@ -1,5 +1,5 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
-import { mockSpawnAgent, mockRunCommand } from './mocks.js';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
+import { mockSpawnAgent, mockRunCommand } from './setup-mocks.js';
 import type { AgentResult, PipelineConfig } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -31,7 +31,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
 
 function makeMockStore() {
   return {
-    read: mock(() =>
+    read: vi.fn(() =>
       Promise.resolve({
         id: 'cli-1',
         status: 'active',
@@ -44,10 +44,10 @@ function makeMockStore() {
         prNumber: null,
       }),
     ),
-    readStatus: mock(() => Promise.resolve('active')),
-    setStatus: mock(() => Promise.resolve(undefined)),
-    setAgentPhase: mock(() => Promise.resolve(undefined)),
-    setField: mock(() => Promise.resolve(undefined)),
+    readStatus: vi.fn(() => Promise.resolve('active')),
+    setStatus: vi.fn(() => Promise.resolve(undefined)),
+    setAgentPhase: vi.fn(() => Promise.resolve(undefined)),
+    setField: vi.fn(() => Promise.resolve(undefined)),
   };
 }
 

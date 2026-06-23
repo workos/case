@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { phaseStatus } from '../langgraph/engine.js';
 import type { CaseGraphStateType, LastPhase } from '../langgraph/state.js';
 

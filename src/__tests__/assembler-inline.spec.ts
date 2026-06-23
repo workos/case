@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { assemblePrompt } from '../context/assembler.js';
 import type { PipelineConfig, TaskJson } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';

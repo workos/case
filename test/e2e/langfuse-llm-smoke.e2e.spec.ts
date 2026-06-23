@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { ProviderRoutingRuntime } from '../../src/agent/adapters/provider-routing-runtime.js';
 import { createLangfuseTracer } from '../../src/tracing/langfuse.js';
 import { llmE2eEnabled, makeReadClient, pollTrace, ofType } from './readback.js';

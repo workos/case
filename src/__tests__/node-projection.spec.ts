@@ -1,4 +1,4 @@
-import { describe, test, expect, afterAll, beforeEach, mock } from 'bun:test';
+import { describe, test, expect, afterAll, beforeEach, vi } from 'vitest';
 import { mkdir, rm, readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { projectNodeState } from '../langgraph/projection.js';
@@ -44,7 +44,7 @@ function makeState(overrides: Partial<PipelineState> = {}): PipelineState {
 }
 
 function makeStore() {
-  const writeFromProjection = mock(() => Promise.resolve(undefined));
+  const writeFromProjection = vi.fn(() => Promise.resolve(undefined));
   return { store: { writeFromProjection } as unknown as TaskStore, writeFromProjection };
 }
 

@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { mergeRevisionRequests } from '../dag/merge.js';
 import type { RevisionRequest } from '../types.js';
 

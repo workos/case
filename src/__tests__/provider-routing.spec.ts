@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * ProviderRoutingRuntime + routing-helper tests.
@@ -9,26 +9,30 @@ import { describe, it, expect, mock, beforeEach, afterEach } from 'bun:test';
  */
 
 // Mock the three backends BEFORE importing the router. Each spawn echoes its
-// backend name in `raw` so the test can read the routing decision.
-function fakeRuntime(name: string) {
-  return class {
-    async spawn() {
-      return { raw: name, result: { status: 'completed' }, durationMs: 0 };
-    }
-    createTools() {
-      return [name];
-    }
-    abort() {}
-  };
-}
+// backend name in `raw` so the test can read the routing decision. `fakeRuntime`
+// is created inside vi.hoisted so the hoisted vi.mock factories can reference it.
+const { fakeRuntime } = vi.hoisted(() => {
+  function fakeRuntime(name: string) {
+    return class {
+      async spawn() {
+        return { raw: name, result: { status: 'completed' }, durationMs: 0 };
+      }
+      createTools() {
+        return [name];
+      }
+      abort() {}
+    };
+  }
+  return { fakeRuntime };
+});
 
-mock.module('../agent/adapters/claude-agent-sdk-adapter.js', () => ({
+vi.mock('../agent/adapters/claude-agent-sdk-adapter.js', () => ({
   ClaudeAgentSdkRuntime: fakeRuntime('sdk'),
 }));
-mock.module('../agent/adapters/langchain-adapter.js', () => ({
+vi.mock('../agent/adapters/langchain-adapter.js', () => ({
   LangChainRuntime: fakeRuntime('langchain'),
 }));
-mock.module('../agent/adapters/pi-adapter.js', () => ({
+vi.mock('../agent/adapters/pi-adapter.js', () => ({
   PiRuntimeAdapter: fakeRuntime('pi'),
 }));
 
@@ -62,9 +66,7 @@ describe('isClaudeModel', () => {
     expect(isClaudeModel({ provider: 'google', model: 'gemini-1.5-pro' })).toBe(false);
   });
   it('routes OpenRouter to LangChain even for Claude-id models', () => {
-    expect(isClaudeModel({ provider: 'openrouter', model: 'anthropic/claude-3.5-sonnet' })).toBe(
-      false,
-    );
+    expect(isClaudeModel({ provider: 'openrouter', model: 'anthropic/claude-3.5-sonnet' })).toBe(false);
     expect(isClaudeModel({ provider: 'openrouter', model: 'google/gemini-2.5-pro' })).toBe(false);
   });
 });

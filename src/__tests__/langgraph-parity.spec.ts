@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import {
   mockSpawnAgent,
   mockRunCommand,
@@ -7,7 +7,7 @@ import {
   mockFindPriorRunId,
   mockGatherSessionContext,
   mockAnalyzeFailure,
-} from './mocks.js';
+} from './setup-mocks.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,22 +23,35 @@ import { join } from 'node:path';
  */
 
 // --- Pipeline-specific mocks (mirror pipeline.spec) ---
-const mockStoreRead = mock();
-const mockStoreSetPendingRevision = mock();
-const mockStoreWriteFromProjection = mock();
-const MockTaskStore = mock(() => ({
-  read: mockStoreRead,
-  readStatus: mock(() => Promise.resolve('active')),
-  setStatus: mock(() => Promise.resolve(undefined)),
-  setAgentPhase: mock(() => Promise.resolve(undefined)),
-  setField: mock(() => Promise.resolve(undefined)),
-  setPendingRevision: mockStoreSetPendingRevision,
-  writeFromProjection: mockStoreWriteFromProjection,
-}));
+// Created inside vi.hoisted so the hoisted vi.mock factories below reference them.
+const { mockStoreRead, mockStoreSetPendingRevision, MockTaskStore, mockCreateNotifier } = vi.hoisted(() => {
+  const mockStoreRead = vi.fn();
+  const mockStoreSetPendingRevision = vi.fn();
+  const mockStoreWriteFromProjection = vi.fn();
+  // Constructor mock must be a real class: under Bun runtime, `new vi.fn()`
+  // throws "Reflect.construct requires the first argument be a constructor".
+  class MockTaskStore {
+    read = mockStoreRead;
+    readStatus = vi.fn(() => Promise.resolve('active'));
+    setStatus = vi.fn(() => Promise.resolve(undefined));
+    setAgentPhase = vi.fn(() => Promise.resolve(undefined));
+    setField = vi.fn(() => Promise.resolve(undefined));
+    setPendingRevision = mockStoreSetPendingRevision;
+    writeFromProjection = mockStoreWriteFromProjection;
+  }
+  const mockCreateNotifier = vi.fn();
+  return {
+    mockStoreRead,
+    mockStoreSetPendingRevision,
+    mockStoreWriteFromProjection,
+    MockTaskStore,
+    mockCreateNotifier,
+  };
+});
 
-mock.module('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
-mock.module('../notify.js', () => ({
-  createNotifier: mock(),
+vi.mock('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
+vi.mock('../notify.js', () => ({
+  createNotifier: mockCreateNotifier,
   formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
   defaultAskUser: async (_mode: unknown, _prompt: string, options: string[]) => options[options.length - 1],
 }));
@@ -65,17 +78,17 @@ const mockRuntime = {
 /** A notifier that records the (phase, outcome) of every phaseEnd. */
 function capturingNotifier(seq: string[]) {
   return {
-    send: mock(),
-    askUser: mock(async (_p: string, options: string[]) => options[options.length - 1]),
-    phaseStart: mock(),
-    phaseEnd: mock((phase: string, _agent: string, _elapsed: number, outcome: string) => {
+    send: vi.fn(),
+    askUser: vi.fn(async (_p: string, options: string[]) => options[options.length - 1]),
+    phaseStart: vi.fn(),
+    phaseEnd: vi.fn((phase: string, _agent: string, _elapsed: number, outcome: string) => {
       seq.push(`${phase}:${outcome}`);
     }),
-    toolStart: mock(),
-    toolEnd: mock(),
-    stepIndicator: mock(),
-    startHeartbeat: mock(),
-    stopHeartbeat: mock(),
+    toolStart: vi.fn(),
+    toolEnd: vi.fn(),
+    stepIndicator: vi.fn(),
+    startHeartbeat: vi.fn(),
+    stopHeartbeat: vi.fn(),
   };
 }
 

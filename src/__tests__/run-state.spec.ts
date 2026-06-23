@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { RunState } from '../state/run-state.js';
 import type { PlanArtifact } from '../events/plan.js';
 

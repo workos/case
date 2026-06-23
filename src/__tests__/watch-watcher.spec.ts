@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import type { Langfuse } from 'langfuse';
 import { watchTrace, type WatchRecord, type WatchOptions } from '../watch/watcher.js';
 import type { Observation, TraceDetails } from '../tracing/readback.js';

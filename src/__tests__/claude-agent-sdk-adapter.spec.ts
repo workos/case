@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -14,34 +14,44 @@ import { join } from 'node:path';
 
 const RESULT_BLOCK = '<<<AGENT_RESULT {"status":"completed","summary":"done"} AGENT_RESULT>>>';
 
-const scripted = [
-  { type: 'assistant', message: { content: [{ type: 'text', text: 'working ' }] } },
-  {
-    type: 'assistant',
-    message: { content: [{ type: 'tool_use', id: 't1', name: 'read', input: { path: 'x.ts' } }] },
-  },
-  {
-    type: 'user',
-    message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'file body', is_error: false }] },
-  },
-  {
-    type: 'result',
-    subtype: 'success',
-    result: RESULT_BLOCK,
-    total_cost_usd: 0.0012,
-    usage: {
-      input_tokens: 10,
-      output_tokens: 5,
-      cache_read_input_tokens: 2,
-      cache_creation_input_tokens: 1,
-    },
-  },
-];
+// The vi.mock factory below is hoisted above module-level consts, so the
+// scripted stream and the captured-options holder it references must live in
+// vi.hoisted (RESULT_BLOCK is inlined into the scripted result frame there).
+const { scripted, captured } = vi.hoisted(() => {
+  const RESULT = '<<<AGENT_RESULT {"status":"completed","summary":"done"} AGENT_RESULT>>>';
+  return {
+    scripted: [
+      { type: 'assistant', message: { content: [{ type: 'text', text: 'working ' }] } },
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 't1', name: 'read', input: { path: 'x.ts' } }] },
+      },
+      {
+        type: 'user',
+        message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'file body', is_error: false }] },
+      },
+      {
+        type: 'result',
+        subtype: 'success',
+        result: RESULT,
+        total_cost_usd: 0.0012,
+        usage: {
+          input_tokens: 10,
+          output_tokens: 5,
+          cache_read_input_tokens: 2,
+          cache_creation_input_tokens: 1,
+        },
+      },
+    ],
+    // Holder object so the factory can stash the captured options across the
+    // hoist boundary (a plain `let` can't be referenced from the hoisted factory).
+    captured: { options: null as unknown },
+  };
+});
 
-let capturedOptions: unknown = null;
-mock.module('@anthropic-ai/claude-agent-sdk', () => ({
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: ({ options }: { options: unknown }) => {
-    capturedOptions = options;
+    captured.options = options;
     return (async function* () {
       for (const m of scripted) yield m;
     })();
@@ -124,7 +134,7 @@ describe('ClaudeAgentSdkRuntime.spawn (mocked query)', () => {
 
   it('enforces read-only tool policy for scout (no Write/Edit)', async () => {
     await new ClaudeAgentSdkRuntime().spawn(baseOpts({}));
-    const opts = capturedOptions as { allowedTools: string[]; disallowedTools: string[]; permissionMode: string };
+    const opts = captured.options as { allowedTools: string[]; disallowedTools: string[]; permissionMode: string };
     expect(opts.allowedTools).not.toContain('Write');
     expect(opts.allowedTools).not.toContain('Edit');
     expect(opts.disallowedTools).toEqual(['Write', 'Edit']);

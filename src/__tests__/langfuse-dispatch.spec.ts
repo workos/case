@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createLangfuseTracer } from '../tracing/langfuse.js';
 import type { Rubric } from '../types.js';
 

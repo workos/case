@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { MemorySaver } from '@langchain/langgraph-checkpoint';
 import { executeLangGraph, type DispatchFn } from '../langgraph/engine.js';
 import type { AgentResult, RevisionRequest } from '../types.js';

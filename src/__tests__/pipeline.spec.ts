@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import {
   mockSpawnAgent,
   mockRunCommand,
@@ -7,47 +7,77 @@ import {
   mockFindPriorRunId,
   mockGatherSessionContext,
   mockAnalyzeFailure,
-} from './mocks.js';
+} from './setup-mocks.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-// Pipeline-specific mocks (not shared — only pipeline uses these)
-const mockStoreRead = mock();
-const mockStoreReadStatus = mock();
-const mockStoreSetStatus = mock();
-const mockStoreSetAgentPhase = mock();
-const mockStoreSetField = mock();
-const mockStoreSetPendingRevision = mock();
-const mockStoreWriteFromProjection = mock();
-const MockTaskStore = mock(() => ({
-  read: mockStoreRead,
-  readStatus: mockStoreReadStatus,
-  setStatus: mockStoreSetStatus,
-  setAgentPhase: mockStoreSetAgentPhase,
-  setField: mockStoreSetField,
-  setPendingRevision: mockStoreSetPendingRevision,
-  writeFromProjection: mockStoreWriteFromProjection,
-}));
+// Pipeline-specific mocks (not shared — only pipeline uses these). Created inside
+// vi.hoisted so the hoisted vi.mock factories below can reference them.
+const {
+  mockStoreRead,
+  mockStoreReadStatus,
+  mockStoreSetStatus,
+  mockStoreSetAgentPhase,
+  mockStoreSetField,
+  mockStoreSetPendingRevision,
+  MockTaskStore,
+  mockNotifierSend,
+  mockNotifierAskUser,
+  mockCreateNotifier,
+} = vi.hoisted(() => {
+  const mockStoreRead = vi.fn();
+  const mockStoreReadStatus = vi.fn();
+  const mockStoreSetStatus = vi.fn();
+  const mockStoreSetAgentPhase = vi.fn();
+  const mockStoreSetField = vi.fn();
+  const mockStoreSetPendingRevision = vi.fn();
+  const mockStoreWriteFromProjection = vi.fn();
+  // Constructor mock must be a real class: under the Bun runtime, `new vi.fn()`
+  // throws "Reflect.construct requires the first argument be a constructor".
+  class MockTaskStore {
+    read = mockStoreRead;
+    readStatus = mockStoreReadStatus;
+    setStatus = mockStoreSetStatus;
+    setAgentPhase = mockStoreSetAgentPhase;
+    setField = mockStoreSetField;
+    setPendingRevision = mockStoreSetPendingRevision;
+    writeFromProjection = mockStoreWriteFromProjection;
+  }
+  const mockNotifierSend = vi.fn();
+  const mockNotifierAskUser = vi.fn();
+  const mockNotifierPhaseStart = vi.fn();
+  const mockNotifierPhaseEnd = vi.fn();
+  const mockCreateNotifier = vi.fn(() => ({
+    send: mockNotifierSend,
+    askUser: mockNotifierAskUser,
+    phaseStart: mockNotifierPhaseStart,
+    phaseEnd: mockNotifierPhaseEnd,
+    toolStart: vi.fn(),
+    toolEnd: vi.fn(),
+    stepIndicator: vi.fn(),
+    startHeartbeat: vi.fn(),
+    stopHeartbeat: vi.fn(),
+  }));
+  return {
+    mockStoreRead,
+    mockStoreReadStatus,
+    mockStoreSetStatus,
+    mockStoreSetAgentPhase,
+    mockStoreSetField,
+    mockStoreSetPendingRevision,
+    mockStoreWriteFromProjection,
+    MockTaskStore,
+    mockNotifierSend,
+    mockNotifierAskUser,
+    mockNotifierPhaseStart,
+    mockNotifierPhaseEnd,
+    mockCreateNotifier,
+  };
+});
 
-const mockNotifierSend = mock();
-const mockNotifierAskUser = mock();
-const mockNotifierPhaseStart = mock();
-const mockNotifierPhaseEnd = mock();
-const mockCreateNotifier = mock(() => ({
-  send: mockNotifierSend,
-  askUser: mockNotifierAskUser,
-  phaseStart: mockNotifierPhaseStart,
-  phaseEnd: mockNotifierPhaseEnd,
-  toolStart: mock(),
-  toolEnd: mock(),
-  stepIndicator: mock(),
-  startHeartbeat: mock(),
-  stopHeartbeat: mock(),
-}));
-
-mock.module('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
-mock.module('../notify.js', () => ({
+vi.mock('../state/task-store.js', () => ({ TaskStore: MockTaskStore }));
+vi.mock('../notify.js', () => ({
   createNotifier: mockCreateNotifier,
   formatDuration: (ms: number) => `${Math.floor(ms / 1000)}s`,
   defaultAskUser: async (_mode: any, _prompt: string, options: string[]) => options[options.length - 1],

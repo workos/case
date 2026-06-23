@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { findTaskByIssue, findTaskByMarker } from '../entry/task-scanner.js';
 import { createTdTask, makeTempRepo } from './helpers/td-task.js';
 
