@@ -94,7 +94,9 @@ vi.mock('@mariozechner/pi-coding-agent', () => ({
       },
     }),
   },
-  getAgentDir: () => '/tmp/pi-agent',
+  // Mirror real getAgentDir (honors PI_CODING_AGENT_DIR) so this global mock,
+  // which bun leaks across files, doesn't break specs that rely on the env.
+  getAgentDir: () => process.env.PI_CODING_AGENT_DIR ?? '/tmp/pi-agent',
   createReadTool: () => ({ name: 'read' }),
   createWriteTool: () => ({ name: 'write' }),
   createEditTool: () => ({ name: 'edit' }),

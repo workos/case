@@ -40,6 +40,7 @@ import type {
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
+import { isolatePiRuntime, piExtensionsDisabled } from '../agent/pi-isolation.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
 import { parseInterviewFindings } from './findings.js';
@@ -86,23 +87,10 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
     process.env.CASE_QUIET = '1';
   }
 
-  // Run pi fully isolated — no global settings, extensions, packages,
-  // statusline, or theme from the user's ~/.pi/agent. Just auth (needed
-  // for model access). PI_CODING_AGENT_DIR controls where pi reads
-  // config; pointing it at a temp dir gives us a clean slate.
-  const realAgentDir = getAgentDir();
-  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-interview-pi-${process.pid}`;
-  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
-  process.env.PI_SKIP_VERSION_CHECK = '1';
-
-  // Symlink auth.json so model credentials are available in isolation.
-  const { mkdirSync, symlinkSync, existsSync } = await import('node:fs');
-  mkdirSync(isolatedAgentDir, { recursive: true });
-  const realAuth = `${realAgentDir}/auth.json`;
-  const isolatedAuth = `${isolatedAgentDir}/auth.json`;
-  if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
-    symlinkSync(realAuth, isolatedAuth);
-  }
+  // Run pi isolated — no global extensions, statusline, or theme from the
+  // user's ~/.pi/agent. Auth + provider config (settings.json, npm packages)
+  // is preserved so model credentials still resolve.
+  isolatePiRuntime('interview');
 
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
@@ -140,6 +128,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
       settingsManager: sm,
       appendSystemPrompt: [systemPrompt],
       additionalExtensionPaths: [askUserQuestionPath],
+      noExtensions: piExtensionsDisabled(),
     });
     await rl.reload();
 
