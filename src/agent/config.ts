@@ -76,6 +76,17 @@ export function isClaudeModel(m: { provider?: string; model?: string }): boolean
 }
 
 /**
+ * Routing classifier: does this model run on the GitHub Copilot SDK runtime?
+ * True only for the explicit `copilot` provider — Copilot fronts both GPT and
+ * Claude model ids, so a model-name heuristic would collide with the other two
+ * backends. Must be checked BEFORE {@link isClaudeModel}: a Copilot session
+ * running `claude-*` would otherwise misroute to the Claude Agent SDK.
+ */
+export function isCopilotProvider(m: { provider?: string }): boolean {
+  return m.provider?.toLowerCase() === 'copilot';
+}
+
+/**
  * Per-agent workspace policy. `mutable` agents may write/edit the working tree;
  * everyone else is read-only (Read + Bash exploration, no Write/Edit). Single
  * source of truth so all three runtimes expose identical tool surfaces per role.

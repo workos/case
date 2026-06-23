@@ -80,17 +80,25 @@ The default runtime is `ProviderRoutingRuntime`
 Per spawn it resolves the effective `{provider, model}` and dispatches to the
 matching backend — routing is driven entirely by the model, no separate knob:
 
-| Model                        | Backend                 | Why                                 |
+| Model / provider             | Backend                 | Why                                 |
 | ---------------------------- | ----------------------- | ----------------------------------- |
+| provider `copilot`           | `CopilotSdkRuntime`     | GitHub Copilot subscription         |
 | Claude (Anthropic)           | `ClaudeAgentSdkRuntime` | Subscription/OAuth — resource win   |
 | OpenAI / Google / OpenRouter | `LangChainRuntime`      | `createReactAgent` + provider model |
 
-`isClaudeModel` ([`src/agent/config.ts`](../../src/agent/config.ts)) classifies:
-`provider === 'anthropic'` → SDK; `provider === 'openrouter'` → LangChain (bills
-per-token even when fronting Claude); otherwise the model id is matched against
-`/claude|opus|sonnet|haiku/i`. Backends are constructed lazily.
+Classification lives in [`src/agent/config.ts`](../../src/agent/config.ts).
+`isCopilotProvider` is checked **first** (`provider === 'copilot'`): the Copilot
+SDK is agentic — it drives the bundled Copilot CLI against the user's Copilot
+subscription and owns its own tools, like the Claude Agent SDK — and Copilot
+fronts both GPT and Claude model ids, so it must route by explicit provider
+before `isClaudeModel` can capture a `copilot`/`claude-*` pairing. `isClaudeModel`
+then classifies: `provider === 'anthropic'` → SDK; `provider === 'openrouter'` →
+LangChain (bills per-token even when fronting Claude); otherwise the model id is
+matched against `/claude|opus|sonnet|haiku/i`. Backends are constructed lazily.
+Copilot's read-only/mutable tool policy is enforced via the SDK's
+`onPermissionRequest` callback (read-only roles reject `write` requests).
 
-**Override:** `CASE_AGENT_RUNTIME=pi|sdk|langchain` forces one backend (debugging
+**Override:** `CASE_AGENT_RUNTIME=pi|sdk|langchain|copilot` forces one backend (debugging
 / single-backend runs). The `pi` adapter (`@mariozechner/pi-*`) is **deprecated**
 — retained only for the interactive steering orchestrator (`ca --agent`).
 
@@ -138,4 +146,5 @@ unaffected.
 | Failure matrix      | `src/dag/outcome-table.ts` / `docs/failure-matrix.md` |
 | Provider routing    | `src/agent/adapters/provider-routing-runtime.ts`      |
 | Runtime adapters    | `src/agent/adapters/*-adapter.ts`                     |
+| Copilot runtime     | `src/agent/adapters/copilot-sdk-adapter.ts`           |
 | Model resolution    | `src/agent/config.ts`                                 |
