@@ -37,7 +37,8 @@ import type {
   CreateAgentSessionRuntimeResult,
   ToolDefinition,
 } from '@mariozechner/pi-coding-agent';
-import { basename, resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
@@ -91,13 +92,16 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   // for model access). PI_CODING_AGENT_DIR controls where pi reads
   // config; pointing it at a temp dir gives us a clean slate.
   const realAgentDir = getAgentDir();
-  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-interview-pi-${process.pid}`;
+  // Create the isolated pi config dir with an unpredictable name and 0700
+  // permissions. mkdtempSync atomically creates a fresh, exclusively-owned
+  // directory, so a co-resident local user cannot pre-create it to plant
+  // malicious config or extensions that would run in this process.
+  const { mkdtempSync, symlinkSync, existsSync } = await import('node:fs');
+  const isolatedAgentDir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'case-interview-pi-'));
   process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
   process.env.PI_SKIP_VERSION_CHECK = '1';
 
   // Symlink auth.json so model credentials are available in isolation.
-  const { mkdirSync, symlinkSync, existsSync } = await import('node:fs');
-  mkdirSync(isolatedAgentDir, { recursive: true });
   const realAuth = `${realAgentDir}/auth.json`;
   const isolatedAuth = `${isolatedAgentDir}/auth.json`;
   if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
@@ -234,8 +238,7 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   const captured = winner;
   if (!captured.includes(AGENT_RESULT_END)) {
     process.stderr.write(
-      `\nInterview did not produce an AGENT_RESULT block.\n` +
-        `Falling back to mechanical-only onboarding.\n`,
+      `\nInterview did not produce an AGENT_RESULT block.\n` + `Falling back to mechanical-only onboarding.\n`,
     );
     return null;
   }
