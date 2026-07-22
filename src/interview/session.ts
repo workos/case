@@ -96,8 +96,10 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   // permissions. mkdtempSync atomically creates a fresh, exclusively-owned
   // directory, so a co-resident local user cannot pre-create it to plant
   // malicious config or extensions that would run in this process.
-  const { mkdtempSync, symlinkSync, existsSync } = await import('node:fs');
-  const isolatedAgentDir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'case-interview-pi-'));
+  const { mkdirSync, mkdtempSync, symlinkSync, existsSync } = await import('node:fs');
+  const tmpBase = process.env.TMPDIR ?? tmpdir();
+  mkdirSync(tmpBase, { recursive: true });
+  const isolatedAgentDir = mkdtempSync(join(tmpBase, 'case-interview-pi-'));
   process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
   process.env.PI_SKIP_VERSION_CHECK = '1';
 

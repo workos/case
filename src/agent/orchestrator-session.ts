@@ -12,7 +12,7 @@ import {
 import type { ExtensionAPI, ToolDefinition, CreateAgentSessionRuntimeResult } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
 import { basename, join } from 'node:path';
-import { mkdtempSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { getModelForAgent } from './config.js';
 import { detectRepo } from '../entry/repo-detector.js';
@@ -44,7 +44,9 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
   // permissions. mkdtempSync atomically creates a fresh, exclusively-owned
   // directory, so a co-resident local user cannot pre-create it to plant
   // malicious config or extensions that would run in this process.
-  const isolatedAgentDir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), 'case-orchestrator-pi-'));
+  const tmpBase = process.env.TMPDIR ?? tmpdir();
+  mkdirSync(tmpBase, { recursive: true });
+  const isolatedAgentDir = mkdtempSync(join(tmpBase, 'case-orchestrator-pi-'));
   process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
   process.env.PI_SKIP_VERSION_CHECK = '1';
 
