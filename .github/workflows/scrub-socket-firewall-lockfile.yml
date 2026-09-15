@@ -1,0 +1,19 @@
+name: Repair lockfile registry URLs
+
+on:
+  pull_request:
+    paths: [bun.lock]
+
+permissions: {}
+
+jobs:
+  repair:
+    name: Repair bun.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # Reads the PR head through GitHub's API; no checkout or install is needed.
+      - name: Repair Socket Firewall URLs
+        uses: workos/setup-socket-firewall/lockfile-scrub@195977cfa38ab4d70363af5403a106dbc54a61eb # v1
