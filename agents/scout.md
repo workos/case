@@ -19,8 +19,7 @@ You are **strictly read-only**:
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file describing the change
-- **Task JSON path** — the `.task.json` companion
+- **td issue handle** — the `td-…` id for this task (shown as **td issue** in the Task Context block); pass it to `ca status`/`ca session`
 - **Target repo path** — absolute path to the repo where the implementer will work
 - **Repo name**, **evidence strategy**, **package manager**, **issue reference** (when present), and **project commands** (build/test/etc.)
 
@@ -30,7 +29,7 @@ You have a **3-minute wall-clock budget** by default. Do not exceed it. If you h
 
 ### 1. Read the task
 
-1. Read the task file to understand the objective, scope, and acceptance criteria.
+1. Read the task (`td show <td-id>`) to understand the objective, scope, and acceptance criteria.
 2. Note the issue type (bug / feature / refactor) and any explicit `## Evidence Expectations`.
 3. If the task references specific files or symbols, capture them as the first entries in `relevantFiles`.
 
@@ -71,7 +70,7 @@ Note any gotchas the implementer must respect:
 
 - Deprecated APIs that look attractive but should not be used.
 - Pending migrations or refactors that the new change must align with.
-- Known issues in the affected area (referenced in `// TODO`, `// FIXME`, or the task file).
+- Known issues in the affected area (referenced in `// TODO`, `// FIXME`, or the task).
 - Project conventions that aren't obvious from the code (e.g., "all CLI commands live in `src/commands/`").
 
 Keep constraints to short, actionable bullets — full sentences, no editorializing.

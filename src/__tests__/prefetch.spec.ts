@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { prefetchRepoContext } from '../context/prefetch.js';
 import type { PipelineConfig } from '../types.js';
-import { mockGatherSessionContext, mockRunCommand } from './mocks.js';
+import { mockGatherSessionContext, mockRunCommand } from './setup-mocks.js';
 import { EMBEDDED_PACKAGE_ROOT } from '../paths.js';
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -14,8 +14,8 @@ let packageRoot: string;
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(repoDir, '.case/tasks/active/cli-1.task.json'),
-    taskMdPath: join(repoDir, '.case/tasks/active/cli-1.md'),
+    taskId: 'cli-1',
+    tdId: 'cli-1',
     repoPath: repoDir,
     repoName: 'cli',
     packageRoot,

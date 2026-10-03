@@ -24,3 +24,14 @@ dist/
 
 # bun artifacts
 *.bun-build
+.todos/
+
+# Local secrets for podman-compose (use .env.example as the template)
+.env
+.sidecar/
+.sidecar-agent
+.sidecar-task
+.sidecar-pr
+.sidecar-start.sh
+.sidecar-base
+.td-root

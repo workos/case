@@ -1,8 +1,6 @@
 import { parseArgs } from 'node:util';
-import { resolvePackageRoot } from '../paths.js';
-import { detectRepo } from '../entry/repo-detector.js';
 
-export const description = 'Live-tail a task event log';
+export const description = 'Live-tail a task run from its Langfuse trace';
 
 export async function handler(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -10,6 +8,7 @@ export async function handler(argv: string[]): Promise<number> {
     options: {
       raw: { type: 'boolean' },
       'no-color': { type: 'boolean' },
+      run: { type: 'string' },
     },
     allowPositionals: true,
     strict: false,
@@ -27,19 +26,21 @@ export async function handler(argv: string[]): Promise<number> {
     process.env.NO_COLOR = '1';
   }
 
-  const caseRoot = resolvePackageRoot();
-  let stateRoot = process.cwd();
-  try {
-    stateRoot = (await detectRepo(caseRoot)).path;
-  } catch {
-    // Allow explicit use from a repo-like directory or tests that pass a temp root.
-  }
-  const { watchEventLog } = await import('../watch/watcher.js');
+  const { watchTrace, WatchKeysMissingError } = await import('../watch/watcher.js');
   const { renderWatchEvent } = await import('../watch/renderer.js');
   const format = values.raw ? ('raw' as const) : ('structured' as const);
+  const runId = typeof values.run === 'string' ? values.run : undefined;
 
-  for await (const event of watchEventLog({ taskSlug, caseRoot: stateRoot, format })) {
-    process.stdout.write(renderWatchEvent(event) + '\n');
+  try {
+    for await (const record of watchTrace({ taskSlug, runId, format })) {
+      process.stdout.write(renderWatchEvent(record) + '\n');
+    }
+  } catch (err) {
+    if (err instanceof WatchKeysMissingError) {
+      process.stderr.write(`Error: ${err.message}\n`);
+      return 1;
+    }
+    throw err;
   }
 
   return 0;

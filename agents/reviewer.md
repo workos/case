@@ -12,8 +12,7 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
-- **Task JSON path** — the `.task.json` companion
+- **td issue handle** — the `td-…` id for this task (shown as **td issue** in the Task Context block); pass it to `ca status`/`ca session`
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
 ## Workflow
@@ -23,21 +22,21 @@ You receive from the orchestrator:
 Run the session command to orient yourself:
 
 ```bash
-SESSION=$(ca session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <td-id>)
 echo "$SESSION"
 ```
 
-Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task discovery.
 
 ### 1. Gather Context
 
-1. Update task JSON:
+1. Update the task:
    ```bash
-   ca status <task.json> status reviewing
-   ca status <task.json> agent reviewer status running
-   ca status <task.json> agent reviewer started now
+   ca status <td-id> status reviewing
+   ca status <td-id> agent reviewer status running
+   ca status <td-id> agent reviewer started now
    ```
-2. Read the task file — understand the issue, objective, and acceptance criteria
+2. Read the task (`td show <td-id>`) — understand the issue, objective, and acceptance criteria
 3. Read the git diff to understand what the implementer changed:
    ```bash
    git log --oneline -5
@@ -45,7 +44,7 @@ Read the output to understand: current branch, last commits, task status, which 
    git diff main
    ```
 4. Read the Golden Principles section in this prompt — all invariants
-5. Read structured test output from `.case/<task-slug>/tested` (Phase 1 format with passed/failed/total/duration_ms/suites/files fields). Get the task slug from `.case/active`.
+5. Read structured test output from `.case/<task-slug>/tested` (Phase 1 format with passed/failed/total/duration_ms/suites/files fields). The task slug is the taskId — the **Task** id in the Task Context block (or `SLUG=$(ca status <td-id> id)`).
 6. Read the target repo's `CLAUDE.md` for repo-specific conventions
 
 ### 2. Review the Diff
@@ -131,7 +130,7 @@ Format each finding as:
 
 2. If **critical findings exist**: do NOT create the marker. Report the findings so the orchestrator can re-dispatch the implementer.
 
-3. **Append to the task file's Progress Log**:
+3. **Append to the task's Progress Log**:
 
    ```markdown
    ### Reviewer — <ISO timestamp>
@@ -143,10 +142,10 @@ Format each finding as:
    - Evidence: .case/<task-slug>/reviewed (created/not created)
    ```
 
-4. **Update task JSON**:
+4. **Update the task**:
    ```bash
-   ca status <task.json> agent reviewer status completed
-   ca status <task.json> agent reviewer completed now
+   ca status <td-id> agent reviewer status completed
+   ca status <td-id> agent reviewer completed now
    ```
 
 ### 4b. Score Rubric

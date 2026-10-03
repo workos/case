@@ -80,8 +80,8 @@ export async function runRetrospectivePhase(
     '',
     '## Task Context',
     '',
-    `- **Task file**: \`${config.taskMdPath}\``,
-    `- **Task JSON**: \`${config.taskJsonPath}\``,
+    `- **Task**: ${config.taskId}`,
+    `- **td issue**: ${config.tdId}`,
     `- **Target repo**: \`${config.repoPath}\``,
     `- **Repo name**: ${config.repoName}`,
     '',
@@ -101,8 +101,7 @@ export async function runRetrospectivePhase(
       dataDir: config.dataDir,
       onHeartbeat: config.onAgentHeartbeat,
       onToolActivity: config.onToolActivity,
-      traceWriter: config.traceWriter,
-      eventAppender: config.eventAppender,
+      langfuse: config.langfuse,
       phase: 'retrospective',
     });
     log.phase('retrospective', 'completed');

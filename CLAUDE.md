@@ -50,14 +50,14 @@ AGENTS.md                 # Entry point for agents (routing map)
 CLAUDE.md                 # This file (meta-instructions for case itself)
 projects.schema.json      # JSON Schema for the project manifest
 docs/
-  architecture/           # Canonical patterns per repo type
+  architecture/           # Canonical patterns per repo type (+ pipeline.md for case itself)
   conventions/            # Shared rules (commits, testing, PRs)
   failure-matrix.md       # Phase × outcome → action lookup (synced with code)
   golden-principles.md    # Invariants enforced across all repos
   playbooks/              # Step-by-step guides for recurring operations
 tasks/
-  active/                 # Current task files for agent execution
-  templates/              # Reusable task templates
+  templates/              # Spec scaffolds (a filled template becomes a td issue)
+                          # Live task state is a td issue in the target repo's .todos/, not a file here
 src/commands/
   check.ts                # Cross-repo convention enforcement
   bootstrap.ts            # Per-repo readiness verification

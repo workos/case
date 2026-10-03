@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { FINGERPRINT_LENGTH, computeFingerprint, fingerprintsMatch } from '../dag/fingerprint.js';
 
 describe('computeFingerprint', () => {

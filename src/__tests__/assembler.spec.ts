@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { assemblePrompt } from '../context/assembler.js';
 import type { AgentResult, PipelineConfig, TaskJson } from '../types.js';
 import { mkdir, rm } from 'node:fs/promises';
@@ -20,8 +20,8 @@ async function setupTemplates() {
 function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     mode: 'attended',
-    taskJsonPath: join(tempCaseRoot, '.case/tasks/active/cli-1-issue-53.task.json'),
-    taskMdPath: join(tempCaseRoot, '.case/tasks/active/cli-1-issue-53.md'),
+    taskId: 'cli-1-issue-53',
+    tdId: 'td-test1',
     repoPath: tempCaseRoot,
     repoName: 'cli',
     packageRoot: tempCaseRoot,
@@ -136,7 +136,8 @@ describe('assemblePrompt', () => {
     const prompt = await assemblePrompt('verifier', makeConfig(), makeTask(), repoContext, new Map());
 
     expect(prompt).toContain('# Verifier Template');
-    expect(prompt).toContain('Task file');
+    expect(prompt).toContain('- **Task**: cli-1-issue-53');
+    expect(prompt).toContain('- **td issue**: td-test1');
     expect(prompt).not.toContain('should not appear');
     expect(prompt).not.toContain('Working Memory');
   });

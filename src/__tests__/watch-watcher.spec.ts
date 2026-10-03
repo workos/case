@@ -1,224 +1,148 @@
-import { describe, test, expect, afterAll } from 'bun:test';
-import { appendFile, mkdir, rm, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { watchEventLog } from '../watch/watcher.js';
-import type { PipelineEvent } from '../events/schema.js';
+import { describe, test, expect } from 'vitest';
+import type { Langfuse } from 'langfuse';
+import { watchTrace, type WatchRecord, type WatchOptions } from '../watch/watcher.js';
+import type { Observation, TraceDetails } from '../tracing/readback.js';
 
-const tmpDir = resolve(process.env.TMPDIR ?? '/tmp', `case-watch-test-${Date.now()}`);
+/**
+ * Phase 2.2 — `ca watch` reads the run's Langfuse trace (load + poll-with-cursor)
+ * instead of tailing a JSONL log. These drive the generator over a fake read
+ * client returning canned trace snapshots and assert the emitted WatchRecords.
+ */
 
-afterAll(async () => {
-  await rm(tmpDir, { recursive: true, force: true });
-});
-
-function makeEvent(partial: Partial<PipelineEvent> & { event: string }): string {
-  const base = {
-    ts: new Date().toISOString(),
-    sequence: 1,
-    runId: 'run-1',
-  };
-  return JSON.stringify({ ...base, ...partial });
+function obs(o: Partial<Observation> & { id: string; type: string }): Observation {
+  return { startTime: '2026-01-01T00:00:00.000Z', ...o } as Observation;
 }
 
-describe('watchEventLog', () => {
-  test('replays existing events and stops on pipeline_end', async () => {
-    const taskSlug = 'test-replay';
-    const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
-    await mkdir(eventDir, { recursive: true });
+/** A fake read client: traceList resolves the id; traceGet walks the snapshot list. */
+function fakeClient(snapshots: TraceDetails[], opts: { noTrace?: boolean } = {}): Langfuse {
+  let i = 0;
+  return {
+    api: {
+      traceList: async () => ({ data: opts.noTrace ? [] : [{ id: 'r1' }] }),
+      traceGet: async () => snapshots[Math.min(i++, snapshots.length - 1)],
+    },
+  } as unknown as Langfuse;
+}
 
-    const logPath = resolve(eventDir, 'run-test.jsonl');
-    const events = [
-      makeEvent({ event: 'pipeline_start', sequence: 1, taskId: 'task-1', profile: 'standard', plan: {} as any }),
-      makeEvent({ event: 'phase_start', sequence: 2, phase: 'implement', agent: 'implementer' }),
-      makeEvent({
-        event: 'phase_end',
-        sequence: 3,
-        phase: 'implement',
-        agent: 'implementer',
-        outcome: 'completed',
-        durationMs: 5000,
-      }),
-      makeEvent({ event: 'pipeline_end', sequence: 4, outcome: 'completed', durationMs: 10000 }),
-    ];
-    await writeFile(logPath, events.join('\n') + '\n');
+async function collect(options: WatchOptions): Promise<WatchRecord[]> {
+  const out: WatchRecord[] = [];
+  for await (const r of watchTrace({ pollIntervalMs: 1, maxIdleMs: 40, ...options })) out.push(r);
+  return out;
+}
 
-    const collected: PipelineEvent[] = [];
-    for await (const event of watchEventLog({
-      taskSlug,
-      caseRoot: tmpDir,
-      runId: 'test',
-      format: 'structured',
-    })) {
-      collected.push(event);
-    }
-
-    expect(collected).toHaveLength(4);
-    expect(collected[0].event).toBe('pipeline_start');
-    expect(collected[3].event).toBe('pipeline_end');
-  });
-
-  test('structured mode includes tool events (milestone set expanded)', async () => {
-    const taskSlug = 'test-filter';
-    const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
-    await mkdir(eventDir, { recursive: true });
-
-    const logPath = resolve(eventDir, 'run-filter.jsonl');
-    const events = [
-      makeEvent({ event: 'pipeline_start', sequence: 1, taskId: 'task-1', profile: 'standard', plan: {} as any }),
-      makeEvent({
-        event: 'tool_start',
-        sequence: 2,
-        phase: 'implement',
-        agent: 'implementer',
-        toolCallId: 't1',
-        tool: 'Read',
-        args: '{}',
-      }),
-      makeEvent({
-        event: 'tool_end',
-        sequence: 3,
-        phase: 'implement',
-        agent: 'implementer',
-        toolCallId: 't1',
-        tool: 'Read',
-        durationMs: 50,
-        isError: false,
-        result: 'ok',
-      }),
-      makeEvent({ event: 'pipeline_end', sequence: 4, outcome: 'completed', durationMs: 10000 }),
-    ];
-    await writeFile(logPath, events.join('\n') + '\n');
-
-    const collected: PipelineEvent[] = [];
-    for await (const event of watchEventLog({
-      taskSlug,
-      caseRoot: tmpDir,
-      runId: 'filter',
-      format: 'structured',
-    })) {
-      collected.push(event);
-    }
-
-    // Tool events are now shown by default — pipeline_start + tool_start + tool_end + pipeline_end.
-    expect(collected).toHaveLength(4);
-    expect(collected.map((e) => e.event)).toEqual(['pipeline_start', 'tool_start', 'tool_end', 'pipeline_end']);
-  });
-
-  test('raw mode yields all events', async () => {
-    const taskSlug = 'test-raw';
-    const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
-    await mkdir(eventDir, { recursive: true });
-
-    const logPath = resolve(eventDir, 'run-raw.jsonl');
-    const events = [
-      makeEvent({ event: 'pipeline_start', sequence: 1, taskId: 'task-1', profile: 'standard', plan: {} as any }),
-      makeEvent({
-        event: 'tool_start',
-        sequence: 2,
-        phase: 'implement',
-        agent: 'implementer',
-        toolCallId: 't1',
-        tool: 'Read',
-        args: '{}',
-      }),
-      makeEvent({ event: 'pipeline_end', sequence: 3, outcome: 'completed', durationMs: 10000 }),
-    ];
-    await writeFile(logPath, events.join('\n') + '\n');
-
-    const collected: PipelineEvent[] = [];
-    for await (const event of watchEventLog({
-      taskSlug,
-      caseRoot: tmpDir,
-      runId: 'raw',
-      format: 'raw',
-    })) {
-      collected.push(event);
-    }
-
-    expect(collected).toHaveLength(3);
-  });
-
-  test('skips partial trailing line (no final newline)', async () => {
-    const taskSlug = 'test-partial';
-    const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
-    await mkdir(eventDir, { recursive: true });
-
-    const logPath = resolve(eventDir, 'run-partial.jsonl');
-    const complete = makeEvent({
-      event: 'pipeline_start',
-      sequence: 1,
-      taskId: 'task-1',
-      profile: 'standard',
-      plan: {} as any,
-    });
-    const partial = '{"event":"pipeline_end","sequence":2'; // intentionally truncated
-    await writeFile(logPath, complete + '\n' + partial);
-
-    // Append the rest after a delay to simulate live writing
-    setTimeout(async () => {
-      const rest = `,"runId":"run-1","ts":"2026-01-01","outcome":"completed","durationMs":100}\n`;
-      await appendFile(logPath, rest);
-    }, 300);
-
-    const collected: PipelineEvent[] = [];
-    for await (const event of watchEventLog({
-      taskSlug,
-      caseRoot: tmpDir,
-      runId: 'partial',
-      format: 'raw',
-      pollIntervalMs: 100,
-    })) {
-      collected.push(event);
-    }
-
-    expect(collected).toHaveLength(2);
-    expect(collected[1].event).toBe('pipeline_end');
-  });
-
-  test('incremental read yields new events as they are appended', async () => {
-    const taskSlug = 'test-incremental';
-    const eventDir = resolve(tmpDir, '.case', taskSlug, 'events');
-    await mkdir(eventDir, { recursive: true });
-
-    const logPath = resolve(eventDir, 'run-incr.jsonl');
-    const initial = makeEvent({
-      event: 'pipeline_start',
-      sequence: 1,
-      taskId: 'task-1',
-      profile: 'standard',
-      plan: {} as any,
-    });
-    await writeFile(logPath, initial + '\n');
-
-    // Append more events after a delay
-    setTimeout(async () => {
-      await appendFile(
-        logPath,
-        makeEvent({ event: 'phase_start', sequence: 2, phase: 'implement', agent: 'implementer' }) + '\n',
-      );
-    }, 200);
-    setTimeout(async () => {
-      await appendFile(
-        logPath,
-        makeEvent({ event: 'pipeline_end', sequence: 3, outcome: 'completed', durationMs: 5000 }) + '\n',
-      );
-    }, 400);
-
-    const collected: PipelineEvent[] = [];
-    for await (const event of watchEventLog({
-      taskSlug,
-      caseRoot: tmpDir,
-      runId: 'incr',
-      format: 'structured',
-      pollIntervalMs: 100,
-    })) {
-      collected.push(event);
-    }
-
-    expect(collected).toHaveLength(3);
-    expect(collected[0].event).toBe('pipeline_start');
-    expect(collected[1].event).toBe('phase_start');
-    expect(collected[2].event).toBe('pipeline_end');
-  });
+const trace = (observations: Observation[], scores: TraceDetails['scores'] = []): TraceDetails => ({
+  id: 'r1',
+  observations,
+  scores,
 });
 
-// Renderer-specific tests live in `watch-renderer.spec.ts`.
+describe('watchTrace', () => {
+  test('loads observations and completes when the retrospective span ends', async () => {
+    const snapshot = trace([
+      obs({
+        id: 'a',
+        type: 'SPAN',
+        name: 'phase:implement',
+        startTime: '2026-01-01T00:00:01Z',
+        endTime: '2026-01-01T00:00:02Z',
+      }),
+      obs({
+        id: 'b',
+        type: 'SPAN',
+        name: 'tool:bash',
+        startTime: '2026-01-01T00:00:01.5Z',
+        endTime: '2026-01-01T00:00:01.8Z',
+      }),
+      obs({
+        id: 'c',
+        type: 'SPAN',
+        name: 'phase:retrospective',
+        startTime: '2026-01-01T00:00:03Z',
+        endTime: '2026-01-01T00:00:04Z',
+      }),
+    ]);
+
+    const records = await collect({ taskSlug: 'task-1', client: fakeClient([snapshot]) });
+    const kinds = records.map((r) => r.kind);
+
+    expect(records[0]).toEqual({ kind: 'trace_start', traceId: 'r1', traceName: 'case-run:task-1' });
+    expect(kinds).toContain('span_start');
+    // span_starts emitted in start-time order
+    const starts = records.filter((r): r is Extract<WatchRecord, { kind: 'span_start' }> => r.kind === 'span_start');
+    expect(starts.map((s) => s.name)).toEqual(['implement', 'bash', 'retrospective']);
+    // completes and stops
+    expect(records.at(-1)).toEqual({ kind: 'run_complete' });
+  });
+
+  test('pinned runId skips trace resolution and tails that trace', async () => {
+    const snapshot = trace([
+      obs({
+        id: 'a',
+        type: 'SPAN',
+        name: 'phase:retrospective',
+        startTime: '2026-01-01T00:00:03Z',
+        endTime: '2026-01-01T00:00:04Z',
+      }),
+    ]);
+    const records = await collect({ taskSlug: 'task-1', runId: 'pinned-run', client: fakeClient([snapshot]) });
+    expect(records[0]).toEqual({ kind: 'trace_start', traceId: 'pinned-run', traceName: 'case-run:task-1' });
+    expect(records.at(-1)).toEqual({ kind: 'run_complete' });
+  });
+
+  test('emits rubric scores', async () => {
+    const snapshot = trace(
+      [
+        obs({
+          id: 'a',
+          type: 'SPAN',
+          name: 'phase:retrospective',
+          startTime: '2026-01-01T00:00:03Z',
+          endTime: '2026-01-01T00:00:04Z',
+        }),
+      ],
+      [{ name: 'verifier:edge-case', value: 0, comment: 'missing null check' }],
+    );
+    const records = await collect({ taskSlug: 'task-1', client: fakeClient([snapshot]) });
+    const score = records.find((r) => r.kind === 'score');
+    expect(score).toEqual({ kind: 'score', name: 'verifier:edge-case', value: 0, comment: 'missing null check' });
+  });
+
+  test('raw format surfaces generations; structured hides them', async () => {
+    const make = () =>
+      trace([
+        obs({ id: 'g', type: 'GENERATION', name: 'turn', usageDetails: { total: 100 }, costDetails: { total: 0.01 } }),
+        obs({
+          id: 'r',
+          type: 'SPAN',
+          name: 'phase:retrospective',
+          startTime: '2026-01-01T00:00:03Z',
+          endTime: '2026-01-01T00:00:04Z',
+        }),
+      ]);
+    const raw = await collect({ taskSlug: 'task-1', format: 'raw', client: fakeClient([make()]) });
+    expect(raw.some((r) => r.kind === 'generation')).toBe(true);
+
+    const structured = await collect({ taskSlug: 'task-1', format: 'structured', client: fakeClient([make()]) });
+    expect(structured.some((r) => r.kind === 'generation')).toBe(false);
+  });
+
+  test('returns when no trace ever appears', async () => {
+    const records = await collect({ taskSlug: 'task-1', client: fakeClient([], { noTrace: true }), timeoutMs: 50 });
+    expect(records).toEqual([]);
+  });
+
+  test('returns on idle when the run goes quiet without a retrospective', async () => {
+    const snapshot = trace([
+      obs({
+        id: 'a',
+        type: 'SPAN',
+        name: 'phase:implement',
+        startTime: '2026-01-01T00:00:01Z',
+        endTime: '2026-01-01T00:00:02Z',
+      }),
+    ]);
+    const records = await collect({ taskSlug: 'task-1', client: fakeClient([snapshot]) });
+    expect(records.some((r) => r.kind === 'span_start')).toBe(true);
+    expect(records.some((r) => r.kind === 'run_complete')).toBe(false);
+  });
+});

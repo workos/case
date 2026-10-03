@@ -4,7 +4,8 @@ import { runPipeline } from '../../pipeline.js';
 import { buildPipelineConfig } from '../../config.js';
 
 const pipelineParams = Type.Object({
-  taskJsonPath: Type.String({ description: 'Path to the .task.json file' }),
+  tdId: Type.String({ description: 'td issue handle for the task (e.g. td-a1b2c3)' }),
+  repoPath: Type.String({ description: 'Target repo path whose td store holds the task' }),
   mode: Type.Optional(Type.String({ description: 'attended or unattended' })),
   dryRun: Type.Optional(Type.Boolean({ description: 'Skip agent spawning' })),
 });
@@ -18,7 +19,8 @@ export function createPipelineTool(_caseRoot: string) {
     parameters: pipelineParams,
     execute: async (_toolCallId, params, _signal, onUpdate, _ctx) => {
       const config = await buildPipelineConfig({
-        taskJsonPath: params.taskJsonPath,
+        tdId: params.tdId,
+        repoPath: params.repoPath,
         mode: (params.mode as 'attended' | 'unattended') ?? 'attended',
         dryRun: params.dryRun ?? false,
       });
@@ -26,7 +28,7 @@ export function createPipelineTool(_caseRoot: string) {
       config.onAgentHeartbeat = (elapsedMs) => {
         onUpdate?.({
           content: [{ type: 'text', text: `... still running (${Math.floor(elapsedMs / 1000)}s)\n` }],
-          details: { taskJsonPath: params.taskJsonPath },
+          details: { tdId: params.tdId },
         });
       };
 
@@ -34,7 +36,7 @@ export function createPipelineTool(_caseRoot: string) {
 
       return {
         content: [{ type: 'text', text: 'Pipeline completed successfully.' }],
-        details: { taskJsonPath: params.taskJsonPath },
+        details: { tdId: params.tdId },
       };
     },
   });

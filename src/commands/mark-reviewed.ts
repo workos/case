@@ -1,13 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { resolveDataDir, resolvePackageRoot, resolveRepoTaskJson } from '../paths.js';
+import { resolveFocusedTask } from '../state/td-client.js';
+import { TaskStore } from '../state/task-store.js';
 
 export const description = 'Mark a repo as reviewed (writes .case/<slug>/reviewed)';
-
-function resolveTaskSlug(): string | null {
-  if (!existsSync('.case/active')) return null;
-  return readFileSync('.case/active', 'utf-8').trim() || null;
-}
 
 export async function handler(argv: string[]): Promise<number> {
   let critical = 0;
@@ -24,11 +20,12 @@ export async function handler(argv: string[]): Promise<number> {
     return 1;
   }
 
-  const slug = resolveTaskSlug();
-  if (!slug) {
-    process.stderr.write('ERROR: No active task — .case/active is missing or empty. Run the orchestrator first.\n');
+  const focused = await resolveFocusedTask(process.cwd());
+  if (!focused) {
+    process.stderr.write('ERROR: No active task — no focused td task. Run the orchestrator first.\n');
     return 1;
   }
+  const slug = focused.task.id;
 
   const markerDir = `.case/${slug}`;
   mkdirSync(markerDir, { recursive: true });
@@ -39,27 +36,16 @@ export async function handler(argv: string[]): Promise<number> {
   );
   process.stderr.write(`.case/${slug}/reviewed created (${warnings} warnings, ${info} info)\n`);
 
-  let dataRoot: string;
   try {
-    dataRoot = resolveDataDir();
+    const agents = { ...focused.task.agents };
+    agents.reviewer = {
+      ...(agents.reviewer ?? { started: null }),
+      status: 'completed',
+      completed: new Date().toISOString(),
+    };
+    await new TaskStore(process.cwd(), focused.tdId).writeFromProjection({ agents });
   } catch {
-    dataRoot = resolvePackageRoot();
-  }
-  let taskJson = resolveRepoTaskJson(process.cwd(), slug);
-  if (!existsSync(taskJson)) taskJson = resolve(dataRoot, 'tasks', 'active', `${slug}.task.json`);
-  if (!existsSync(taskJson)) taskJson = resolve(resolvePackageRoot(), 'tasks', 'active', `${slug}.task.json`);
-  if (existsSync(taskJson)) {
-    try {
-      const data = JSON.parse(readFileSync(taskJson, 'utf-8'));
-      const agents = data.agents ?? {};
-      if (!agents.reviewer) agents.reviewer = {};
-      agents.reviewer.status = 'completed';
-      agents.reviewer.completed = new Date().toISOString();
-      data.agents = agents;
-      writeFileSync(taskJson, JSON.stringify(data, null, 2) + '\n');
-    } catch {
-      /* best-effort */
-    }
+    /* best-effort */
   }
   return 0;
 }

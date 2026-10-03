@@ -12,8 +12,8 @@ import {
 import type { ExtensionAPI, ToolDefinition, CreateAgentSessionRuntimeResult } from '@mariozechner/pi-coding-agent';
 import { truncateToWidth, visibleWidth } from '@mariozechner/pi-tui';
 import { basename } from 'node:path';
-import { mkdirSync, symlinkSync, existsSync } from 'node:fs';
 import { getModelForAgent } from './config.js';
+import { isolatePiRuntime, piExtensionsDisabled } from './pi-isolation.js';
 import { detectRepo } from '../entry/repo-detector.js';
 import { detectArgumentType, fetchIssue } from '../entry/issue-fetcher.js';
 import { findTaskByIssue } from '../entry/task-scanner.js';
@@ -36,19 +36,10 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     process.env.CASE_QUIET = '1';
   }
 
-  // Run pi fully isolated — no global settings, extensions, packages,
-  // statusline, or theme from the user's ~/.pi/agent config.
-  const realAgentDir = getAgentDir();
-  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-orchestrator-pi-${process.pid}`;
-  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
-  process.env.PI_SKIP_VERSION_CHECK = '1';
-
-  mkdirSync(isolatedAgentDir, { recursive: true });
-  const realAuth = `${realAgentDir}/auth.json`;
-  const isolatedAuth = `${isolatedAgentDir}/auth.json`;
-  if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
-    symlinkSync(realAuth, isolatedAuth);
-  }
+  // Run pi isolated — no global extensions, statusline, or theme from the
+  // user's ~/.pi/agent config. Auth + provider config (settings.json, npm
+  // packages) is preserved so model credentials still resolve.
+  isolatePiRuntime('orchestrator');
 
   const cwd = process.cwd();
   const agentDir = getAgentDir();
@@ -88,6 +79,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
       settingsManager: sm,
       appendSystemPrompt: [systemPrompt],
       extensionFactories: [minimalStatusline(factoryOpts.cwd)],
+      noExtensions: piExtensionsDisabled(),
     });
     await rl.reload();
 
@@ -148,7 +140,7 @@ async function gatherContext(options: OrchestratorSessionOptions): Promise<strin
       if (match) {
         lines.push(`\nExisting task found: ${match.taskJson.id} (status: ${match.taskJson.status})`);
         lines.push(`Entry phase: ${match.entryPhase}`);
-        lines.push(`Task JSON: ${match.taskJsonPath}`);
+        lines.push(`td issue: ${match.tdId}`);
         if (match.taskJson.prUrl) lines.push(`PR: ${match.taskJson.prUrl}`);
         lines.push(`\nTask is resumable from the ${match.entryPhase} phase.`);
       } else {

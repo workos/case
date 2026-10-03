@@ -4,9 +4,16 @@
  * This file tests the real spawnAgent function with Pi SDK mocked at the
  * package level. Run with: bun test --preload="" src/__tests__/pi-runner-unit.spec.ts
  * (bypasses the global preload that replaces spawnAgent with a mock)
+ *
+ * spawnAgent now routes through ProviderRoutingRuntime, so we pin the pi backend
+ * via CASE_AGENT_RUNTIME=pi — these tests exercise pi's spawn loop specifically
+ * (Agent creation → event subscription → AGENT_RESULT parsing → abort).
  */
 import { describe, it, expect, mock, beforeEach } from 'bun:test';
 import type { AgentEvent } from '@mariozechner/pi-agent-core';
+
+// Force the pi backend: this file mocks the pi SDK and asserts pi-specific behavior.
+process.env.CASE_AGENT_RUNTIME = 'pi';
 
 // --- Mock Pi SDK before importing pi-runner ---
 

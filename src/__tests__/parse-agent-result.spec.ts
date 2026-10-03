@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { parseAgentResult } from '../util/parse-agent-result.js';
 
 describe('parseAgentResult', () => {

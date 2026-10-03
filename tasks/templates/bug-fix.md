@@ -28,7 +28,7 @@ docs/playbooks/fix-bug.md
 
 <!-- Machine-checkable command that measures progress. Implementer runs this after each attempt. -->
 <!-- Example: pnpm test --reporter=json 2>&1 | jq '.numPassedTests' -->
-<!-- Set checkCommand, checkBaseline, checkTarget in the companion .task.json -->
+<!-- Set checkCommand, checkBaseline, checkTarget on the td issue's case-state via `ca status <td-id> checkCommand <value>` -->
 
 ## Acceptance Criteria
 

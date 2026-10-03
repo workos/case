@@ -1,4 +1,5 @@
 import { parseArgs } from 'node:util';
+import { resolve } from 'node:path';
 import { buildPipelineConfig } from '../config.js';
 import { runPipeline } from '../pipeline.js';
 import { runCliOrchestrator } from '../entry/cli-orchestrator.js';
@@ -28,6 +29,7 @@ export async function handler(argv: string[]): Promise<number> {
     args: argv,
     options: {
       task: { type: 'string', short: 't' },
+      'repo-path': { type: 'string' },
       mode: { type: 'string', short: 'm' },
       agent: { type: 'boolean' },
       model: { type: 'string' },
@@ -108,7 +110,8 @@ function printRunHelp(): void {
 Run the agent pipeline for a GitHub or Linear issue.
 
 Options:
-  --task, -t <file>       Run an existing task JSON file directly
+  --task, -t <td-id>      Run an existing td task directly (by issue handle)
+  --repo-path <path>      Repo whose td store holds --task (default: cwd)
   --agent                 Start an interactive steering session
   --model <model>         Override model for all agents in this run
   --mode, -m <mode>       "attended" (default) or "unattended"
@@ -121,11 +124,9 @@ Options:
 }
 
 async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
-  const taskPath = values.task as string;
-  if (!(await Bun.file(taskPath).exists())) {
-    process.stderr.write(`Error: task file not found: ${taskPath}\n`);
-    return 1;
-  }
+  // --task takes a td issue handle; --repo-path locates its `.todos/` store (default cwd).
+  const tdId = values.task as string;
+  const repoPath = resolve((values['repo-path'] as string | undefined) ?? '.');
 
   const mode = values.mode as PipelineMode | undefined;
   if (mode && mode !== 'attended' && mode !== 'unattended') {
@@ -135,7 +136,8 @@ async function runTaskFlow(values: Record<string, unknown>): Promise<number> {
 
   try {
     const config = await buildPipelineConfig({
-      taskJsonPath: taskPath,
+      tdId,
+      repoPath,
       mode,
       dryRun: values['dry-run'] as boolean | undefined,
     });

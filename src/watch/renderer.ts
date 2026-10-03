@@ -1,61 +1,48 @@
-import type { PipelineEvent } from '../events/schema.js';
-import { formatDuration, formatPhaseEnd, formatPhaseHeader, formatToolLine } from '../render/format.js';
+import type { WatchRecord } from './watcher.js';
+import { formatDuration } from '../render/format.js';
 import { cyan, dim, green, red, yellow } from '../render/color.js';
 
 /**
- * Render a single PipelineEvent for `ca watch`. Uses the same formatting
- * primitives as the inline structured log, with colors applied (respecting
- * NO_COLOR / FORCE_COLOR / TTY detection in `render/color.ts`).
+ * Render a single `ca watch` record (a Langfuse observation, Phase 2.2) for the
+ * terminal tail. Uses the same color primitives as the inline structured log.
  */
-export function renderWatchEvent(event: PipelineEvent): string {
-  switch (event.event) {
-    case 'pipeline_start':
-      return cyan(`▶ pipeline started (${event.profile} profile, run ${event.runId.slice(0, 8)})`);
+export function renderWatchEvent(record: WatchRecord): string {
+  switch (record.kind) {
+    case 'trace_start':
+      return cyan(`▶ watching ${record.traceName} (trace ${record.traceId.slice(0, 8)})`);
 
-    case 'phase_start':
-      return formatPhaseHeader(event.phase, event.agent);
+    case 'span_start':
+      if (record.span === 'phase') return cyan(`▶ ${record.name}`);
+      if (record.span === 'tool') return dim(`  ⚙ ${record.name}`);
+      return dim(`  · ${record.name}`);
 
-    case 'phase_end': {
-      if (event.outcome === 'skipped') {
-        return dim(`⊘ ${event.phase} skipped`);
+    case 'span_end': {
+      const dur = formatDuration(record.durationMs);
+      if (record.span === 'phase') {
+        return record.isError ? red(`✗ ${record.name} (${dur})`) : green(`✓ ${record.name} (${dur})`);
       }
-      const status = event.outcome === 'completed' ? 'completed' : 'failed';
-      const raw = formatPhaseEnd(event.phase, event.agent, event.durationMs, status);
-      const icon = status === 'completed' ? green(raw[0]!) : red(raw[0]!);
-      return `${icon}${raw.slice(1)}`;
+      const line = dim(`  ⚙ ${record.name} (${dur})`);
+      return record.isError ? `${line}${red(' ERROR')}` : line;
     }
 
-    case 'tool_start':
-      return dim(formatToolLine(event.tool, event.args));
-
-    case 'tool_end': {
-      const line = dim(formatToolLine(event.tool, '', event.durationMs));
-      return event.isError ? `${line}${red(' ERROR')}` : line;
+    case 'generation': {
+      const parts: string[] = [];
+      if (record.tokens !== undefined) parts.push(`${record.tokens} tok`);
+      if (record.cost !== undefined) parts.push(`$${record.cost.toFixed(4)}`);
+      const meta = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+      return dim(`  ↳ turn${record.model ? ` ${record.model}` : ''}${meta}`);
     }
 
-    case 'revision_requested':
-      return yellow(`↻ revision requested by ${event.source} (cycle ${event.cycle})`);
+    case 'event':
+      return yellow(`↻ ${record.name}`);
 
-    case 'revision_budget_exhausted':
-      return yellow(`⚠ revision budget exhausted (${event.cycles} cycles)`);
+    case 'score':
+      return dim(`★ ${record.name}: ${record.value}${record.comment ? ` — ${record.comment}` : ''}`);
 
-    case 'fingerprint_match':
-      return yellow(
-        `⚠ fingerprint match: aborting revision cycle ${event.cycle} (same failure as cycle ${event.previousCycle}, ${event.fingerprint})`,
-      );
-
-    case 'status_changed':
-      return dim(`→ ${event.to}`);
-
-    case 'pipeline_end':
-      return event.outcome === 'completed'
-        ? green(`✓ pipeline complete (${formatDuration(event.durationMs)})`)
-        : red(`✗ pipeline failed at ${event.failedAgent ?? 'unknown'} (${formatDuration(event.durationMs)})`);
-
-    case 'marker_written':
-      return dim(`📎 marker: ${event.marker}`);
+    case 'run_complete':
+      return green('✓ run complete');
 
     default:
-      return dim(`? ${(event as { event: string }).event}`);
+      return dim(`? ${(record as { kind: string }).kind}`);
   }
 }

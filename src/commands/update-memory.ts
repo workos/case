@@ -19,10 +19,10 @@
  *   --blocker <text>          Append to `blockers` (repeatable)
  *
  * Reads existing memory (or starts empty), merges, validates, writes back.
- * Always paired with an active task — resolves the slug from `.case/active`.
+ * Always paired with an active task — resolves the slug from the focused td task.
  */
-import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { resolveFocusedTask } from '../state/td-client.js';
 import {
   emptyWorkingMemory,
   mergeWorkingMemory,
@@ -38,11 +38,6 @@ import {
 import type { WorkingMemoryApproach, WorkingMemoryError, WorkingMemoryUpdate } from '../types.js';
 
 export const description = 'Update structured working memory at .case/<slug>/working-memory.json';
-
-function resolveTaskSlug(): string | null {
-  if (!existsSync('.case/active')) return null;
-  return readFileSync('.case/active', 'utf-8').trim() || null;
-}
 
 interface ParsedFlags {
   update: WorkingMemoryUpdate;
@@ -81,11 +76,12 @@ export async function handler(argv: string[]): Promise<number> {
     throw err;
   }
 
-  const slug = resolveTaskSlug();
-  if (!slug) {
-    process.stderr.write('ERROR: No active task — .case/active is missing or empty. Run the orchestrator first.\n');
+  const focused = await resolveFocusedTask(process.cwd());
+  if (!focused) {
+    process.stderr.write('ERROR: No active task — no focused td task. Run the orchestrator first.\n');
     return 1;
   }
+  const slug = focused.task.id;
 
   const taskDir = resolve('.case', slug);
   const existing = readWorkingMemory(taskDir) ?? emptyWorkingMemory();
@@ -211,7 +207,7 @@ function usage(): string {
     '  --tried-reason <text>     Reason for the previous --tried',
     '  --blocker <text>          Append blocker (repeatable)',
     '',
-    'Writes to .case/<slug>/working-memory.json. Requires .case/active.',
+    'Writes to .case/<slug>/working-memory.json. Requires a focused td task.',
     '',
   ].join('\n');
 }

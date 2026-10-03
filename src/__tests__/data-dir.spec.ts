@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -67,7 +67,7 @@ describe('readConfig', () => {
   });
 
   it('returns defaults and warns on corrupt JSON', async () => {
-    const warn = mock(() => true);
+    const warn = vi.fn(() => true);
     const original = process.stderr.write;
     // @ts-expect-error patching a method for assertion
     process.stderr.write = warn;
@@ -82,7 +82,7 @@ describe('readConfig', () => {
   });
 
   it('warns on future schema version but still merges best-effort', async () => {
-    const warn = mock(() => true);
+    const warn = vi.fn(() => true);
     const original = process.stderr.write;
     // @ts-expect-error patching a method for assertion
     process.stderr.write = warn;

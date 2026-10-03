@@ -15,7 +15,7 @@
  * These tests stay at the synthesis + writer + assembler boundary — they do
  * not spawn agents or call into the LLM.
  */
-import { afterAll, afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';

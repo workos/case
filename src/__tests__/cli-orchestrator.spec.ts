@@ -1,41 +1,48 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test';
-import { mockSpawnAgent, mockRunCommand } from './mocks.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mockSpawnAgent, mockRunCommand } from './setup-mocks.js';
 import type { TaskJson } from '../types.js';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // --- Mock dependencies ---
+// vi.mock is hoisted above these declarations, so the mock fns its factories
+// reference are created inside vi.hoisted.
+const {
+  mockDetectRepo,
+  mockDetectArgumentType,
+  mockFetchIssue,
+  mockCreateTask,
+  mockBuildPipelineConfig,
+  mockRunPipeline,
+  mockRunBootstrap,
+  mockFindTaskByIssue,
+  mockFindTaskByMarker,
+} = vi.hoisted(() => ({
+  mockDetectRepo: vi.fn(),
+  mockDetectArgumentType: vi.fn(),
+  mockFetchIssue: vi.fn(),
+  mockCreateTask: vi.fn(),
+  mockBuildPipelineConfig: vi.fn(),
+  mockRunPipeline: vi.fn(),
+  mockRunBootstrap: vi.fn(),
+  mockFindTaskByIssue: vi.fn(),
+  mockFindTaskByMarker: vi.fn(),
+}));
 
-const mockDetectRepo = mock();
-mock.module('../entry/repo-detector.js', () => ({ detectRepo: mockDetectRepo }));
-
-const mockDetectArgumentType = mock();
-const mockFetchIssue = mock();
-mock.module('../entry/issue-fetcher.js', () => ({
+vi.mock('../entry/repo-detector.js', () => ({ detectRepo: mockDetectRepo }));
+vi.mock('../entry/issue-fetcher.js', () => ({
   detectArgumentType: mockDetectArgumentType,
   fetchIssue: mockFetchIssue,
 }));
-
-const mockCreateTask = mock();
-mock.module('../entry/task-factory.js', () => ({ createTask: mockCreateTask }));
-
-const mockBuildPipelineConfig = mock();
-mock.module('../config.js', () => ({
+vi.mock('../entry/task-factory.js', () => ({ createTask: mockCreateTask }));
+vi.mock('../config.js', () => ({
   buildPipelineConfig: mockBuildPipelineConfig,
-  loadProjects: mock(),
-  resolveRepoPath: mock(),
+  loadProjects: vi.fn(),
+  resolveRepoPath: vi.fn(),
 }));
-
-const mockRunPipeline = mock();
-mock.module('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
-
-const mockRunBootstrap = mock();
-mock.module('../commands/bootstrap.js', () => ({ runBootstrap: mockRunBootstrap }));
-
-// We need to mock findTaskByIssue and findTaskByMarker
-const mockFindTaskByIssue = mock();
-const mockFindTaskByMarker = mock();
-mock.module('../entry/task-scanner.js', () => ({
+vi.mock('../pipeline.js', () => ({ runPipeline: mockRunPipeline }));
+vi.mock('../commands/bootstrap.js', () => ({ runBootstrap: mockRunBootstrap }));
+vi.mock('../entry/task-scanner.js', () => ({
   findTaskByIssue: mockFindTaskByIssue,
   findTaskByMarker: mockFindTaskByMarker,
 }));

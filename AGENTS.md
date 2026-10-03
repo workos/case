@@ -8,7 +8,7 @@ Humans steer. Agents execute. When agents struggle, fix the harness.
 Run the session command to gather context before doing anything else:
 
 ```bash
-SESSION=$(ca session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <td-id>)
 echo "$SESSION"
 ```
 
@@ -40,7 +40,7 @@ Full metadata (commands, remotes, evidence strategy): `~/.config/case/projects.j
 
 ## Task Dispatch
 
-Tasks are markdown files that agents execute. Runtime task files live in the target repo's ignored `.case/tasks/active/`.
+Tasks are `td` issues that agents execute. Each task is a `td` issue in the target repo's `.todos/` store, identified by a `td-…` issue handle.
 
 - **Format spec**: `tasks/README.md`
 - **Templates**: `tasks/templates/`
@@ -49,11 +49,11 @@ Pipeline: scout → implementer → verifier → reviewer → closer → (retros
 
 Onboarding agent (out of the pipeline): `interviewer` — invoked by `ca onboard --interview` to capture evidence strategy rationale, verification notes, and repo learnings.
 
-Lifecycle: `.case/tasks/active/` → PR opened/merged status in the task JSON
+Lifecycle: `td` issue created → PR opened/merged status tracked on the task record
 
 ## Working in a Target Repo
 
-0. Run `ca session {repo-path} --task {task-json}` to gather context
+0. Run `ca session {repo-path} --task {td-id}` to gather context
 1. Read the repo's `CLAUDE.md` (or `CLAUDE.local.md`) for project-specific instructions
 2. Run `ca bootstrap {repo-name}` to verify readiness
 3. Follow the repo's PR checklist before opening a PR

@@ -22,15 +22,14 @@ export async function prefetchRepoContext(config: PipelineConfig, role: AgentNam
   const dataDirLearnings = safeDataDirLearningsPath(config.repoName);
   const legacyLearnings = `docs/learnings/${config.repoName}.md`;
 
-  const taskStem = config.taskJsonPath.replace(/\.task\.json$/, '');
-  const workingMemoryPath = `${taskStem}.working.md`;
+  const workingMemoryPath = join(config.repoPath, '.case', config.taskId, 'working.md');
 
   const needsLearnings = role === 'implementer';
   const needsPrinciples = role === 'reviewer';
   const needsWorkingMemory = role === 'implementer';
 
   const promises: Promise<unknown>[] = [
-    gatherSessionContext(config.repoPath, config.taskJsonPath),
+    gatherSessionContext(config.repoPath, config.tdId),
     runCommand('git', ['log', '--oneline', '-10'], { cwd: config.repoPath }),
   ];
 

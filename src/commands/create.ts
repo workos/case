@@ -49,9 +49,8 @@ export async function handler(argv: string[]): Promise<number> {
   try {
     const result = await createTask(caseRoot, request);
     process.stdout.write(`Task created: ${result.taskId}\n`);
-    process.stdout.write(`  JSON: ${result.taskJsonPath}\n`);
-    process.stdout.write(`  Spec: ${result.taskMdPath}\n`);
-    process.stdout.write(`\nRun with:\n  bun src/index.ts --task ${result.taskJsonPath}\n`);
+    process.stdout.write(`  td issue: ${result.tdId}\n`);
+    process.stdout.write(`\nRun with:\n  bun src/index.ts --task ${result.tdId} --repo-path <repo>\n`);
     return 0;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

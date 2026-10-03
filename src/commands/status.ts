@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import type { TaskStatus } from '../types.js';
+import type { TaskJson, TaskStatus } from '../types.js';
+import { decodeState, tdShow } from '../state/td-client.js';
+import { TaskStore } from '../state/task-store.js';
 
 export const description = 'Read or update the current task status';
 
@@ -31,12 +32,16 @@ const KNOWN_FIELDS = new Set([
   'mode',
 ]);
 
-function readTask(path: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(path, 'utf-8'));
+async function readTask(repoPath: string, tdId: string): Promise<Record<string, unknown>> {
+  const issue = await tdShow(repoPath, tdId);
+  if (!issue) throw new Error(`td issue not found: ${tdId}`);
+  const state = decodeState(issue.description);
+  if (!state) throw new Error(`td issue ${tdId} has no case-state payload`);
+  return state as unknown as Record<string, unknown>;
 }
 
-function writeTask(path: string, data: Record<string, unknown>): void {
-  writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+async function writeTask(repoPath: string, tdId: string, data: Record<string, unknown>): Promise<void> {
+  await new TaskStore(repoPath, tdId).writeFromProjection(data as Partial<TaskJson>);
 }
 
 function printValue(val: unknown): void {
@@ -56,28 +61,29 @@ function coerce(value: string): unknown {
 }
 
 export async function handler(argv: string[]): Promise<number> {
-  const taskFile = argv[0];
+  const tdId = argv[0];
   const field = argv[1];
   const value = argv[2];
   const extra = argv[3];
+  const repoPath = process.cwd();
 
-  if (!taskFile || !field) {
+  if (!tdId || !field) {
     process.stderr.write(
-      'Usage: ca status <task.json> <field> [value] [--from-marker]\n\n' +
+      'Usage: ca status <td-id> <field> [value] [--from-marker]\n\n' +
         'Fields: status, id, repo, issue, issueType, branch, tested, manualTested, prUrl, prNumber, contractPath\n' +
         'Special: agent <name> <started|completed|status> [value]\n',
     );
     return 1;
   }
 
-  if (!existsSync(taskFile)) {
-    process.stderr.write(`Error: task file not found: ${taskFile}\n`);
+  if (!(await tdShow(repoPath, tdId))) {
+    process.stderr.write(`Error: td issue not found: ${tdId}\n`);
     return 1;
   }
 
   // Read mode
   if (value === undefined && field !== 'agent') {
-    printValue(readTask(taskFile)[field]);
+    printValue((await readTask(repoPath, tdId))[field]);
     return 0;
   }
 
@@ -87,10 +93,10 @@ export async function handler(argv: string[]): Promise<number> {
     const agentField = extra;
     const agentValue = argv[4];
     if (!agentName || !agentField) {
-      process.stderr.write('Usage: ca status <task.json> agent <name> <started|completed|status> [value]\n');
+      process.stderr.write('Usage: ca status <td-id> agent <name> <started|completed|status> [value]\n');
       return 1;
     }
-    const data = readTask(taskFile);
+    const data = await readTask(repoPath, tdId);
     const agents = (data.agents ?? {}) as Record<string, Record<string, unknown>>;
     if (agentValue === undefined) {
       printValue((agents[agentName] ?? {})[agentField]);
@@ -113,7 +119,7 @@ export async function handler(argv: string[]): Promise<number> {
       return 1;
     }
     data.agents = agents;
-    writeTask(taskFile, data);
+    await writeTask(repoPath, tdId, data);
     process.stdout.write(`OK: agents.${agentName}.${agentField} = ${agentValue}\n`);
     return 0;
   }
@@ -128,7 +134,7 @@ export async function handler(argv: string[]): Promise<number> {
 
   // Status transition validation
   if (field === 'status') {
-    const data = readTask(taskFile);
+    const data = await readTask(repoPath, tdId);
     const current = (data.status as string) ?? 'active';
     const allowed = TRANSITIONS[current] ?? [];
     if (!allowed.includes(value as TaskStatus)) {
@@ -138,13 +144,13 @@ export async function handler(argv: string[]): Promise<number> {
       return 1;
     }
     data.status = value;
-    writeTask(taskFile, data);
+    await writeTask(repoPath, tdId, data);
     process.stdout.write(`OK: status ${current} → ${value}\n`);
     return 0;
   }
 
   // Generic field write
-  const data = readTask(taskFile);
+  const data = await readTask(repoPath, tdId);
   if (READONLY_FIELDS.has(field)) {
     process.stderr.write(`Error: field "${field}" is read-only\n`);
     return 1;
@@ -154,7 +160,7 @@ export async function handler(argv: string[]): Promise<number> {
     return 1;
   }
   data[field] = coerce(value);
-  writeTask(taskFile, data);
+  await writeTask(repoPath, tdId, data);
   process.stdout.write(`OK: ${field} = ${value}\n`);
   return 0;
 }

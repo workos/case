@@ -12,8 +12,7 @@ You start with a **completely fresh context**. You did not write the code — yo
 
 You receive from the orchestrator:
 
-- **Task file path** — absolute path to the `.md` task file under the target repo's ignored `.case/tasks/active/`
-- **Task JSON path** — the `.task.json` companion
+- **td issue handle** — the `td-…` id for this task (shown as **td issue** in the Task Context block); pass it to `ca status`/`ca session`
 - **Target repo path** — absolute path to the repo where the fix was implemented
 
 ## Workflow
@@ -23,23 +22,23 @@ You receive from the orchestrator:
 Run the session command to orient yourself:
 
 ```bash
-SESSION=$(ca session <target-repo-path> --task <task.json>)
+SESSION=$(ca session <target-repo-path> --task <td-id>)
 echo "$SESSION"
 ```
 
-Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task file discovery.
+Read the output to understand: current branch, last commits, task status, which agents have run, and what evidence exists. This replaces manual git log / task discovery.
 
 ### 1. Assess
 
 > **Prior context:** if the implementer ran before you, the orchestrator prepends a `## Prior Context` block to this prompt that summarizes their approach, the files they changed, and any errors they hit. Use it to scope your verification — focus on the listed files and the implementer's stated approach rather than re-deriving everything from `git diff`. If the block is absent, this is a cold start.
 
-1. Update task JSON:
+1. Update the task:
    ```bash
-   ca status <task.json> status verifying
-   ca status <task.json> agent verifier status running
-   ca status <task.json> agent verifier started now
+   ca status <td-id> status verifying
+   ca status <td-id> agent verifier status running
+   ca status <td-id> agent verifier started now
    ```
-2. Read the task file — understand the issue, objective, and acceptance criteria
+2. Read the task (`td show <td-id>`) — understand the issue, objective, and acceptance criteria
 3. **Read the `## Evidence Expectations` section.** This is the contract from the orchestrator — it specifies exactly what evidence you must produce. Your verification plan must satisfy every expectation listed. If the section is missing or vague, treat it as a defect and report it rather than guessing.
 4. Read the git diff to understand what the implementer changed:
    ```bash
@@ -47,7 +46,7 @@ Read the output to understand: current branch, last commits, task status, which 
    git diff HEAD~1 --stat
    git diff HEAD~1
    ```
-5. Read the issue reference from the task file to understand what to test specifically
+5. Read the issue reference from the task to understand what to test specifically
 
 ### 2. Determine Scope
 
@@ -103,7 +102,7 @@ For library repos, you verify by writing and running a **scenario script** that 
 
 This is the critical step. Write a short script (10-30 lines) that exercises the **specific change** from the issue as an external consumer would use it. This catches things unit tests miss: export issues, real API behavior, integration gaps.
 
-5. **Read the issue** from the task file to understand the exact scenario.
+5. **Read the issue** from the task to understand the exact scenario.
 
 6. **Read credentials** if the scenario needs real API calls. The credentials file path is in the Task Context under **Credentials**:
 
@@ -144,13 +143,13 @@ This is the critical step. Write a short script (10-30 lines) that exercises the
 
 10. Continue to step 5 (Record).
 
-**Credential safety:** The scenario script reads credentials from env vars at runtime. **Never** write credential values into the script file, task file, or AGENT_RESULT. The script in `/tmp/` is disposable and not committed.
+**Credential safety:** The scenario script reads credentials from env vars at runtime. **Never** write credential values into the script file, the task, or AGENT_RESULT. The script in `/tmp/` is disposable and not committed.
 
 ### 3. Test the Specific Fix
 
 **This is the critical step.** You must test the exact scenario described in the issue — not just the happy path.
 
-1. Read the issue description from the task file's `## Issue Reference` or `## Objective` section
+1. Read the issue description from the task's `## Issue Reference` or `## Objective` section
 2. Identify the specific bug/feature scenario to reproduce
 3. Use the Task Context and target repo structure to find an example app, if one exists
 
@@ -274,11 +273,11 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
    ```bash
    ca mark-manual-tested
    ```
-   This checks for recent playwright screenshots and creates `.case/<task-slug>/manual-tested` with evidence. It also updates the task JSON `manualTested` field. You do NOT set `manualTested` directly.
+   This checks for recent playwright screenshots and creates `.case/<task-slug>/manual-tested` with evidence. It also updates the task's `manualTested` field. You do NOT set `manualTested` directly.
 
 ### 5. Record
 
-1. **Append to the task file's Progress Log**:
+1. **Append to the task's Progress Log**:
 
    ```markdown
    ### Verifier — <ISO timestamp>
@@ -293,15 +292,15 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
    - Evidence: .case/<task-slug>/tested (from implementer), .case/<task-slug>/manual-tested (created)
    ```
 
-2. **Update task JSON**:
+2. **Update the task**:
    ```bash
-   ca status <task.json> agent verifier status completed
-   ca status <task.json> agent verifier completed now
+   ca status <td-id> agent verifier status completed
+   ca status <td-id> agent verifier completed now
    ```
 
 ### 5b. Score Rubric
 
-After testing, re-read the `## Evidence Expectations` section from the task file. For each expectation listed, confirm your evidence satisfies it. If any expectation is unmet, your rubric verdict for `evidence-proves-change` must be `fail` — even if the generic rubric questions would pass.
+After testing, re-read the `## Evidence Expectations` section from the task. For each expectation listed, confirm your evidence satisfies it. If any expectation is unmet, your rubric verdict for `evidence-proves-change` must be `fail` — even if the generic rubric questions would pass.
 
 Score each category honestly. `fail` means the evidence doesn't support this claim. `na` means the category genuinely doesn't apply (justify why in detail).
 
@@ -337,7 +336,7 @@ If verification failed (the fix doesn't work), set `"status":"failed"` and descr
 - **Never edit source code.** You verify, not implement.
 - **Never commit.** The implementer already committed.
 - **Never create PRs.** That's the closer's job.
-- **Never set `tested` or `manualTested` directly in task JSON.** Marker commands handle this.
+- **Never set `tested` or `manualTested` directly on the task.** Marker commands handle this.
 - **Always test the specific fix scenario.** "It loads" is not verification. "The org switch works with a custom cookie name" is verification. Your before/after screenshots must show a visible difference.
 - **Always complete the login flow when testing authenticated features.** Use the credentials from Task Context and follow the login procedure in the Verification Notes (if provided) or step 3c. Never screenshot an unauthenticated landing page as "evidence" for an auth feature.
 - **Never record video of a page doing nothing.** If you use video, the recording must capture real interactions. If you're only loading a page and taking a screenshot, skip video entirely.

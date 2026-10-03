@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { decodeState, tdCurrent, tdShow } from '../state/td-client.js';
 
-export const description = 'Print session context (git branch, task file, repo info)';
+export const description = 'Print session context (git branch, current task, repo info)';
 
 async function run(cmd: string[], cwd?: string): Promise<string> {
   try {
@@ -25,25 +26,30 @@ async function runOk(cmd: string[], cwd?: string): Promise<boolean> {
 
 export async function handler(argv: string[]): Promise<number> {
   if (argv[0] === '--help' || argv[0] === '-h') {
-    process.stderr.write('Usage: ca session <repo-path> [--task <task.json>]\n');
+    process.stderr.write('Usage: ca session <repo-path> [--task <td-id>]\n');
     return 0;
   }
 
-  let repoPath = argv[0] || '.';
-  let taskJsonPath = '';
+  const repoPath = argv[0] || '.';
+  let tdId = '';
   for (let i = 1; i < argv.length; i++) {
     if (argv[i] === '--task' && argv[i + 1]) {
-      taskJsonPath = argv[i + 1]!;
+      tdId = argv[i + 1]!;
       i++;
     }
   }
-  const ctx = await gatherSessionContext(resolve(repoPath), taskJsonPath || undefined);
+  const ctx = await gatherSessionContext(resolve(repoPath), tdId || undefined);
   process.stdout.write(JSON.stringify(ctx, null, 2) + '\n');
   return 0;
 }
 
-/** Programmatic API — returns session context as a structured object. */
-export async function gatherSessionContext(repoPath: string, taskJsonPath?: string): Promise<Record<string, unknown>> {
+/**
+ * Programmatic API — returns session context as a structured object.
+ *
+ * `tdId` selects an explicit task; when omitted the repo's focused task (via
+ * `td current`) is used. Evidence markers still live under `.case/<taskId>/`.
+ */
+export async function gatherSessionContext(repoPath: string, tdId?: string): Promise<Record<string, unknown>> {
   repoPath = resolve(repoPath);
   const branch = (await run(['git', 'branch', '--show-current'], repoPath)) || 'detached';
   const onMain = branch === 'main' || branch === 'master';
@@ -54,40 +60,39 @@ export async function gatherSessionContext(repoPath: string, taskJsonPath?: stri
   const recentCommits = recentRaw.split('\n').filter(Boolean);
 
   const caseDir = resolve(repoPath, '.case');
-  const activeFile = resolve(caseDir, 'active');
+
+  // Resolve the active task from td: an explicit handle, else the focused one.
+  const activeTdId = tdId ?? (await tdCurrent(repoPath));
   let caseActive = false;
   let caseTested = false;
   let caseManualTested = false;
   let caseReviewed = false;
-  if (existsSync(activeFile)) {
-    caseActive = true;
-    const taskSlug = readFileSync(activeFile, 'utf-8').trim();
-    if (taskSlug) {
-      const slugDir = resolve(caseDir, taskSlug);
+  let task: Record<string, unknown> | null = null;
+
+  if (activeTdId) {
+    const issue = await tdShow(repoPath, activeTdId);
+    const state = issue ? decodeState(issue.description) : null;
+    if (state) {
+      caseActive = true;
+      const slugDir = resolve(caseDir, state.id);
       caseTested = existsSync(resolve(slugDir, 'tested'));
       caseManualTested = existsSync(resolve(slugDir, 'manual-tested'));
       caseReviewed = existsSync(resolve(slugDir, 'reviewed'));
+      task = {
+        id: state.id ?? null,
+        td_id: activeTdId,
+        status: state.status ?? null,
+        tested: state.tested ?? false,
+        manual_tested: state.manualTested ?? false,
+        agents: state.agents ?? {},
+      };
+    } else if (tdId) {
+      task = { error: `could not read td task: ${activeTdId}` };
     }
   }
 
   const nodeVersion = (await run(['node', '--version'])) || 'not found';
   const pnpmVersion = (await run(['pnpm', '--version'])) || 'not found';
-
-  let task: Record<string, unknown> | null = null;
-  if (taskJsonPath) {
-    try {
-      const raw = JSON.parse(readFileSync(taskJsonPath, 'utf-8'));
-      task = {
-        id: raw.id ?? null,
-        status: raw.status ?? null,
-        tested: raw.tested ?? false,
-        manual_tested: raw.manualTested ?? false,
-        agents: raw.agents ?? {},
-      };
-    } catch (e: unknown) {
-      task = { error: `could not read task file: ${(e as Error).message}` };
-    }
-  }
 
   return {
     repo: {

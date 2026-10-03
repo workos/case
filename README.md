@@ -43,10 +43,10 @@ ca --agent 1234
 
 `ca --agent` starts an interactive orchestrator session. It can inspect context, fetch issues, help shape the task, create the task file, and then run the pipeline. It should not implement directly. This is the primary interface for “humans steer.”
 
-For an existing task file:
+For an existing td task, pass its issue handle:
 
 ```bash
-ca run --task .case/tasks/active/cli-1-issue-53.task.json
+ca run --task td-a1b2c3 --repo-path ../cli/main
 ```
 
 To resume an interrupted issue run, re-run the same command:
@@ -109,15 +109,15 @@ ca --agent 1234         # steering session with issue context
 ca onboard <path>                    # add a repo to projects.json
 ca onboard <path> --interview        # add a repo with an interactive interview
 ca onboard <repo> --re-interview     # re-interview an already-onboarded repo
-ca run --task <file>    # run an existing task JSON
+ca run --task <td-id>   # run an existing td task by its issue handle
 ca watch <task-slug>    # live-tail the event log
 ```
 
 Agent-facing commands:
 
 ```bash
-ca session <repo-path> --task <task.json>
-ca status <task.json> [field value...]
+ca session <repo-path> --task <td-id>
+ca status <td-id> [field value...]
 ca mark-tested
 ca mark-manual-tested
 ca mark-reviewed --critical 0
@@ -134,8 +134,8 @@ Common flags:
 
 ```bash
 ca --model claude-opus-4-5 1234
-ca run --task <file> --mode unattended
-ca run --task <file> --dry-run
+ca run --task <td-id> --mode unattended
+ca run --task <td-id> --dry-run
 ca run --fresh 1234
 ```
 
@@ -150,18 +150,15 @@ Package-level config lives under `~/.config/case/`. Per-repo runtime state lives
   agent-versions/
 
 <target-repo>/.case/
-  active
   learnings.md
   amendments/
   run-log.jsonl
-  tasks/
-    active/
-      <task-slug>.md
-      <task-slug>.task.json
   <task-slug>/
     events/
     plan.json
     working-memory.json
+
+<target-repo>/.todos/      # td issue store (SQLite); a task is a td issue, not a .task.json file
 ```
 
 Override the config/cache directory with:
@@ -178,7 +175,7 @@ For portable binary installs, keep `projects.json` in `~/.config/case/` via `ca 
 
 ## Pipeline
 
-The runtime uses a deterministic TypeScript pipeline executor for phase transitions. The LLMs do the work inside each phase; TypeScript decides which phase runs next.
+The runtime drives phase transitions with a deterministic [LangGraph](docs/architecture/pipeline.md) `StateGraph`: the LLMs do the work inside each phase, while TypeScript — the graph routers plus the failure matrix — decides which phase runs next. Runs carrying a SQLite checkpointer resume from the last phase after a crash. Each agent spawn is provider-routed — Claude models run on the Claude Agent SDK, everything else on LangChain (override with `CASE_AGENT_RUNTIME`). See [docs/architecture/pipeline.md](docs/architecture/pipeline.md) for the full picture.
 
 Profiles:
 
@@ -241,7 +238,7 @@ Configure models in `~/.config/case/config.json`:
 {
   "$schema": "https://raw.githubusercontent.com/workos/case/main/config.schema.json",
   "models": {
-    "default": { "provider": "anthropic", "model": "claude-sonnet-4-20250514" },
+    "default": { "provider": "anthropic", "model": "claude-sonnet-4-6" },
     "reviewer": { "provider": "google", "model": "gemini-2.5-pro" },
     "verifier": null
   }
@@ -251,7 +248,7 @@ Configure models in `~/.config/case/config.json`:
 Priority:
 
 ```text
---model flag > explicit spawn options > config file > hardcoded default
+--model flag > CASE_MODEL_OVERRIDE env > per-agent config > config default > hardcoded default
 ```
 
 ## Repository Map
@@ -280,7 +277,7 @@ For case itself:
 
 ```bash
 bun run typecheck
-bun test ./src/__tests__/
+bun run test
 bun run lint
 bun run format:check
 ```

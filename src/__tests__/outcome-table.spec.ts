@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import {
@@ -206,7 +206,7 @@ describe('outcome matrix — abort-user surface', () => {
 
 describe('outcome matrix — doc/code drift detection', () => {
   test('docs/failure-matrix.md mentions every matrix key', async () => {
-    const docPath = resolve(import.meta.dir, '../../docs/failure-matrix.md');
+    const docPath = resolve(import.meta.dirname, '../../docs/failure-matrix.md');
     const md = await readFile(docPath, 'utf8');
 
     for (const key of listMatrixKeys()) {
@@ -220,7 +220,7 @@ describe('outcome matrix — doc/code drift detection', () => {
   });
 
   test('docs/failure-matrix.md points at the canonical TS module', async () => {
-    const docPath = resolve(import.meta.dir, '../../docs/failure-matrix.md');
+    const docPath = resolve(import.meta.dirname, '../../docs/failure-matrix.md');
     const md = await readFile(docPath, 'utf8');
     expect(md).toContain('src/dag/outcome-table.ts');
   });

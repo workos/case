@@ -96,15 +96,20 @@ export function resolveRepoPath(basePath: string, repoPath: string): string {
   return resolve(basePath, repoPath);
 }
 
-/** Build a complete PipelineConfig from a task file path and options. */
+/** Build a complete PipelineConfig from a td task handle and options. */
 export async function buildPipelineConfig(opts: {
-  taskJsonPath: string;
+  /** td issue handle backing the task. */
+  tdId: string;
+  /** Target repo checkout holding the task's `.todos/` store. */
+  repoPath: string;
   mode?: PipelineMode;
   dryRun?: boolean;
 }): Promise<PipelineConfig> {
-  const taskJsonPath = resolve(opts.taskJsonPath);
-  const raw = await Bun.file(taskJsonPath).text();
-  const task = JSON.parse(raw) as { repo: string; mode?: PipelineMode };
+  const { tdShow, decodeState } = await import('./state/td-client.js');
+  const issue = await tdShow(opts.repoPath, opts.tdId);
+  if (!issue) throw new Error(`td issue not found: ${opts.tdId}`);
+  const task = decodeState(issue.description);
+  if (!task) throw new Error(`td issue ${opts.tdId} has no case-state payload`);
 
   const packageRoot = resolvePackageRoot();
 
@@ -114,21 +119,18 @@ export async function buildPipelineConfig(opts: {
     throw new Error(`Repo "${task.repo}" not found in projects.json`);
   }
 
-  const repoPath = resolveRepoPath(manifest.repoBasePath, project.path);
+  const repoPath = resolve(opts.repoPath);
   // Mutable task runtime state is repo-local under `<repo>/.case/`.
   // The field is still named dataDir for API compatibility with the existing pipeline code.
   const dataDir = repoPath;
 
-  // Task .md path is same stem as .task.json but with .md extension
-  const taskMdPath = taskJsonPath.replace(/\.task\.json$/, '.md');
-
-  // Mode priority: CLI flag > task JSON field > default
+  // Mode priority: CLI flag > task field > default
   const mode = opts.mode ?? task.mode ?? 'attended';
 
   return {
     mode,
-    taskJsonPath,
-    taskMdPath,
+    taskId: task.id,
+    tdId: opts.tdId,
     repoPath,
     repoName: task.repo,
     project,
