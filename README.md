@@ -82,6 +82,8 @@ Requires [Bun](https://bun.sh) >= 1.0.
 
 ```bash
 bun install
+bun generate:assets
+ca --version
 bun link
 ca init
 ```
@@ -279,10 +281,18 @@ ca check --repo <name>
 For case itself:
 
 ```bash
+bun generate:assets
 bun run typecheck
 bun test ./src/__tests__/
 bun run lint
 bun run format:check
+```
+
+For case, AST rule checks require `ast-grep` on `$PATH`:
+
+```bash
+bun add -g @ast-grep/cli
+bun src/dev/test-ast-rules.ts
 ```
 
 For target repos:
