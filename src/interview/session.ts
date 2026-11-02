@@ -40,6 +40,7 @@ import type {
 import { basename, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
+import { createIsolatedAgentDir } from '../agent/isolated-agent-dir.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
 import { parseInterviewFindings } from './findings.js';
@@ -91,18 +92,8 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
   // for model access). PI_CODING_AGENT_DIR controls where pi reads
   // config; pointing it at a temp dir gives us a clean slate.
   const realAgentDir = getAgentDir();
-  const isolatedAgentDir = `${process.env.TMPDIR ?? '/tmp'}/case-interview-pi-${process.pid}`;
-  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
+  process.env.PI_CODING_AGENT_DIR = createIsolatedAgentDir('case-interview-pi-', realAgentDir);
   process.env.PI_SKIP_VERSION_CHECK = '1';
-
-  // Symlink auth.json so model credentials are available in isolation.
-  const { mkdirSync, symlinkSync, existsSync } = await import('node:fs');
-  mkdirSync(isolatedAgentDir, { recursive: true });
-  const realAuth = `${realAgentDir}/auth.json`;
-  const isolatedAuth = `${isolatedAgentDir}/auth.json`;
-  if (existsSync(realAuth) && !existsSync(isolatedAuth)) {
-    symlinkSync(realAuth, isolatedAuth);
-  }
 
   const agentDir = getAgentDir();
   const authStorage = AuthStorage.create();
