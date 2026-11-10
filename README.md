@@ -241,7 +241,7 @@ Configure models in `~/.config/case/config.json`:
 {
   "$schema": "https://raw.githubusercontent.com/workos/case/main/config.schema.json",
   "models": {
-    "default": { "provider": "anthropic", "model": "claude-sonnet-4-20250514" },
+    "default": { "provider": "anthropic", "model": "claude-sonnet-5-5" },
     "reviewer": { "provider": "google", "model": "gemini-2.5-pro" },
     "verifier": null
   }
