@@ -26,6 +26,7 @@
     "start": "bun src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.82",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",

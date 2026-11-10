@@ -12,3 +12,8 @@ declare module '*.yaml' {
   const content: string;
   export default content;
 }
+
+declare module '*/apply-seccomp' {
+  const path: string;
+  export default path;
+}

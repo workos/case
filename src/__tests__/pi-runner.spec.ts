@@ -41,20 +41,16 @@ describe('PiRuntimeAdapter.createTools', () => {
     expect(names.length).toBe(2);
   });
 
-  it('verifier gets read-only + bash', () => {
+  it('verifier gets read-only + bash + host-side evidence upload', () => {
     const tools = adapter.createTools('verifier', '/repos/cli');
     const names = tools.map((t: { name: string }) => t.name);
-    expect(names).toContain('read');
-    expect(names).toContain('bash');
-    expect(names.length).toBe(2);
+    expect(names).toEqual(['read', 'bash', 'upload_evidence']);
   });
 
-  it('closer gets read-only + bash', () => {
+  it('closer gets read-only + bash + host-side PR tools', () => {
     const tools = adapter.createTools('closer', '/repos/cli');
     const names = tools.map((t: { name: string }) => t.name);
-    expect(names).toContain('read');
-    expect(names).toContain('bash');
-    expect(names.length).toBe(2);
+    expect(names).toEqual(['read', 'bash', 'create_pull_request', 'comment_on_pull_request']);
   });
 
   it('interviewer gets read-only + bash', () => {

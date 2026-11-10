@@ -81,6 +81,7 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
   createWriteTool: () => ({ name: 'write' }),
   createEditTool: () => ({ name: 'edit' }),
   createBashTool: () => ({ name: 'bash' }),
+  createLocalBashOperations: () => ({ exec: async () => ({ exitCode: 0 }) }),
 }));
 
 const { startOrchestratorSession } = await import('../agent/orchestrator-session.js');

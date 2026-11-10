@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { basename, extname, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { resolveDataDir } from '../paths.js';
 
 export const description = 'Upload a screenshot or video to case-assets, print markdown reference';
@@ -99,7 +99,7 @@ export async function handler(argv: string[]): Promise<number> {
       const ffmpegCheck = Bun.spawn(['which', 'ffmpeg'], { stdout: 'ignore', stderr: 'ignore' });
       if ((await ffmpegCheck.exited) === 0) {
         const stem = basename(filePath, `.${ext}`);
-        mp4Path = `/tmp/${stem}.mp4`;
+        mp4Path = join(dirname(filePath), `${stem}.mp4`);
         process.stderr.write('Converting webm to mp4...\n');
         const convert = Bun.spawn(
           [
