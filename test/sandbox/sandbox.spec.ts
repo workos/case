@@ -1,12 +1,14 @@
 /**
  * Proves agent tools are sandboxed for real (bubblewrap on Linux, sandbox-exec on macOS):
- * credentials hidden, secrets stripped from env, writes confined to the repo and /tmp.
+ * credentials hidden, secrets stripped from env, writes confined to the repo and /tmp,
+ * and the `ca --agent` session has no bash.
  */
 import { afterAll, describe, expect, it } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SandboxManager } from '@anthropic-ai/sandbox-runtime';
+import { createAgentSession, SessionManager } from '@mariozechner/pi-coding-agent';
 
 // Outside /tmp so "write outside the repo and /tmp" is meaningful.
 const root = mkdtempSync('/var/tmp/case-sandbox-test-');
@@ -35,6 +37,7 @@ process.env.GH_TOKEN = SECRET;
 process.env.ANTHROPIC_API_KEY = SECRET;
 
 const { PiRuntimeAdapter } = await import('../../src/agent/adapters/pi-adapter.js');
+const { orchestratorTools } = await import('../../src/agent/orchestrator-session.js');
 
 type Tool = { name: string; execute: (id: string, params: object) => Promise<{ content: { text?: string }[] }> };
 const adapter = new PiRuntimeAdapter();
@@ -96,5 +99,23 @@ describe.skipIf(!supported)('agent sandbox', () => {
     expect(existsSync(join(repo, 'src/ok.ts'))).toBe(true);
     await expect(run(write, { path: join(home, 'pwned'), content: 'x' })).rejects.toThrow('Write denied');
     await expect(run(write, { path: '.git/hooks/pre-push', content: 'x' })).rejects.toThrow('Write denied');
+  });
+});
+
+describe('ca --agent', () => {
+  it('session is read-only: no bash, edit, or write', async () => {
+    const { session } = await createAgentSession({
+      cwd: repo,
+      agentDir: join(root, 'pi-agent'),
+      sessionManager: SessionManager.inMemory(repo),
+      ...orchestratorTools('/case', repo),
+    });
+    expect(session.getActiveToolNames().sort()).toEqual([
+      'create_task',
+      'fetch_issue',
+      'read',
+      'run_baseline',
+      'run_pipeline',
+    ]);
   });
 });

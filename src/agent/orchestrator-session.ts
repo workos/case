@@ -21,6 +21,7 @@ import { createPipelineTool } from './tools/pipeline-tool.js';
 import { createIssueTool } from './tools/issue-tool.js';
 import { createTaskTool } from './tools/task-tool.js';
 import { createBaselineTool } from './tools/baseline-tool.js';
+import { createGuardedReadTool } from './sandbox.js';
 import { isEmbeddedPackageRoot } from '../paths.js';
 
 export interface OrchestratorSessionOptions {
@@ -91,12 +92,7 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
       model: model ?? undefined,
       resourceLoader: rl,
       sessionManager: factoryOpts.sessionManager,
-      customTools: [
-        createPipelineTool(caseRoot),
-        createIssueTool(caseRoot),
-        createTaskTool(caseRoot),
-        createBaselineTool(caseRoot),
-      ] as unknown as ToolDefinition[],
+      ...orchestratorTools(caseRoot, factoryOpts.cwd),
     });
 
     return {
@@ -123,6 +119,18 @@ export async function startOrchestratorSession(options: OrchestratorSessionOptio
     initialMessage: contextBriefing,
   });
   await interactive.run();
+}
+
+/** `ca --agent` is read-only: guarded read plus the fixed pipeline tools. `tools` stops Pi adding bash/edit/write. */
+export function orchestratorTools(caseRoot: string, cwd: string) {
+  const customTools = [
+    createGuardedReadTool(cwd),
+    createPipelineTool(caseRoot),
+    createIssueTool(caseRoot),
+    createTaskTool(caseRoot),
+    createBaselineTool(caseRoot),
+  ] as unknown as ToolDefinition[];
+  return { customTools, tools: customTools.map((tool) => tool.name) };
 }
 
 async function gatherContext(options: OrchestratorSessionOptions): Promise<string> {
@@ -293,7 +301,7 @@ function buildOrchestratorSystemPrompt(caseRoot: string): string {
 
 If you catch yourself about to edit a source file or run a command that changes repo state — stop. That work belongs to the implementer agent, not you.
 
-**Reading and exploring is always fine.** Read files, run \`git log\`, check configs, run \`--help\` commands — anything read-only to understand the problem.
+**Reading and exploring is always fine.** Use the \`read\` tool to inspect files and configs. You have no shell; anything that needs a command belongs to the pipeline.
 
 ## Tools
 
