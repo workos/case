@@ -240,7 +240,8 @@ async function ensureBranch(branchName: string, repoPath: string, warnOnCreate =
   const check = await runCommand('git', ['rev-parse', '--verify', branchName], { cwd: repoPath });
 
   if (check.exitCode === 0) {
-    const co = await runCommand('git', ['checkout', branchName], { cwd: repoPath });
+    // Agent-written hooks (e.g. husky's .husky/) must not run host-side.
+    const co = await runCommand('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', branchName], { cwd: repoPath });
     if (co.exitCode !== 0) {
       throw new Error(`Failed to checkout branch ${branchName}: ${co.stderr.trim()}`);
     }
@@ -248,7 +249,9 @@ async function ensureBranch(branchName: string, repoPath: string, warnOnCreate =
     if (warnOnCreate) {
       process.stdout.write(`  Warning: branch ${branchName} not found, recreating from HEAD\n`);
     }
-    const create = await runCommand('git', ['checkout', '-b', branchName], { cwd: repoPath });
+    const create = await runCommand('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '-b', branchName], {
+      cwd: repoPath,
+    });
     if (create.exitCode !== 0) {
       throw new Error(`Failed to create branch ${branchName}: ${create.stderr.trim()}`);
     }

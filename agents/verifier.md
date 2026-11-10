@@ -250,23 +250,11 @@ Most AuthKit example apps redirect to the WorkOS hosted login page. Follow this 
 
 **Screenshots are the primary evidence.** They render inline on GitHub and are instantly reviewable. Video is optional supplementary evidence for complex multi-step flows.
 
-1. **Upload before/after screenshots** for PR inclusion:
-
-   ```bash
-   BEFORE=$(ca upload .playwright-cli/before.png)
-   echo "$BEFORE"
-   AFTER=$(ca upload .playwright-cli/after.png)
-   echo "$AFTER"
-   ```
+1. **Upload before/after screenshots** for PR inclusion by calling the `upload_evidence` tool once per file (e.g. `path: ".playwright-cli/before.png"`, then `".playwright-cli/after.png"`). It returns the markdown reference. Your bash is sandboxed without GitHub credentials, so `ca upload` does not work from bash.
 
    Upload ALL screenshots you took during testing (before, intermediate steps, after). Each screenshot should show a distinct state — if two screenshots look identical, one is redundant.
 
-2. **(Optional) Upload video** if you recorded one for a complex flow:
-
-   ```bash
-   VIDEO=$(ca upload /tmp/verification.webm)
-   echo "$VIDEO"
-   ```
+2. **(Optional) Upload video** if you recorded one for a complex flow: call `upload_evidence` with `path: "/tmp/verification.webm"`.
 
    Only record video when the flow involves multiple interactions that screenshots can't fully capture (e.g., drag-and-drop, animations, real-time updates). Do NOT record video of a static page load.
 

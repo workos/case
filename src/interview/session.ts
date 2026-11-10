@@ -23,8 +23,6 @@ import {
   AuthStorage,
   createAgentSession,
   createAgentSessionRuntime,
-  createBashTool,
-  createReadTool,
   DefaultResourceLoader,
   getAgentDir,
   InteractiveMode,
@@ -42,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { getModelForAgent } from '../agent/config.js';
 import { createIsolatedAgentDir } from '../agent/isolated-agent-dir.js';
 import { loadSystemPrompt } from '../agent/prompt-loader.js';
+import { createGuardedReadTool, createSandboxedBashTool } from '../agent/sandbox.js';
 import { parseAgentResult } from '../util/parse-agent-result.js';
 import { parseInterviewFindings } from './findings.js';
 import type { InterviewFindings, ProjectEntry } from '../types.js';
@@ -142,7 +141,12 @@ export async function startInterviewSession(options: InterviewSessionOptions): P
       model: model ?? undefined,
       resourceLoader: rl,
       sessionManager: factoryOpts.sessionManager,
-      customTools: [createReadTool(factoryOpts.cwd), createBashTool(factoryOpts.cwd)] as unknown as ToolDefinition[],
+      customTools: [
+        createGuardedReadTool(factoryOpts.cwd),
+        createSandboxedBashTool(factoryOpts.cwd),
+      ] as unknown as ToolDefinition[],
+      // Without an allowlist Pi also activates its built-in edit/write tools.
+      tools: ['read', 'bash', 'ask_user_question'],
     });
 
     return {
