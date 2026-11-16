@@ -1,5 +1,8 @@
 # Case
 
+>[!WARNING]
+>This repository is Archived and no longer in active development.
+
 <img width="500" height="500" alt="Case" src="docs/case-logo.svg" />
 
 Case is the reliability layer for agent-authored pull requests.
