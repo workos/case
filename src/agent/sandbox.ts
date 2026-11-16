@@ -24,6 +24,7 @@ import { access, mkdir, open, readFile, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { resolveDataDir } from '../paths.js';
+import { realAgentDirs } from './isolated-agent-dir.js';
 
 // ponytail: guessed egress allowlist (npm installs, WorkOS API, AuthKit hosted login). Widen here if a repo's verification needs more.
 const ALLOWED_DOMAINS = ['registry.npmjs.org', 'api.workos.com', '*.authkit.app'];
@@ -36,7 +37,7 @@ function hiddenPaths(): string[] {
   // Bun's homedir() ignores $HOME, which is what `~` means to the sandboxed shell; cover both.
   const homes = [...new Set([process.env.HOME, homedir()].filter((home): home is string => !!home))];
   const configHome = process.env.XDG_CONFIG_HOME;
-  return homes.flatMap((home) => [
+  const homePaths = homes.flatMap((home) => [
     ...[
       '.ssh',
       '.gnupg',
@@ -63,6 +64,9 @@ function hiddenPaths(): string[] {
     ].map((p) => join(home, p)),
     ...['gh', 'git', 'gcloud'].map((p) => join(configHome || join(home, '.config'), p)),
   ]);
+  // Pi config can live outside ~/.pi via PI_CODING_AGENT_DIR, and isolated sessions link the real dir's auth.json.
+  const piDirs = [process.env.PI_CODING_AGENT_DIR, ...realAgentDirs].filter((dir): dir is string => !!dir);
+  return [...homePaths, ...piDirs];
 }
 
 const writeRoots = (cwd: string) => [cwd, '/tmp', tmpdir()];
