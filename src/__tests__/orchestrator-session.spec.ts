@@ -16,7 +16,7 @@ const mockResourceLoaderReload = mock();
 
 // Mock config module to avoid filesystem reads
 mock.module('../agent/config.js', () => ({
-  getModelForAgent: async () => ({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }),
+  getModelForAgent: async () => ({ provider: 'anthropic', model: 'claude-sonnet-5-5' }),
   loadConfig: async () => ({}),
 }));
 

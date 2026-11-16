@@ -312,7 +312,7 @@ export interface SpawnAgentOptions {
   timeout?: number;
   /** Model provider (default: "anthropic") */
   provider?: string;
-  /** Model ID (default: "claude-sonnet-4-20250514") */
+  /** Model ID (default: "claude-sonnet-5-5") */
   model?: string;
   /** Called periodically with elapsed ms while the agent is running. */
   onHeartbeat?: (elapsedMs: number) => void;

@@ -25,7 +25,7 @@
       "type": "object",
       "properties": {
         "provider": { "type": "string", "description": "Model provider (e.g., anthropic, google, openai)" },
-        "model": { "type": "string", "description": "Model ID (e.g., claude-sonnet-4-20250514, gemini-2.5-pro)" }
+        "model": { "type": "string", "description": "Model ID (e.g., claude-sonnet-5-5, gemini-2.5-pro)" }
       },
       "required": ["provider", "model"],
       "additionalProperties": false
