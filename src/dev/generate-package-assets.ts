@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { extname, relative, resolve } from 'node:path';
 
@@ -12,12 +13,55 @@ export async function generatePackageAssets(root = resolve(import.meta.dir, '..'
   return outPath;
 }
 
+/**
+ * List the asset files a fresh checkout of `root` would have: tracked files plus
+ * untracked files git doesn't ignore (so a new doc shows up before `git add`).
+ * Gitignored local files (agent-version snapshots, ideation drafts, ...) are
+ * left out, since embedding them breaks the import in any other checkout.
+ *
+ * If `root` isn't a git checkout (or git isn't available), falls back to
+ * walking the asset directories on disk and warns on stderr.
+ */
 async function listPackageAssets(root: string): Promise<string[]> {
-  const assets: string[] = [];
-  for (const dir of ASSET_DIRS) {
-    await walk(resolve(root, dir), root, assets);
+  const gitFiles = listGitVisibleFiles(root);
+  if (gitFiles === null) {
+    process.stderr.write(
+      `[generate-package-assets] ${root} is not a git checkout (or git is unavailable); embedding every asset file on disk\n`,
+    );
+    const assets: string[] = [];
+    for (const dir of ASSET_DIRS) {
+      await walk(resolve(root, dir), root, assets);
+    }
+    return assets.sort();
   }
-  return assets.sort();
+
+  return gitFiles
+    .filter((path) => TEXT_EXTENSIONS.has(extname(path)))
+    .filter((path) => isFile(resolve(root, path)))
+    .sort();
+}
+
+function listGitVisibleFiles(root: string): string[] | null {
+  let proc;
+  try {
+    proc = Bun.spawnSync(
+      ['git', '-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...ASSET_DIRS],
+      { stdout: 'pipe', stderr: 'pipe' },
+    );
+  } catch {
+    return null;
+  }
+  if (proc.exitCode !== 0) return null;
+  return proc.stdout.toString().split('\0').filter(Boolean);
+}
+
+// Tracked files deleted from the working tree are still listed by `--cached`.
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
 }
 
 async function walk(dir: string, root: string, assets: string[]): Promise<void> {
