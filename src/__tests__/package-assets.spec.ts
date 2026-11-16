@@ -58,12 +58,15 @@ describe('package assets in a fresh checkout', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('embeds only files git tracks in this repository', () => {
-    const tracked = new Set(git(REPO_ROOT, 'ls-files', '-z').split('\0').filter(Boolean));
+  it('embeds only files git can see in this repository (tracked, or untracked and not ignored)', () => {
+    // Same view as the generator. In a fresh checkout this is just the tracked files.
+    const visible = new Set(
+      git(REPO_ROOT, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split('\0').filter(Boolean),
+    );
     const keys = Object.keys(embeddedPackageAssets);
 
     expect(keys.length).toBeGreaterThan(0);
-    expect(keys.filter((key) => !tracked.has(key))).toEqual([]);
+    expect(keys.filter((key) => !visible.has(key))).toEqual([]);
   });
 
   it('generator leaves out gitignored files and keeps tracked ones', async () => {
@@ -78,5 +81,15 @@ describe('package assets in a fresh checkout', () => {
 
     expect(manifest).toContain("'docs/tracked.md': asset0,");
     expect(manifest).not.toContain('docs/local/ignored.md');
+  });
+
+  it('generator keeps untracked files that git does not ignore', async () => {
+    git(tempDir, 'init', '-q');
+    await Bun.write(join(tempDir, 'docs/new.md'), '# new\n');
+
+    const outPath = await generatePackageAssets(tempDir);
+    const manifest = await readFile(outPath, 'utf-8');
+
+    expect(manifest).toContain("'docs/new.md': asset0,");
   });
 });
