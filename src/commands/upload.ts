@@ -1,6 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { resolveDataDir } from '../paths.js';
 
 export const description = 'Upload a screenshot or video to case-assets, print markdown reference';
@@ -101,8 +100,9 @@ export async function handler(argv: string[]): Promise<number> {
       const ffmpegCheck = Bun.spawn(['which', 'ffmpeg'], { stdout: 'ignore', stderr: 'ignore' });
       if ((await ffmpegCheck.exited) === 0) {
         const stem = basename(filePath, `.${ext}`);
-        // Fresh private dir: never clobbers a user's existing .mp4, and nobody else can pre-create the output.
-        convertDir = mkdtempSync(join(tmpdir(), 'case-upload-'));
+        // Fresh dir beside the input: never clobbers an existing .mp4, and stays outside the sandbox's
+        // writable tmpdir (upload_evidence stages its copy in the data dir), so agents can't swap the output.
+        convertDir = mkdtempSync(join(dirname(filePath), '.case-convert-'));
         mp4Path = join(convertDir, `${stem}.mp4`);
         process.stderr.write('Converting webm to mp4...\n');
         const convert = Bun.spawn(
