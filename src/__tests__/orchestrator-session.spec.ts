@@ -81,6 +81,7 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
   createWriteTool: () => ({ name: 'write' }),
   createEditTool: () => ({ name: 'edit' }),
   createBashTool: () => ({ name: 'bash' }),
+  createLocalBashOperations: () => ({ exec: async () => ({ exitCode: 0 }) }),
 }));
 
 const { startOrchestratorSession } = await import('../agent/orchestrator-session.js');
@@ -132,18 +133,14 @@ describe('startOrchestratorSession', () => {
     mockFindTaskByMarker.mockResolvedValue(null);
   });
 
-  it('creates session with four custom tools', async () => {
+  it('creates a read-only session: read plus the four case tools, no bash/edit/write', async () => {
     await startOrchestratorSession({ caseRoot: '/case', mode: 'attended' });
 
     expect(mockCreateAgentSession).toHaveBeenCalledTimes(1);
     const opts = mockCreateAgentSession.mock.calls[0][0];
-    expect(opts.customTools).toHaveLength(4);
-
     const toolNames = opts.customTools.map((t: { name: string }) => t.name);
-    expect(toolNames).toContain('run_pipeline');
-    expect(toolNames).toContain('fetch_issue');
-    expect(toolNames).toContain('create_task');
-    expect(toolNames).toContain('run_baseline');
+    expect(toolNames).toEqual(['read', 'run_pipeline', 'fetch_issue', 'create_task', 'run_baseline']);
+    expect(opts.tools).toEqual(toolNames);
   });
 
   it('detects repo and includes it in initial message', async () => {

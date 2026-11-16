@@ -1,13 +1,14 @@
 import { Agent } from '@mariozechner/pi-agent-core';
+import type { AgentTool } from '@mariozechner/pi-agent-core';
 import { streamSimple } from '@mariozechner/pi-ai';
+import { AuthStorage, ModelRegistry } from '@mariozechner/pi-coding-agent';
 import {
-  AuthStorage,
-  ModelRegistry,
-  createReadTool,
-  createWriteTool,
-  createEditTool,
-  createBashTool,
-} from '@mariozechner/pi-coding-agent';
+  createGuardedEditTool,
+  createGuardedReadTool,
+  createGuardedWriteTool,
+  createSandboxedBashTool,
+} from '../sandbox.js';
+import { createPrCommentTool, createPullRequestTool, createUploadEvidenceTool } from '../tools/privileged-tools.js';
 import { loadSystemPrompt } from '../prompt-loader.js';
 import { getModelForAgent } from '../config.js';
 import { parseAgentResult } from '../../util/parse-agent-result.js';
@@ -189,28 +190,39 @@ export class PiRuntimeAdapter implements CaseAgentRuntime {
     return this.createPiTools(agentName, cwd);
   }
 
-  private createPiTools(agentName: string, cwd: string) {
+  // Bash runs sandboxed without credentials, so credentialed steps (push + PR, PR comment, evidence
+  // upload) must stay fixed host-side tools.
+  private createPiTools(agentName: string, cwd: string): AgentTool[] {
+    const read = createGuardedReadTool(cwd);
+    const bash = createSandboxedBashTool(cwd);
     switch (agentName) {
       case 'implementer':
       case 'retrospective':
-        return [createReadTool(cwd), createWriteTool(cwd), createEditTool(cwd), createBashTool(cwd)];
+        return [read, createGuardedWriteTool(cwd), createGuardedEditTool(cwd), bash];
       case 'scout':
         // Read-only exploration: Read + Bash only. Glob/Grep are exposed via
         // the Bash tool in the pi-coding-agent suite (the agent runs `rg`,
         // `find`, etc.). Crucially: no Write, no Edit — the scout must not
         // mutate the working tree.
-        return [createReadTool(cwd), createBashTool(cwd)];
+        return [read, bash];
       case 'interviewer':
         // Same read-only constraint as scout: Read + Bash. The interviewer
         // explores the target repo before `ca onboard --interview` persists
         // results; it must never mutate the working tree. Human Q&A flows
         // through the conversation channel, not a tool.
-        return [createReadTool(cwd), createBashTool(cwd)];
+        return [read, bash];
       case 'verifier':
-      case 'reviewer':
+        return [read, bash, createUploadEvidenceTool(cwd) as unknown as AgentTool];
       case 'closer':
+        return [
+          read,
+          bash,
+          createPullRequestTool(cwd) as unknown as AgentTool,
+          createPrCommentTool(cwd) as unknown as AgentTool,
+        ];
+      case 'reviewer':
       default:
-        return [createReadTool(cwd), createBashTool(cwd)];
+        return [read, bash];
     }
   }
 

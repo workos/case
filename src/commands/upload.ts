@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { basename, extname, resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { resolveDataDir } from '../paths.js';
 
 export const description = 'Upload a screenshot or video to case-assets, print markdown reference';
@@ -95,11 +95,15 @@ export async function handler(argv: string[]): Promise<number> {
     process.stdout.write(`![${filename}](${url})\n`);
   } else if (['mp4', 'mov', 'webm'].includes(ext)) {
     let mp4Path = filePath;
+    let convertDir: string | undefined;
     if (ext === 'webm') {
       const ffmpegCheck = Bun.spawn(['which', 'ffmpeg'], { stdout: 'ignore', stderr: 'ignore' });
       if ((await ffmpegCheck.exited) === 0) {
         const stem = basename(filePath, `.${ext}`);
-        mp4Path = `/tmp/${stem}.mp4`;
+        // Fresh dir beside the input: never clobbers an existing .mp4, and stays outside the sandbox's
+        // writable tmpdir (upload_evidence stages its copy in the data dir), so agents can't swap the output.
+        convertDir = mkdtempSync(join(dirname(filePath), '.case-convert-'));
+        mp4Path = join(convertDir, `${stem}.mp4`);
         process.stderr.write('Converting webm to mp4...\n');
         const convert = Bun.spawn(
           [
@@ -121,7 +125,12 @@ export async function handler(argv: string[]): Promise<number> {
       }
     }
     process.stderr.write('Uploading video...\n');
-    const url = await uploadAsset(mp4Path, repo);
+    let url: string | null;
+    try {
+      url = await uploadAsset(mp4Path, repo);
+    } finally {
+      if (convertDir) rmSync(convertDir, { recursive: true, force: true });
+    }
     if (!url) {
       process.stderr.write('Failed to get download URL\n');
       return 1;

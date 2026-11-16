@@ -41,6 +41,7 @@ mock.module('@mariozechner/pi-coding-agent', () => ({
   createWriteTool: mock(() => ({ name: 'write', label: 'Write' })),
   createEditTool: mock(() => ({ name: 'edit', label: 'Edit' })),
   createBashTool: mock(() => ({ name: 'bash', label: 'Bash' })),
+  createLocalBashOperations: mock(() => ({ exec: async () => ({ exitCode: 0 }) })),
   AuthStorage: { create: () => ({}) },
   ModelRegistry: {
     create: () => ({

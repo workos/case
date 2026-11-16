@@ -1,0 +1,2 @@
+[test]
+# Own process and no preload: these tests need the real Pi SDK and sandbox runtime, unmocked.
